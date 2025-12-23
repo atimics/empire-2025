@@ -1,13 +1,13 @@
 (ns empire.map
-  (:require [quil.core :as q]
-            [empire.atoms :as atoms]))
+  (:require [empire.atoms :as atoms]
+            [quil.core :as q]))
 
 (defn process-map
   "Processes the map by applying f to each cell, where f takes i j and the-map."
   [the-map f]
   (vec (for [i (range (count the-map))]
          (vec (for [j (range (count (first the-map)))]
-               (f i j the-map))))))
+                (f i j the-map))))))
 
 (defn filter-map
   "Scans the map and returns positions [i j] where the predicate is true."
@@ -52,10 +52,10 @@
             j (range width)]
       (let [[terrain-type contents] (get-in the-map [i j])
             color (cond
-                    (= contents :player-city) [0 255 0]         ; green for player's city
-                    (= contents :computer-city) [255 0 0]        ; red for computer's city
+                    (= contents :player-city) [0 255 0]     ; green for player's city
+                    (= contents :computer-city) [255 0 0]   ; red for computer's city
                     (= contents :free-city) [255 255 255]   ; white for free cities
-                    (= terrain-type :unexplored) [0 0 0]     ; black for unexplored
+                    (= terrain-type :unexplored) [0 0 0]    ; black for unexplored
                     (= terrain-type :land) [139 69 19]      ; brown for land
                     (= terrain-type :sea) [25 25 112])]     ; midnight blue for water
         (apply q/fill color)
@@ -97,7 +97,7 @@
           menu-width 150
           menu-height (* (count items) 20)]
       (when-not (and (>= x menu-x) (< x (+ menu-x menu-width))
-                      (>= y menu-y) (< y (+ menu-y menu-height)))
+                     (>= y menu-y) (< y (+ menu-y menu-height)))
         (swap! atoms/menu-state assoc :visible false)))))
 
 (defn on-coast?
@@ -154,6 +154,12 @@
       :player-city (handle-city-click cell-x cell-y)
       nil)))
 
+(defn item-clicked
+  "Handles clicking on a menu item."
+  [item cell-x cell-y]
+  (reset! atoms/last-clicked-item item)
+  (println "Clicked on item:" item "at cell" cell-x "," cell-y ", " (get-in @game-map [cell-y cell-x])))
+
 (defn determine-cell-coordinates
   "Converts mouse coordinates to map cell coordinates."
   [x y]
@@ -168,6 +174,23 @@
   "Handles mouse click events."
   [x y]
   (dismiss-existing-menu x y)
+  ;; Check if clicking on menu item
+  (when (:visible @atoms/menu-state)
+    (let [menu @atoms/menu-state
+          menu-x (:x menu)
+          menu-y (:y menu)
+          items (:items menu)
+          item-height 20
+          clicked-item-idx (when (and (>= x menu-x) (< x (+ menu-x 150)))
+                             (first (filter #(let [item-y (+ menu-y 35 (* % item-height))]
+                                               (and (>= y item-y) (< y (+ item-y item-height))))
+                                            (range (count items)))))]
+      (when clicked-item-idx
+        (let [item (nth items clicked-item-idx)
+              [cell-x cell-y] @atoms/last-clicked-cell]
+          (item-clicked item cell-x cell-y))
+        (swap! atoms/menu-state assoc :visible false))))
+
   ;; Determine which map cell was clicked
   (let [[cell-x cell-y] (determine-cell-coordinates x y)]
     (reset! atoms/last-clicked-cell [cell-x cell-y])

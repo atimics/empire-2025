@@ -16,4 +16,6 @@
 
 (def last-clicked-cell (atom nil))
 
+(def last-clicked-item (atom nil))
+
 (def menu-state (atom {:visible false :x 0 :y 0 :items []}))

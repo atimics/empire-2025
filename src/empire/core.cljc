@@ -6,6 +6,8 @@
             [quil.core :as q]
             [quil.middleware :as m]))
 
+
+
 (defn draw-menu
   "Draws the menu if it's visible."
   []
@@ -47,7 +49,7 @@
         screen-w (q/width)
         screen-h (q/height)
         cols (quot screen-w char-width)
-        text-rows 3
+        text-rows 4
         text-gap 5
         text-h (* text-rows char-height)
         rows (quot (+ (- screen-h text-h) text-gap) char-height)
@@ -94,7 +96,9 @@
         (when @atoms/last-clicked-cell
           (let [[cx cy] @atoms/last-clicked-cell
                 [terrain-type contents] (get-in @map/game-map [cy cx])]
-            (q/text (str "Last clicked: " cx ", " cy " - " terrain-type " " contents) (+ text-x 10) (+ text-y 30))))
+            (q/text (str "Last clicked cell: " cx ", " cy " - " terrain-type " " contents) (+ text-x 10) (+ text-y 30))))
+        (when @atoms/last-clicked-item
+          (q/text (str "Last clicked item: " @atoms/last-clicked-item) (+ text-x 10) (+ text-y 50)))
         (q/text (str "Round: " @atoms/round-number) (- (+ text-x text-w) 100) (+ text-y 10))))))
 
 (defn key-down [k]

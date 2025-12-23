@@ -16,3 +16,7 @@
         :when (pred current)]
     [i j]))
 
+(def game-map
+  "A 2D atom containing vectors representing the game map."
+  (atom nil))
+

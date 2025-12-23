@@ -1,13 +1,15 @@
 (ns empire.core
   (:require [empire.config :as config]
             [empire.init :as init]
+            [empire.map :as map]
             [quil.core :as q]
             [quil.middleware :as m]))
 
 (defn setup
   "Initial setup for the game state."
   []
-  (init/make-initial-map config/map-size config/smooth-count config/land-fraction config/number-of-cities config/min-city-distance))
+  (init/make-initial-map config/map-size config/smooth-count config/land-fraction config/number-of-cities config/min-city-distance)
+  {})
 
 (defn update-state
   "Update the game state."
@@ -16,11 +18,11 @@
 
 (defn draw-state
   "Draw the current game state."
-  [state]
+  [_state]
   (q/background 0)
   (let [screen-w (q/width)
         screen-h (q/height)
-        the-map state
+        the-map @map/game-map
         height (count the-map)
         width (count (first the-map))
         cell-w (/ screen-w width)

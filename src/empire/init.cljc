@@ -103,4 +103,4 @@
         map-with-cities (generate-cities finalized-map number-of-cities min-city-distance)
         map-with-my-city (occupy-random-free-city map-with-cities :my-city)
         map-with-his-city (occupy-random-free-city map-with-my-city :his-city)]
-    map-with-his-city))
+    (reset! map/game-map map-with-his-city)))

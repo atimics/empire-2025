@@ -1,6 +1,7 @@
 (ns empire.map
   (:require [empire.atoms :as atoms]
-            [quil.core :as q]))
+            [quil.core :as q]
+            [empire.menus :as menus]))
 
 (defn process-map
   "Processes the map by applying f to each cell, where f takes i j and the-map."
@@ -154,12 +155,6 @@
       :player-city (handle-city-click cell-x cell-y)
       nil)))
 
-(defn item-clicked
-  "Handles clicking on a menu item."
-  [item cell-x cell-y]
-  (reset! atoms/last-clicked-item item)
-  (println "Clicked on item:" item "at cell" cell-x "," cell-y ", " (get-in @game-map [cell-y cell-x])))
-
 (defn determine-cell-coordinates
   "Converts mouse coordinates to map cell coordinates."
   [x y]
@@ -170,31 +165,11 @@
         cell-h (/ map-h height)]
     [(int (Math/floor (/ x cell-w))) (int (Math/floor (/ y cell-h)))]))
 
-(defn handle-menu-click
-  "Handles clicking on menu items. Returns true if a menu item was clicked."
-  [x y]
-  (when (:visible @atoms/menu-state)
-    (let [menu @atoms/menu-state
-          menu-x (:x menu)
-          menu-y (:y menu)
-          items (:items menu)
-          item-height 20
-          clicked-item-idx (when (and (>= x menu-x) (< x (+ menu-x 150)))
-                             (first (filter #(let [item-y (+ menu-y 45 (* % item-height))]
-                                               (and (>= y (- item-y 11)) (< y (+ item-y 3))))
-                                            (range (count items)))))]
-      (when clicked-item-idx
-        (let [item (nth items clicked-item-idx)
-              [cell-x cell-y] @atoms/last-clicked-cell]
-          (item-clicked item cell-x cell-y))
-        (swap! atoms/menu-state assoc :visible false)
-        true))))
-
 (defn mouse-down
   "Handles mouse click events."
   [x y]
-  (dismiss-existing-menu x y)
-  (when-not (handle-menu-click x y)
+  (menus/dismiss-existing-menu x y)
+  (when-not (menus/handle-menu-click x y)
     ;; Determine which map cell was clicked (only if no menu item was clicked)
     (let [[cell-x cell-y] (determine-cell-coordinates x y)]
       (reset! atoms/last-clicked-cell [cell-x cell-y])

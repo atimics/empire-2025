@@ -3,42 +3,11 @@
             [empire.config :as config]
             [empire.init :as init]
             [empire.map :as map]
+            [empire.menus :as menus]
             [quil.core :as q]
             [quil.middleware :as m]))
 
 
-
-(defn draw-menu
-  "Draws the menu if it's visible."
-  []
-  (when (:visible @atoms/menu-state)
-    (let [{:keys [x y header items]} @atoms/menu-state
-          item-height 20
-          menu-width 150
-          menu-height (+ 45 (* (count items) item-height))  ;; Extra space for header
-          mouse-x (q/mouse-x)
-          mouse-y (q/mouse-y)
-          highlighted-idx (when (and (>= mouse-x x) (< mouse-x (+ x menu-width)))
-                            (first (filter #(let [item-y (+ y 45 (* % item-height))]
-                                              (and (>= mouse-y (- item-y 11)) (< mouse-y (+ item-y 3))))
-                                           (range (count items)))))]
-      (q/fill 200 200 200 200)
-      (q/rect x y menu-width menu-height)
-      ;; Header
-      (q/fill 0)
-      (q/text-font (q/create-font "CourierNewPS-BoldMT" 16 true)) ;; Bold
-      (q/text header (+ x 10) (+ y 20))
-      ;; Line
-      (q/stroke 0)
-      (q/line (+ x 5) (+ y 25) (- (+ x menu-width) 5) (+ y 25))
-      ;; Items
-      (q/text-font (q/create-font "Courier New" 14))
-      (doseq [[idx item] (map-indexed vector items)]
-        (if (= idx highlighted-idx)
-          ;; Highlighted item
-          (q/fill 255)
-          (q/fill 0))
-        (q/text item (+ x 10) (+ y 45 (* idx item-height)))))))
 
 (defn calculate-screen-dimensions
   "Calculates map size and display dimensions based on screen and sets config values."
@@ -86,7 +55,7 @@
                     :computer-map @map/computer-map
                     :actual-map @map/game-map)]
       (map/draw-map the-map)
-      (draw-menu)
+      (menus/draw-menu)
       (let [end-time (System/currentTimeMillis)
             draw-time (- end-time start-time)
             [text-x text-y text-w _] @atoms/text-area-dimensions]

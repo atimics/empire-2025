@@ -1,6 +1,6 @@
 (ns empire.config)
 
-(def map-size (atom [100 100]))
+(def map-size (atom [0 0]))
 
 (def smooth-count 10)
 

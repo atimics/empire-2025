@@ -1,22 +1,23 @@
 (ns empire.init
   (:require [empire.map :as map]))
 
+(defn smooth-cell
+  "Calculates the smoothed value for a cell at position i j."
+  [i j _current the-map]
+  (let [height (count the-map)
+        width (count (first the-map))
+        neighbors (for [di [-1 0 1]
+                        dj [-1 0 1]]
+                    (let [ni (max 0 (min (dec height) (+ i di)))
+                          nj (max 0 (min (dec width) (+ j dj)))]
+                      (get-in the-map [ni nj])))]
+    (Math/round (double (/ (apply + neighbors) 9.0)))))
 
 (defn smooth-map
   "Takes a map and returns a smoothed version where each cell is the rounded average
    of itself and its 8 surrounding cells. Edge cells use their own value for missing neighbors."
   [input-map]
-  (let [height (count input-map)
-        width (count (first input-map))]
-    (vec (for [i (range height)]
-           (vec (for [j (range width)]
-                  (let [neighbors (for [di [-1 0 1]
-                                        dj [-1 0 1]]
-                                    (let [c (get-in input-map [i j])
-                                          ni (+ i di)
-                                          nj (+ j dj)]
-                                      (get-in input-map [ni nj] c)))]
-                    (quot (apply + neighbors) 9))))))))
+  (map/process-map input-map smooth-cell))
 
 (defn make-map
   "Creates and initializes the game map with random integers, then applies smoothing."
@@ -28,16 +29,14 @@
                        (if (zero? cnt)
                          m
                          (recur (smooth-map m) (dec cnt))))]
-    (reset! map/game-map smoothed-map)
     smoothed-map))
 
 (defn finalize-map
   "Converts a height map to a terrain map with land/sea types."
   [the-map sea-level]
-  (vec (for [row the-map]
-         (vec (for [height row]
-                (let [terrain-type (if (> height sea-level) :land :sea)]
-                  [terrain-type :empty]))))))
+  (map/process-map the-map (fn [_i _j height _]
+                               (let [terrain-type (if (> height sea-level) :land :sea)]
+                                 [terrain-type :empty]))))
 
 (defn find-sea-level
   "Finds the sea-level threshold for a given land fraction."
@@ -51,13 +50,21 @@
     sea-level))
 
 
+(defn occupy-random-free-city
+  "Occupies a random free city with the given city type (:my-city or :his-city)."
+  [the-map city-type]
+  (let [free-city-positions (map/scan-map the-map (fn [i j] (= :free-city (second (get-in the-map [i j])))))
+        num-free (count free-city-positions)]
+    (if (> num-free 0)
+      (let [idx (rand-int num-free)
+            [i j] (nth free-city-positions idx)]
+        (assoc-in the-map [i j] [:land city-type]))
+      the-map)))
+
 (defn generate-cities
   "Places free cities on land cells with minimum distance constraints."
   [the-map number-of-cities min-city-distance]
-  (let [land-positions (for [i (range (count the-map))
-                             j (range (count (first the-map)))
-                             :when (= :land (first (get-in the-map [i j])))]
-                         [i j])
+  (let [land-positions (map/scan-map the-map (fn [i j] (= :land (first (get-in the-map [i j])))))
         land-positions-vec (vec land-positions)
         num-land (count land-positions-vec)]
     (loop [placed-cities []
@@ -85,21 +92,6 @@
           (if too-close?
             (recur placed-cities (inc attempts))
             (recur (conj placed-cities [i j]) 0)))))))
-
-
-(defn occupy-random-free-city
-  "Occupies a random free city with the given city type (:my-city or :his-city)."
-  [the-map city-type]
-  (let [free-city-positions (for [i (range (count the-map))
-                                 j (range (count (first the-map)))
-                                 :when (= :free-city (second (get-in the-map [i j])))]
-                             [i j])
-        num-free (count free-city-positions)]
-    (if (> num-free 0)
-      (let [idx (rand-int num-free)
-            [i j] (nth free-city-positions idx)]
-        (assoc-in the-map [i j] [:land city-type]))
-      the-map)))
 
 (defn make-initial-map
   "Creates and initializes the complete game map with terrain and free cities."

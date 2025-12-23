@@ -1,5 +1,18 @@
 (ns empire.map)
 
-(def game-map
-  "A 100x100 2D atom containing vectors representing the game map."
-  (atom (vec (repeat 100 (vec (repeat 100 0))))))
+(defn process-map
+  "Processes the map by applying f to each cell, where f takes i j, current-cell, and the-map."
+  [the-map f]
+  (vec (for [i (range (count the-map))]
+         (vec (for [j (range (count (first the-map)))]
+               (let [current (get-in the-map [i j])]
+                 (f i j current the-map)))))))
+
+(defn scan-map
+  "Scans the map and returns positions [i j] where the predicate is true."
+  [the-map pred]
+  (for [i (range (count the-map))
+        j (range (count (first the-map)))
+        :when (pred i j)]
+    [i j]))
+

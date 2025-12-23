@@ -86,6 +86,21 @@
             (recur placed-cities (inc attempts))
             (recur (conj placed-cities [i j]) 0)))))))
 
+
+(defn occupy-random-free-city
+  "Occupies a random free city with the given city type (:my-city or :his-city)."
+  [the-map city-type]
+  (let [free-city-positions (for [i (range (count the-map))
+                                 j (range (count (first the-map)))
+                                 :when (= :free-city (second (get-in the-map [i j])))]
+                             [i j])
+        num-free (count free-city-positions)]
+    (if (> num-free 0)
+      (let [idx (rand-int num-free)
+            [i j] (nth free-city-positions idx)]
+        (assoc-in the-map [i j] [:land city-type]))
+      the-map)))
+
 (defn make-initial-map
   "Creates and initializes the complete game map with terrain and free cities."
   [map-size smooth-count land-fraction number-of-cities min-city-distance]
@@ -93,5 +108,7 @@
         the-map (make-map width height smooth-count)
         sea-level (find-sea-level the-map land-fraction)
         finalized-map (finalize-map the-map sea-level)
-        map-with-cities (generate-cities finalized-map number-of-cities min-city-distance)]
-    map-with-cities))
+        map-with-cities (generate-cities finalized-map number-of-cities min-city-distance)
+        map-with-my-city (occupy-random-free-city map-with-cities :my-city)
+        map-with-his-city (occupy-random-free-city map-with-my-city :his-city)]
+    map-with-his-city))

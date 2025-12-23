@@ -29,8 +29,10 @@
             j (range width)]
       (let [[terrain-type contents] (get-in the-map [i j])
             color (cond
+                    (= contents :my-city) [0 255 0]   ; green for player's city
+                    (= contents :his-city) [255 0 0]   ; red for opponent's city
                     (= contents :free-city) [255 255 255]   ; white for free cities
-                    (= terrain-type :land) [34 139 34]   ; forest green for land
+                    (= terrain-type :land) [139 69 19]   ; brown for land
                     (= terrain-type :sea) [25 25 112])] ; midnight blue for water
         (apply q/fill color)
         (q/rect (* j cell-w) (* i cell-h) cell-w cell-h)))

@@ -36,7 +36,7 @@
         (swap! atoms/menu-state assoc :visible false)))))
 
 (defn handle-menu-click
-  "Handles clicking on menu items. Returns true if a menu item was clicked."
+  "Handles clicking on menu items. Returns the clicked item keyword if a menu item was clicked, nil otherwise."
   [x y]
   (when (:visible @atoms/menu-state)
     (let [menu @atoms/menu-state
@@ -46,12 +46,9 @@
           clicked-item-idx (find-menu-item menu-x menu-y x y items)]
       (when clicked-item-idx
         (let [item (nth items clicked-item-idx)
-              keyword-item (config/production-strings->items item)
-              [cell-x cell-y] @atoms/last-clicked-cell]
-          (reset! atoms/last-clicked-item keyword-item)
-          (println "Clicked on item:" keyword-item "at cell" cell-x "," cell-y))
-        (swap! atoms/menu-state assoc :visible false)
-        true))))
+              keyword-item (config/production-strings->items item)]
+          (swap! atoms/menu-state assoc :visible false)
+          keyword-item)))))
 
 (defn draw-menu
   "Draws the menu if it's visible."

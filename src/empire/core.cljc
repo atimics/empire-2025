@@ -11,7 +11,8 @@
   "Creates and caches font objects."
   []
   (reset! atoms/text-font (q/create-font "Courier New" 18))
-  (reset! atoms/menu-header-font (q/create-font "CourierNewPS-BoldMT" 16 true))
+  (reset! atoms/menu-header-font (q/create-font "CourierNewPS-BoldMT" 16))
+  (reset! atoms/production-char-font (q/create-font "CourierNewPS-BoldMT" 12))
   (reset! atoms/menu-item-font (q/create-font "Courier New" 14)))
 
 (defn calculate-screen-dimensions
@@ -72,8 +73,7 @@
           (let [[cx cy] @atoms/last-clicked-cell
                 [terrain-type contents] (get-in @map/game-map [cy cx])]
             (q/text (str "Last clicked cell: " cx ", " cy " - " terrain-type " " contents) (+ text-x 10) (+ text-y 30))))
-        (when @atoms/last-clicked-item
-          (q/text (str "Last clicked item: " @atoms/last-clicked-item) (+ text-x 10) (+ text-y 50)))
+        (q/text (str "Production: " @atoms/production) (+ text-x 10) (+ text-y 50))
         (q/text (str "Round: " @atoms/round-number) (- (+ text-x text-w) 100) (+ text-y 10))))))
 
 (defn key-down [k]

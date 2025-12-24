@@ -1,8 +1,9 @@
 (ns empire.map
   (:require [empire.atoms :as atoms]
             [empire.config :as config]
-            [quil.core :as q]
-            [empire.menus :as menus]))
+            [empire.menus :as menus]
+            [empire.production :as production]
+            [quil.core :as q]))
 
 (defn process-map
   "Processes the map by applying f to each cell, where f takes i j and the-map."
@@ -61,7 +62,14 @@
                     (= terrain-type :land) [139 69 19]      ; brown for land
                     (= terrain-type :sea) [25 25 112])]     ; midnight blue for water
         (apply q/fill color)
-        (q/rect (* j cell-w) (* i cell-h) cell-w cell-h)))))
+        (q/rect (* j cell-w) (* i cell-h) cell-w cell-h)
+        ;; Draw production indicator for cities
+        (when (#{:player-city :computer-city} contents)
+          (when-let [prod (@atoms/production [j i])]
+            (when (:production-type prod)
+              (q/fill 0 0 0)
+              (q/text-font @atoms/production-char-font)
+              (q/text (config/production-item-chars (:production-type prod)) (+ (* j cell-w) 2) (+ (* i cell-h) 12)))))))))
 
 (defn update-combatant-map
   "Updates a combatant's visible map by revealing cells near their owned units."
@@ -120,6 +128,7 @@
                  cell-bottom
                  (max 0 (- cell-top menu-height)))
         display-items (map config/production-items->strings items)]
+    (reset! atoms/menu-cell [cell-x cell-y])
     (reset! atoms/menu-state {:visible true
                               :x menu-x
                               :y menu-y
@@ -145,6 +154,11 @@
       :player-city (handle-city-click cell-x cell-y)
       nil)))
 
+(defn city?
+  "Returns true if the cell at coords is a city."
+  [[x y]]
+  (#{:player-city :computer-city} (second (get-in @game-map [y x]))))
+
 (defn determine-cell-coordinates
   "Converts mouse coordinates to map cell coordinates."
   [x y]
@@ -158,12 +172,15 @@
 (defn mouse-down
   "Handles mouse click events."
   [x y]
-  (menus/dismiss-existing-menu x y)
-  (when-not (menus/handle-menu-click x y)
-    ;; Determine which map cell was clicked (only if no menu item was clicked)
-    (let [[cell-x cell-y] (determine-cell-coordinates x y)]
-      (reset! atoms/last-clicked-cell [cell-x cell-y])
-      (handle-cell-click cell-x cell-y))))
+  (let [[cell-x cell-y] (determine-cell-coordinates x y)]
+    (menus/dismiss-existing-menu x y)
+    (let [clicked-item (menus/handle-menu-click x y)]
+      (when clicked-item
+        (when (city? @atoms/menu-cell)
+          (production/set-city-production @atoms/menu-cell clicked-item)))
+      (when-not clicked-item
+        (reset! atoms/last-clicked-cell [cell-x cell-y])
+        (handle-cell-click cell-x cell-y)))))
 
 (defn do-a-round
   "Performs one round of game actions."

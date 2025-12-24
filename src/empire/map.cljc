@@ -57,6 +57,7 @@
               base-color (or (config/cell-colors contents) (config/cell-colors terrain-type))
               dark-color (mapv #(* % 0.5) base-color)]
           (when (and (> progress 0) (> remaining 0))
+            (q/no-stroke)
             (apply q/fill (conj dark-color 128))            ; semi-transparent darker version
             (let [bar-height (* cell-h progress)]
               (q/rect (* j cell-w) (+ (* i cell-h) (- cell-h bar-height)) cell-w bar-height))))

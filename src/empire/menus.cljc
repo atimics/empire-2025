@@ -64,13 +64,13 @@
       (q/rect x y menu-width menu-height)
       ;; Header
       (q/fill 0)
-      (q/text-font (q/create-font "CourierNewPS-BoldMT" 16 true))
+      (q/text-font @atoms/menu-header-font)
       (q/text header (+ x menu-text-x-offset) (+ y header-y-offset))
       ;; Line
       (q/stroke 0)
       (q/line (+ x line-margin) (+ y line-y-offset) (- (+ x menu-width) line-margin) (+ y line-y-offset))
       ;; Items
-      (q/text-font (q/create-font "Courier New" 14))
+      (q/text-font @atoms/menu-item-font)
       (doseq [[idx item] (map-indexed vector items)]
         (if (= idx highlighted-idx)
           (q/fill 255)

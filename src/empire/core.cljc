@@ -7,12 +7,17 @@
             [quil.core :as q]
             [quil.middleware :as m]))
 
-
+(defn create-fonts
+  "Creates and caches font objects."
+  []
+  (reset! atoms/text-font (q/create-font "Courier New" 18))
+  (reset! atoms/menu-header-font (q/create-font "CourierNewPS-BoldMT" 16 true))
+  (reset! atoms/menu-item-font (q/create-font "Courier New" 14)))
 
 (defn calculate-screen-dimensions
   "Calculates map size and display dimensions based on screen and sets config values."
   []
-  (q/text-font (q/create-font "Courier New" 18))
+  (q/text-font @atoms/text-font)
   (let [char-width (q/text-width "M")
         char-height (+ (q/text-ascent) (q/text-descent))
         screen-w (q/width)
@@ -34,6 +39,7 @@
 (defn setup
   "Initial setup for the game state."
   []
+  (create-fonts)
   (calculate-screen-dimensions)
   (init/make-initial-map @atoms/map-size config/smooth-count config/land-fraction config/number-of-cities config/min-city-distance)
   (q/frame-rate 10)
@@ -59,7 +65,7 @@
       (let [end-time (System/currentTimeMillis)
             draw-time (- end-time start-time)
             [text-x text-y text-w _] @atoms/text-area-dimensions]
-        (q/text-font (q/create-font "Courier New" 18))
+        (q/text-font @atoms/text-font)
         (q/fill 255)
         (q/text (str "Map size: " @atoms/map-size " Draw time: " draw-time "ms") (+ text-x 10) (+ text-y 10))
         (when @atoms/last-clicked-cell

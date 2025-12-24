@@ -11,5 +11,6 @@
   "Updates production for all cities by decrementing remaining rounds."
   []
   (doseq [[coords prod] @atoms/production]
-    (when (and (map? prod) (> (:remaining-rounds prod) 0))
-      (swap! atoms/production assoc coords (update prod :remaining-rounds dec)))))
+    (when (map? prod)
+      (let [new-remaining (max 0 (dec (:remaining-rounds prod)))]
+        (swap! atoms/production assoc coords (assoc prod :remaining-rounds new-remaining))))))

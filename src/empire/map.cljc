@@ -56,8 +56,8 @@
               [terrain-type _] (get-in the-map [i j])
               base-color (or (config/cell-colors contents) (config/cell-colors terrain-type))
               dark-color (mapv #(* % 0.5) base-color)]
-          (when (> progress 0)
-            (apply q/fill (conj dark-color 128)) ; semi-transparent darker version
+          (when (and (> progress 0) (> remaining 0))
+            (apply q/fill (conj dark-color 128))            ; semi-transparent darker version
             (let [bar-height (* cell-h progress)]
               (q/rect (* j cell-w) (+ (* i cell-h) (- cell-h bar-height)) cell-w bar-height))))
         ;; Draw production character
@@ -77,8 +77,13 @@
             j (range width)]
       (let [[terrain-type contents] (get-in the-map [i j])
             color (or (config/cell-colors contents)
-                      (config/cell-colors terrain-type))]
-        (apply q/fill color)
+                      (config/cell-colors terrain-type))
+            completed? (and (#{:player-city :computer-city} contents)
+                            (let [prod (@atoms/production [j i])]
+                              (and (map? prod) (= (:remaining-rounds prod) 0))))
+            blink-on? (or (not completed?) (even? (quot (System/currentTimeMillis) 500)))
+            blink-color (if blink-on? color [255 255 255])]
+        (apply q/fill blink-color)
         (q/rect (* j cell-w) (* i cell-h) cell-w cell-h)
         (draw-production-indicators i j contents cell-w cell-h the-map)))))
 

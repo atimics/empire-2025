@@ -1,5 +1,6 @@
 (ns empire.init
-  (:require [empire.map :as map]))
+  (:require [empire.map :as map]
+            [empire.atoms :as atoms]))
 
 (defn smooth-cell
   "Calculates the smoothed value for a cell at position i j."
@@ -108,4 +109,9 @@
                                      [:unexplored :empty]))))]
     (reset! map/game-map map-with-computer-city)
     (reset! map/player-map visibility-map)
-    (reset! map/computer-map visibility-map)))
+    (reset! map/computer-map visibility-map)
+    ;; Initialize production for cities
+    (doseq [[y row] (map-indexed vector @map/game-map)
+            [x cell] (map-indexed vector row)]
+      (when (#{:player-city :computer-city} (second cell))
+        (swap! atoms/production assoc [x y] :no-production)))))

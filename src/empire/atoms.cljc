@@ -24,3 +24,6 @@
 (def text-font (atom nil))
 (def menu-header-font (atom nil))
 (def menu-item-font (atom nil))
+
+;; Production map: coordinates -> production status
+(def production (atom {}))

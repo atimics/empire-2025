@@ -43,6 +43,28 @@
   [v]
   (and (keyword? v) (clojure.string/starts-with? (name v) "computer-")))
 
+(defn draw-production-indicators
+  "Draws production indicator for a city cell."
+  [i j contents cell-w cell-h the-map]
+  (when (#{:player-city :computer-city} contents)
+    (when-let [prod (@atoms/production [j i])]
+      (when (and (map? prod) (:production-type prod))
+        ;; Draw production progress thermometer
+        (let [total (config/production-rounds (:production-type prod))
+              remaining (:remaining-rounds prod)
+              progress (/ (- total remaining) (double total))
+              [terrain-type _] (get-in the-map [i j])
+              base-color (or (config/cell-colors contents) (config/cell-colors terrain-type))
+              dark-color (mapv #(* % 0.5) base-color)]
+          (when (> progress 0)
+            (apply q/fill (conj dark-color 128)) ; semi-transparent darker version
+            (let [bar-height (* cell-h progress)]
+              (q/rect (* j cell-w) (+ (* i cell-h) (- cell-h bar-height)) cell-w bar-height))))
+        ;; Draw production character
+        (q/fill 0 0 0)
+        (q/text-font @atoms/production-char-font)
+        (q/text (config/production-item-chars (:production-type prod)) (+ (* j cell-w) 2) (+ (* i cell-h) 12))))))
+
 (defn draw-map
   "Draws the map on the screen."
   [the-map]
@@ -54,22 +76,11 @@
     (doseq [i (range height)
             j (range width)]
       (let [[terrain-type contents] (get-in the-map [i j])
-            color (cond
-                    (= contents :player-city) [0 255 0]     ; green for player's city
-                    (= contents :computer-city) [255 0 0]   ; red for computer's city
-                    (= contents :free-city) [255 255 255]   ; white for free cities
-                    (= terrain-type :unexplored) [0 0 0]    ; black for unexplored
-                    (= terrain-type :land) [139 69 19]      ; brown for land
-                    (= terrain-type :sea) [25 25 112])]     ; midnight blue for water
+            color (or (config/cell-colors contents)
+                      (config/cell-colors terrain-type))]
         (apply q/fill color)
         (q/rect (* j cell-w) (* i cell-h) cell-w cell-h)
-        ;; Draw production indicator for cities
-        (when (#{:player-city :computer-city} contents)
-          (when-let [prod (@atoms/production [j i])]
-            (when (:production-type prod)
-              (q/fill 0 0 0)
-              (q/text-font @atoms/production-char-font)
-              (q/text (config/production-item-chars (:production-type prod)) (+ (* j cell-w) 2) (+ (* i cell-h) 12)))))))))
+        (draw-production-indicators i j contents cell-w cell-h the-map)))))
 
 (defn update-combatant-map
   "Updates a combatant's visible map by revealing cells near their owned units."
@@ -187,6 +198,7 @@
   []
   ;; Placeholder for round logic
   (swap! atoms/round-number inc)
+  (production/update-production)
   (println "Doing round" @atoms/round-number "..."))
 
 (defn update-map

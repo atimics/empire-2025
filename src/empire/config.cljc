@@ -47,3 +47,12 @@
    :submarine "S"
    :carrier "C"
    :battleship "B"})
+
+;; Cell colors for map rendering
+(def cell-colors
+  {:player-city [0 255 0]      ; green for player's city
+   :computer-city [255 0 0]    ; red for computer's city
+   :free-city [255 255 255]    ; white for free cities
+   :unexplored [0 0 0]         ; black for unexplored
+   :land [139 69 19]           ; brown for land
+   :sea [25 25 112]})          ; midnight blue for water

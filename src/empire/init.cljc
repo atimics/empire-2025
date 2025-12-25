@@ -22,8 +22,8 @@
 (defn make-map
   "Creates and initializes the game map with random integers, then applies smoothing."
   [width height smooth-count]
-  (let [random-map (vec (for [_ (range height)]
-                          (vec (for [_ (range width)]
+  (let [random-map (vec (for [_ (range width)]
+                          (vec (for [_ (range height)]
                                  (rand-int 1001)))))
         smoothed-map (loop [m random-map cnt smooth-count]
                        (if (zero? cnt)
@@ -104,9 +104,10 @@
         map-with-cities (generate-cities finalized-map number-of-cities min-city-distance)
         map-with-player-city (occupy-random-free-city map-with-cities :player)
         map-with-computer-city (occupy-random-free-city map-with-player-city :computer)
-        visibility-map (vec (for [_ (range height)]
-                              (vec (for [_ (range width)]
-                                     {:type :unexplored :contents :empty}))))]
+        visibility-map (vec (for [_ (range width)]
+                              (vec (for [_ (range height)]
+                                     {:type :unexplored}))))]
     (reset! atoms/game-map map-with-computer-city)
     (reset! atoms/player-map visibility-map)
-    (reset! atoms/computer-map visibility-map)))
+    (reset! atoms/computer-map visibility-map)
+    map-with-computer-city))

@@ -7,7 +7,7 @@
   (around [it]
     (reset! atoms/production {})
     (reset! atoms/game-map [[{:type :sea} {:type :city :owner :player}]
-                            [{:type :land} {:type :land}]])
+                            [{:type :city :owner :player} {:type :land}]])
     (it))
 
   (it "decrements remaining-rounds when not complete"
@@ -21,8 +21,8 @@
     (swap! atoms/production assoc [1 0] {:item :army :remaining-rounds 1})
     (production/update-production)
     (should= {:item :army :remaining-rounds 5} (@atoms/production [1 0])) ; item-cost :army = 5
-    (should= {:type :army :hits 1} (:contents (get-in @atoms/game-map [0 1]))) ; item-hits :army = 1
-    (should= {:type :city :owner :player :contents {:type :army :hits 1}} (get-in @atoms/game-map [0 1])))
+    (should= {:type :army :hits 1} (:contents (get-in @atoms/game-map [1 0]))) ; item-hits :army = 1
+    (should= {:type :city :owner :player :contents {:type :army :hits 1}} (get-in @atoms/game-map [1 0])))
 
   (it "handles multiple cities correctly"
     (swap! atoms/production assoc [1 0] {:item :army :remaining-rounds 2})
@@ -30,7 +30,7 @@
     (production/update-production)
     (should= {:item :army :remaining-rounds 1} (@atoms/production [1 0]))
     (should= {:item :fighter :remaining-rounds 10} (@atoms/production [0 1])) ; item-cost :fighter = 10
-    (should= {:type :fighter :hits 1} (:contents (get-in @atoms/game-map [1 0]))))
+    (should= {:type :fighter :hits 1} (:contents (get-in @atoms/game-map [0 1]))))
 
   (it "ignores cities with :no-production"
     (swap! atoms/production assoc [1 0] :no-production)
@@ -41,11 +41,11 @@
     (production/update-production)
     (should= {} @atoms/production)
     (should= [[{:type :sea} {:type :city :owner :player}]
-              [{:type :land} {:type :land}]] @atoms/game-map))
+              [{:type :city :owner :player} {:type :land}]] @atoms/game-map))
 
   (it "does not decrement remaining-rounds if city has a unit"
     (swap! atoms/production assoc [1 0] {:item :army :remaining-rounds 3})
-    (swap! atoms/game-map assoc-in [0 1 :contents] {:type :fighter :hits 1}) ; Put a unit in the city
+    (swap! atoms/game-map assoc-in [1 0 :contents] {:type :fighter :hits 1}) ; Put a unit in the city
     (production/update-production)
     (should= {:item :army :remaining-rounds 3} (@atoms/production [1 0])) ; Should not decrement
-    (should= {:type :fighter :hits 1} (:contents (get-in @atoms/game-map [0 1])))))
+    (should= {:type :fighter :hits 1} (:contents (get-in @atoms/game-map [1 0])))))

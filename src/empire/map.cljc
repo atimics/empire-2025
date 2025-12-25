@@ -67,27 +67,26 @@
   "Draws the map on the screen."
   [the-map]
   (let [[map-w map-h] @atoms/map-screen-dimensions
-        height (count the-map)
-        width (count (first the-map))
-        cell-w (/ map-w width)
-        cell-h (/ map-h height)]
-    (doseq [i (range height)
-            j (range width)]
-      (let [cell (get-in the-map [i j])
+        cols (count the-map)
+        rows (count (first the-map))
+        cell-w (/ map-w cols)
+        cell-h (/ map-h rows)]
+    (doseq [col (range cols)
+            row (range rows)]
+      (let [cell (get-in the-map [col row])
             color (color-of cell)
             completed? (and (= (:type cell) :city) (:owner cell)
-                            (let [prod (@atoms/production [j i])]
+                            (let [prod (@atoms/production [col row])]
                               (and (map? prod) (= (:remaining-rounds prod) 0))))
             blink-on? (or (not completed?) (even? (quot (System/currentTimeMillis) 500)))
             blink-color (if blink-on? color [255 255 255])]
         (apply q/fill blink-color)
-        (q/rect (* j cell-w) (* i cell-h) (inc cell-w) (inc cell-h))
-        (draw-production-indicators i j cell cell-w cell-h)
+        (q/rect (* col cell-w) (* row cell-h) (inc cell-w) (inc cell-h))
+        (draw-production-indicators row col cell cell-w cell-h)
         (when-let [item (get-in cell [:contents :type])]
-          (prn 'item item)
           (apply q/fill config/unit-color)
           (q/text-font @atoms/production-char-font)
-          (q/text (config/item-chars item) (+ (* j cell-w) 2) (+ (* i cell-h) 12)))
+          (q/text (config/item-chars item) (+ (* col cell-w) 2) (+ (* row cell-h) 12)))
         ))))
 
 (defn update-combatant-map
@@ -119,14 +118,14 @@
   "Checks if a cell is adjacent to sea."
   [cell-x cell-y]
   (let [game-map-val @atoms/game-map
-        height (count game-map-val)
-        width (count (first game-map-val))]
+        cols (count game-map-val)
+        rows (count (first game-map-val))]
     (some (fn [[dx dy]]
             (let [nx (+ cell-x dx)
                   ny (+ cell-y dy)]
-              (and (>= nx 0) (< nx width)
-                   (>= ny 0) (< ny height)
-                   (= :sea (:type (get-in game-map-val [ny nx]))))))
+              (and (>= nx 0) (< nx cols)
+                   (>= ny 0) (< ny rows)
+                   (= :sea (:type (get-in game-map-val [nx ny]))))))
           [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]])))
 
 (defn show-menu
@@ -135,11 +134,11 @@
   (let [menu-width 150
         menu-height (+ 45 (* (count items) 20))
         [map-w map-h] @atoms/map-screen-dimensions
-        width (count (first @atoms/game-map))
-        height (count @atoms/game-map)
-        cell-left (* cell-x (/ map-w width))
-        cell-top (* cell-y (/ map-h height))
-        cell-bottom (+ cell-top (/ map-h height))
+        cols (count @atoms/game-map)
+        rows (count (first @atoms/game-map))
+        cell-left (* cell-x (/ map-w cols))
+        cell-top (* cell-y (/ map-h rows))
+        cell-bottom (+ cell-top (/ map-h rows))
         [_ text-y _ _] @atoms/text-area-dimensions
         screen-w (q/width)
         menu-x (min cell-left (- screen-w menu-width))
@@ -168,23 +167,23 @@
 (defn handle-cell-click
   "Handles clicking on a map cell."
   [cell-x cell-y]
-  (let [cell (get-in @atoms/game-map [cell-y cell-x])]
+  (let [cell (get-in @atoms/game-map [cell-x cell-y])]
     (when (= (:owner cell) :player)
       (handle-city-click cell-x cell-y))))
 
 (defn city?
   "Returns true if the cell at coords is a city."
   [[x y]]
-  (= :city (:type (get-in @atoms/game-map [y x]))))
+  (= :city (:type (get-in @atoms/game-map [x y]))))
 
 (defn determine-cell-coordinates
   "Converts mouse coordinates to map cell coordinates."
   [x y]
   (let [[map-w map-h] @atoms/map-screen-dimensions
-        height (count @atoms/game-map)
-        width (count (first @atoms/game-map))
-        cell-w (/ map-w width)
-        cell-h (/ map-h height)]
+        cols (count @atoms/game-map)
+        rows (count (first @atoms/game-map))
+        cell-w (/ map-w cols)
+        cell-h (/ map-h rows)]
     [(int (Math/floor (/ x cell-w))) (int (Math/floor (/ y cell-h)))]))
 
 (defn mouse-down

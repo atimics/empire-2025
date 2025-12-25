@@ -12,13 +12,15 @@
   []
   (doseq [[coords prod] @atoms/production]
     (when (map? prod)
-      (let [item (:item prod)
-            remaining (dec (:remaining-rounds prod))]
-        (if (zero? remaining)
-          (do
-            (let [game-map @atoms/game-map
-                  cell (get-in game-map (reverse coords))
-                  cell (assoc cell :contents {:type item :hits (config/item-hits item)})]
-              (swap! atoms/game-map assoc-in (reverse coords) cell)
-              (swap! atoms/production assoc coords (assoc prod :remaining-rounds (config/item-cost item)))))
-          (swap! atoms/production assoc coords (assoc prod :remaining-rounds remaining)))))))
+      (let [cell (get-in @atoms/game-map (reverse coords))]
+        (when-not (:contents cell)
+          (let [item (:item prod)
+                remaining (dec (:remaining-rounds prod))]
+            (if (zero? remaining)
+              (do
+                (let [game-map @atoms/game-map
+                      cell (get-in game-map (reverse coords))
+                      cell (assoc cell :contents {:type item :hits (config/item-hits item)})]
+                  (swap! atoms/game-map assoc-in (reverse coords) cell)
+                  (swap! atoms/production assoc coords (assoc prod :remaining-rounds (config/item-cost item)))))
+              (swap! atoms/production assoc coords (assoc prod :remaining-rounds remaining)))))))))

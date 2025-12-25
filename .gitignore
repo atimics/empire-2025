@@ -6,3 +6,4 @@
 /.cpcache/
 /.claude/
 /.DS_Store
+/target/

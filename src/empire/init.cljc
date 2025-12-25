@@ -59,7 +59,7 @@
     (if (> num-free 0)
       (let [idx (rand-int num-free)
             [i j] (nth free-city-positions idx)]
-        (assoc-in the-map [i j] {:type :land :contents city-type :owner (if (= city-type :player-city) :player :computer)}))
+        (assoc-in the-map [i j] {:type :city :contents city-type :owner (if (= city-type :player-city) :player :computer)}))
       the-map)))
 
 (defn generate-cities
@@ -74,13 +74,13 @@
         (>= (count placed-cities) number-of-cities)
         ;; Update the map with cities
         (reduce (fn [m [i j]]
-                  (assoc-in m [i j] {:type :land :contents :free-city}))
+                  (assoc-in m [i j] {:type :city :contents :free-city}))
                 the-map
                 placed-cities)
 
         (>= attempts 1000)                                  ; Prevent infinite loop by stopping placement
         (reduce (fn [m [i j]]
-                  (assoc-in m [i j] {:type :land :contents :free-city}))
+                  (assoc-in m [i j] {:type :city :contents :free-city}))
                 the-map
                 placed-cities)
 

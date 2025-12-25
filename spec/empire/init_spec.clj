@@ -37,7 +37,7 @@
         (should (map? cell))
         (should (contains? cell :type))
         (should (contains? cell :contents))
-        (should (#{:land :sea} (:type cell)))
+        (should (#{:land :sea :city} (:type cell)))
         (should (#{:empty :free-city :player-city :computer-city} (:contents cell)))
         (when (#{:player-city :computer-city} (:contents cell))
           (should (contains? cell :owner))
@@ -46,7 +46,7 @@
   (it "has approximately correct land fraction"
     (let [land-count (count (for [row @initial-map
                                   cell row
-                                  :when (= :land (:type cell))]
+                                  :when (not= :sea (:type cell))]
                               cell))
           expected-land (* @land-fraction (count @initial-map) (count (first @initial-map)))
           tolerance 10]

@@ -70,3 +70,4 @@
    :sea [25 25 112]})          ; midnight blue for water
 
 (def production-color [128 128 128])
+(def unit-color [0 0 0])

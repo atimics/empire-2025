@@ -82,7 +82,13 @@
             blink-color (if blink-on? color [255 255 255])]
         (apply q/fill blink-color)
         (q/rect (* j cell-w) (* i cell-h) (inc cell-w) (inc cell-h))
-        (draw-production-indicators i j cell cell-w cell-h)))))
+        (draw-production-indicators i j cell cell-w cell-h)
+        (when-let [item (get-in cell [:contents :type])]
+          (prn 'item item)
+          (apply q/fill config/unit-color)
+          (q/text-font @atoms/production-char-font)
+          (q/text (config/item-chars item) (+ (* j cell-w) 2) (+ (* i cell-h) 12)))
+        ))))
 
 (defn update-combatant-map
   "Updates a combatant's visible map by revealing cells near their owned units."

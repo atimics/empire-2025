@@ -20,7 +20,7 @@
               (do
                 (let [game-map @atoms/game-map
                       cell (get-in game-map coords)
-                      cell (assoc cell :contents {:type item :hits (config/item-hits item)})]
+                      cell (assoc cell :contents {:type item :hits (config/item-hits item) :mode :awake})]
                   (swap! atoms/game-map assoc-in coords cell)
                   (swap! atoms/production assoc coords (assoc prod :remaining-rounds (config/item-cost item)))))
               (swap! atoms/production assoc coords (assoc prod :remaining-rounds remaining)))))))))

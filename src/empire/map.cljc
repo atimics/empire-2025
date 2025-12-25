@@ -70,7 +70,18 @@
         cols (count the-map)
         rows (count (first the-map))
         cell-w (/ map-w cols)
-        cell-h (/ map-h rows)]
+        cell-h (/ map-h rows)
+
+        draw-unit (fn [col row cell]
+                    (when-let [contents (get-in cell [:contents])]
+                      (let [item (:type contents)
+                            mode (:mode contents)
+                            blink-on? (even? (quot (System/currentTimeMillis) 250))]
+                        (when (or (not= mode :awake) blink-on?)
+                          (apply q/fill config/unit-color)
+                          (q/text-font @atoms/production-char-font)
+                          (q/text (config/item-chars item) (+ (* col cell-w) 2) (+ (* row cell-h) 12))))))]
+
     (doseq [col (range cols)
             row (range rows)]
       (let [cell (get-in the-map [col row])
@@ -83,11 +94,7 @@
         (apply q/fill blink-color)
         (q/rect (* col cell-w) (* row cell-h) (inc cell-w) (inc cell-h))
         (draw-production-indicators row col cell cell-w cell-h)
-        (when-let [item (get-in cell [:contents :type])]
-          (apply q/fill config/unit-color)
-          (q/text-font @atoms/production-char-font)
-          (q/text (config/item-chars item) (+ (* col cell-w) 2) (+ (* row cell-h) 12)))
-        ))))
+        (draw-unit col row cell)))))
 
 (defn update-combatant-map
   "Updates a combatant's visible map by revealing cells near their owned units."

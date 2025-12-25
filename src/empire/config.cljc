@@ -25,7 +25,7 @@
 (def production-strings->items (clojure.set/map-invert production-items->strings))
 
 ;; Production rounds required for each item
-(def production-rounds
+(def item-cost
   {:army 5
    :fighter 10
    :satellite 50
@@ -37,7 +37,7 @@
    :battleship 40})
 
 ;; Production item display characters
-(def production-item-chars
+(def item-chars
   {:army "A"
    :fighter "F"
    :satellite "Z"
@@ -47,6 +47,18 @@
    :submarine "S"
    :carrier "C"
    :battleship "B"})
+
+;; Item hit points
+(def item-hits
+  {:army 1
+   :fighter 1
+   :satellite 1
+   :transport 1
+   :patrol-boat 1
+   :destroyer 3
+   :submarine 2
+   :carrier 8
+   :battleship 10})
 
 ;; Cell colors for map rendering
 (def cell-colors

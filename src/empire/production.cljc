@@ -5,7 +5,7 @@
 (defn set-city-production
   "Sets the production for a city at given coordinates to the specified item."
   [coords item]
-  (swap! atoms/production assoc coords {:production-type item :remaining-rounds (config/production-rounds item)}))
+  (swap! atoms/production assoc coords {:production-type item :remaining-rounds (config/item-cost item)}))
 
 (defn update-production
   "Updates production for all cities by decrementing remaining rounds."

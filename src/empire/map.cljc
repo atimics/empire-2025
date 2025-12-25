@@ -61,7 +61,7 @@
     (when-let [prod (@atoms/production [j i])]
       (when (and (map? prod) (:production-type prod))
         ;; Draw production progress thermometer
-        (let [total (config/production-rounds (:production-type prod))
+        (let [total (config/item-cost (:production-type prod))
               remaining (:remaining-rounds prod)
               progress (/ (- total remaining) (double total))
               base-color (color-of cell)
@@ -73,7 +73,7 @@
         ;; Draw production character
         (q/fill 0 0 0)
         (q/text-font @atoms/production-char-font)
-        (q/text (config/production-item-chars (:production-type prod)) (+ (* j cell-w) 2) (+ (* i cell-h) 12))))))
+        (q/text (config/item-chars (:production-type prod)) (+ (* j cell-w) 2) (+ (* i cell-h) 12))))))
 
 (defn draw-map
   "Draws the map on the screen."

@@ -46,7 +46,7 @@
           clicked-item-idx (find-menu-item menu-x menu-y x y items)]
       (when clicked-item-idx
         (let [item (nth items clicked-item-idx)
-              keyword-item (config/production-strings->items item)]
+              keyword-item (config/menu-strings->items item)]
           (swap! atoms/menu-state assoc :visible false)
           keyword-item)))))
 

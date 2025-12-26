@@ -11,8 +11,8 @@
 
 (def round-delay 1000)
 
-;; Production items: keywords -> display strings
-(def production-items->strings
+;; Menu items: keywords -> display strings
+(def menu-items->strings
   {:army "Army"
    :fighter "Fighter"
    :satellite "Satellite"
@@ -21,10 +21,12 @@
    :destroyer "Destroyer"
    :submarine "Submarine"
    :carrier "Carrier"
-   :battleship "Battleship"})
+   :battleship "Battleship"
+   :explore "Explore"
+   :sentry "Sentry"})
 
 ;; Reverse lookup: display strings -> keywords
-(def production-strings->items (clojure.set/map-invert production-items->strings))
+(def menu-strings->items (clojure.set/map-invert menu-items->strings))
 
 ;; Production rounds required for each item
 (def item-cost

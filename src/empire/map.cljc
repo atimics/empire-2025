@@ -156,7 +156,7 @@
         menu-y (if (<= (+ cell-bottom menu-height) (min map-h text-y))
                  cell-bottom
                  (max 0 (- cell-top menu-height)))
-        display-items (map config/production-items->strings items)]
+        display-items (map config/menu-items->strings items)]
     (reset! atoms/menu-cell [cell-x cell-y])
     (reset! atoms/menu-state {:visible true
                               :x menu-x
@@ -175,12 +175,52 @@
         items all-items]
     (show-menu cell-x cell-y header items)))
 
+(defn is-unit-needing-attention?
+  "Returns true if there is an attention-needing unit."
+  [attention-coords]
+  (and (seq attention-coords)
+       (let [first-cell (get-in @atoms/game-map (first attention-coords))]
+         (:contents first-cell))))
+
+(defn is-city-needing-attention?
+  "Returns true if the cell needs city handling as the first attention item."
+  [cell clicked-coords attention-coords]
+  (and (= (:owner cell) :player)
+       (= (:type cell) :city)
+       (= clicked-coords (first attention-coords))))
+
+(defn handle-unit-click
+  "Handles interaction with an attention-needing unit."
+  [cell-x cell-y clicked-coords attention-coords]
+  (let [first-coords (first attention-coords)]
+    (if (= clicked-coords first-coords)
+      ;; Clicked on the unit: show menu
+      (let [first-cell (get-in @atoms/game-map first-coords)
+            unit-type (:type (:contents first-cell))
+            header (name unit-type)
+            items [:explore :sentry]]
+        (show-menu cell-x cell-y header items))
+      ;; Clicked elsewhere: move the unit
+      (let [first-cell (get-in @atoms/game-map first-coords)
+            updated-contents (assoc (:contents first-cell) :mode :moving :target clicked-coords)]
+        (swap! atoms/game-map assoc-in first-coords (assoc first-cell :contents updated-contents))
+        (swap! atoms/cells-needing-attention rest)))))
+
 (defn handle-cell-click
-  "Handles clicking on a map cell."
+  "Handles clicking on a map cell, prioritizing attention-needing items."
   [cell-x cell-y]
-  (let [cell (get-in @atoms/game-map [cell-x cell-y])]
-    (when (= (:owner cell) :player)
-      (handle-city-click cell-x cell-y))))
+  (let [cell (get-in @atoms/game-map [cell-x cell-y])
+        clicked-coords [cell-x cell-y]
+        attention-coords @atoms/cells-needing-attention]
+    (cond
+      (is-unit-needing-attention? attention-coords)
+      (handle-unit-click cell-x cell-y clicked-coords attention-coords)
+
+      (is-city-needing-attention? cell clicked-coords attention-coords)
+      (handle-city-click cell-x cell-y)
+
+      ;; Otherwise, do nothing
+      :else nil)))
 
 (defn city?
   "Returns true if the cell at coords is a city."
@@ -236,10 +276,7 @@
   ;; Placeholder for round logic
   (swap! atoms/round-number inc)
   (production/update-production)
-  (let [player-coords (cells-needing-attention)]
-    (reset! atoms/cells-needing-attention player-coords)
-    ;; Use player-coords as needed, e.g., for future logic
-    (println "Player's units and cities at:" player-coords))
+  (reset! atoms/cells-needing-attention (cells-needing-attention))
   (while (seq @atoms/cells-needing-attention)
     (let [first-cell-coords (first @atoms/cells-needing-attention)
           first-cell (get-in @atoms/game-map first-cell-coords)]

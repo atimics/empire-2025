@@ -84,17 +84,18 @@
 
     (doseq [col (range cols)
             row (range rows)]
-      (let [cell (get-in the-map [col row])
-            color (color-of cell)
-            completed? (and (= (:type cell) :city) (:owner cell)
-                            (let [prod (@atoms/production [col row])]
-                              (and (map? prod) (= (:remaining-rounds prod) 0))))
-            blink-on? (or (not completed?) (even? (quot (System/currentTimeMillis) 500)))
-            blink-color (if blink-on? color [255 255 255])]
-        (apply q/fill blink-color)
-        (q/rect (* col cell-w) (* row cell-h) (inc cell-w) (inc cell-h))
-        (draw-production-indicators row col cell cell-w cell-h)
-        (draw-unit col row cell)))))
+      (let [cell (get-in the-map [col row])]
+        (when (not= :unexplored)
+          (let [color (color-of cell)
+                completed? (and (= (:type cell) :city) (:owner cell)
+                                (let [prod (@atoms/production [col row])]
+                                  (and (map? prod) (= (:remaining-rounds prod) 0))))
+                blink-on? (or (not completed?) (even? (quot (System/currentTimeMillis) 500)))
+                blink-color (if blink-on? color [255 255 255])]
+            (apply q/fill blink-color)
+            (q/rect (* col cell-w) (* row cell-h) (inc cell-w) (inc cell-h))
+            (draw-production-indicators row col cell cell-w cell-h)
+            (draw-unit col row cell)))))))
 
 (defn update-combatant-map
   "Updates a combatant's visible map by revealing cells near their owned units."

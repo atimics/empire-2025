@@ -63,20 +63,13 @@
                     :actual-map @atoms/game-map)]
       (map/draw-map the-map)
       (menus/draw-menu)
-      (let [end-time (System/currentTimeMillis)
-            draw-time (- end-time start-time)
-            [text-x text-y text-w _] @atoms/text-area-dimensions]
+      (let [[text-x text-y text-w _] @atoms/text-area-dimensions]
         (q/text-font @atoms/text-font)
         (q/fill 255)
-        (q/text (str "Map size: " @atoms/map-size " Draw time: " draw-time "ms") (+ text-x 10) (+ text-y 10))
-        (when @atoms/last-clicked-cell
-          (let [[cx cy] @atoms/last-clicked-cell
-                cell (get-in @atoms/game-map [cy cx])
-                terrain-type (:type cell)
-                contents (:contents cell)]
-            (q/text (str "Last clicked cell: " cx ", " cy " - " terrain-type " " contents) (+ text-x 10) (+ text-y 30))))
-        (q/text (str "Production: " @atoms/production) (+ text-x 10) (+ text-y 50))
-        (q/text (str "Round: " @atoms/round-number) (- (+ text-x text-w) 100) (+ text-y 10))))))
+        (when (some? @atoms/message)
+          (q/text @atoms/message (+ text-x 10) (+ text-y 10)))
+        (q/text (str "Round: " @atoms/round-number) (- (+ text-x text-w) 100) (+ text-y 10))
+        (q/text (str (- (System/currentTimeMillis) start-time) " ms" ) (- (+ text-x text-w) 100) (+ text-y 30))))))
 
 (defn key-down [k]
   ;; Handle key down events

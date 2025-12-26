@@ -42,3 +42,5 @@
 (def computer-map
   "An atom containing the computer's visible map areas."
   (atom {}))
+
+(def message (atom nil))

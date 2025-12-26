@@ -85,7 +85,7 @@
     (doseq [col (range cols)
             row (range rows)]
       (let [cell (get-in the-map [col row])]
-        (when (not= :unexplored)
+        (when (not= :unexplored (:type cell))
           (let [color (color-of cell)
                 completed? (and (= (:type cell) :city) (:owner cell)
                                 (let [prod (@atoms/production [col row])]

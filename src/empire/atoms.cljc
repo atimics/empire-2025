@@ -27,9 +27,6 @@
 ;; Production map: coordinates -> production status
 (def production (atom {}))
 
-;; Cell coordinates that opened the current menu
-(def menu-cell (atom nil))
-
 ;; Game maps
 (def game-map
   "A 2D atom containing vectors representing the game map."

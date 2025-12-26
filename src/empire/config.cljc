@@ -25,6 +25,9 @@
    :explore "Explore"
    :sentry "Sentry"})
 
+(def menu-header->string{:production "Set Production"
+                          :unit "Unit Command"})
+
 ;; Reverse lookup: display strings -> keywords
 (def menu-strings->items (clojure.set/map-invert menu-items->strings))
 

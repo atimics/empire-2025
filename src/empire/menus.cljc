@@ -14,6 +14,32 @@
 (def line-margin 5)
 (def line-y-offset 25)
 
+(defn show-menu
+  "Displays a menu with the given header and items positioned relative to a cell."
+  [cell-x cell-y header items]
+  (let [menu-width 150
+        menu-height (+ 45 (* (count items) 20))
+        [map-w map-h] @atoms/map-screen-dimensions
+        cols (count @atoms/game-map)
+        rows (count (first @atoms/game-map))
+        cell-left (* cell-x (/ map-w cols))
+        cell-top (* cell-y (/ map-h rows))
+        cell-bottom (+ cell-top (/ map-h rows))
+        [_ text-y _ _] @atoms/text-area-dimensions
+        screen-w (q/width)
+        menu-x (min cell-left (- screen-w menu-width))
+        menu-y (if (<= (+ cell-bottom menu-height) (min map-h text-y))
+                 cell-bottom
+                 (max 0 (- cell-top menu-height)))
+        display-items (map config/menu-items->strings items)]
+    (reset! atoms/menu-state {:coords [cell-x cell-y]
+                              :visible true
+                              :x menu-x
+                              :y menu-y
+                              :header header
+                              :items display-items})))
+
+
 (defn find-menu-item
   "Finds the menu item index based on mouse position."
   [menu-x menu-y x y items]
@@ -64,7 +90,7 @@
       ;; Header
       (q/fill 0)
       (q/text-font @atoms/menu-header-font)
-      (q/text header (+ x menu-text-x-offset) (+ y header-y-offset))
+      (q/text (config/menu-header->string header) (+ x menu-text-x-offset) (+ y header-y-offset))
       ;; Line
       (q/stroke 0)
       (q/line (+ x line-margin) (+ y line-y-offset) (- (+ x menu-width) line-margin) (+ y line-y-offset))

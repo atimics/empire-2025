@@ -2,6 +2,7 @@
   (:require [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.menus :as menus]
+            [empire.movement :as movement]
             [empire.production :as production]
             [quil.core :as q]))
 
@@ -139,41 +140,16 @@
                    (= :sea (:type (get-in game-map-val [nx ny]))))))
           [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]])))
 
-(defn show-menu
-  "Displays a menu with the given header and items positioned relative to a cell."
-  [cell-x cell-y header items]
-  (let [menu-width 150
-        menu-height (+ 45 (* (count items) 20))
-        [map-w map-h] @atoms/map-screen-dimensions
-        cols (count @atoms/game-map)
-        rows (count (first @atoms/game-map))
-        cell-left (* cell-x (/ map-w cols))
-        cell-top (* cell-y (/ map-h rows))
-        cell-bottom (+ cell-top (/ map-h rows))
-        [_ text-y _ _] @atoms/text-area-dimensions
-        screen-w (q/width)
-        menu-x (min cell-left (- screen-w menu-width))
-        menu-y (if (<= (+ cell-bottom menu-height) (min map-h text-y))
-                 cell-bottom
-                 (max 0 (- cell-top menu-height)))
-        display-items (map config/menu-items->strings items)]
-    (reset! atoms/menu-cell [cell-x cell-y])
-    (reset! atoms/menu-state {:visible true
-                              :x menu-x
-                              :y menu-y
-                              :header header
-                              :items display-items})))
-
 (defn handle-city-click
   "Handles clicking on a city cell."
   [cell-x cell-y]
-  (let [header "Produce"
+  (let [header :production
         coastal-city? (on-coast? cell-x cell-y)
         basic-items [:army :fighter :satellite]
         coastal-items [:transport :patrol-boat :destroyer :submarine :carrier :battleship]
         all-items (cond-> basic-items coastal-city? (into coastal-items))
         items all-items]
-    (show-menu cell-x cell-y header items)))
+    (menus/show-menu cell-x cell-y header items)))
 
 (defn is-unit-needing-attention?
   "Returns true if there is an attention-needing unit."
@@ -195,15 +171,12 @@
   (let [first-coords (first attention-coords)]
     (if (= clicked-coords first-coords)
       ;; Clicked on the unit: show menu
-      (let [first-cell (get-in @atoms/game-map first-coords)
-            unit-type (:type (:contents first-cell))
-            header (name unit-type)
+      (let [header :unit
             items [:explore :sentry]]
-        (show-menu cell-x cell-y header items))
+        (menus/show-menu cell-x cell-y header items))
       ;; Clicked elsewhere: move the unit
-      (let [first-cell (get-in @atoms/game-map first-coords)
-            updated-contents (assoc (:contents first-cell) :mode :moving :target clicked-coords)]
-        (swap! atoms/game-map assoc-in first-coords (assoc first-cell :contents updated-contents))
+      (do
+        (movement/set-unit-movement first-coords clicked-coords)
         (swap! atoms/cells-needing-attention rest)))))
 
 (defn handle-cell-click
@@ -244,10 +217,14 @@
     (menus/dismiss-existing-menu x y)
     (let [clicked-item (menus/handle-menu-click x y)]
       (when clicked-item
-        (when (city? @atoms/menu-cell)
-          (production/set-city-production @atoms/menu-cell clicked-item)
+        (when (= :production (:header @atoms/menu-state))
+          (production/set-city-production (:coords @atoms/menu-state) clicked-item)
           (when (seq @atoms/cells-needing-attention)
-            (swap! atoms/cells-needing-attention rest))))
+            (swap! atoms/cells-needing-attention rest)))
+        (when (= :unit (:header @atoms/menu-state))
+          (movement/set-unit-mode (:coords @atoms/menu-state) clicked-item)
+          (swap! atoms/cells-needing-attention rest))
+        )
       (when-not clicked-item
         (reset! atoms/last-clicked-cell [cell-x cell-y])
         (handle-cell-click cell-x cell-y)))))
@@ -275,6 +252,7 @@
   []
   ;; Placeholder for round logic
   (swap! atoms/round-number inc)
+  (movement/move-units)
   (production/update-production)
   (reset! atoms/cells-needing-attention (cells-needing-attention))
   (while (seq @atoms/cells-needing-attention)

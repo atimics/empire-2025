@@ -54,12 +54,12 @@
 (defn occupy-random-free-city
   "Occupies a random free city with the given owner (:player or :computer)."
   [the-map owner]
-  (let [free-city-positions (map/filter-map the-map (fn [cell] (and (= :city (:type cell)) (nil? (:owner cell)))))
+  (let [free-city-positions (map/filter-map the-map (fn [cell] (and (= :city (:type cell)) (= :free (:city-status cell)))))
         num-free (count free-city-positions)]
     (if (> num-free 0)
       (let [idx (rand-int num-free)
             [i j] (nth free-city-positions idx)]
-        (assoc-in the-map [i j] {:type :city :contents nil :owner owner}))
+        (assoc-in the-map [i j] {:type :city :contents nil :city-status owner}))
       the-map)))
 
 (defn generate-cities
@@ -74,13 +74,13 @@
         (>= (count placed-cities) number-of-cities)
         ;; Update the map with cities
         (reduce (fn [m [i j]]
-                  (assoc-in m [i j] {:type :city :contents nil}))
+                  (assoc-in m [i j] {:type :city :contents nil :city-status :free}))
                 the-map
                 placed-cities)
 
         (>= attempts 1000)                                  ; Prevent infinite loop by stopping placement
         (reduce (fn [m [i j]]
-                  (assoc-in m [i j] {:type :city :contents nil}))
+                  (assoc-in m [i j] {:type :city :contents nil :city-status :free}))
                 the-map
                 placed-cities)
 

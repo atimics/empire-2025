@@ -22,24 +22,16 @@
         :when (pred current)]
     [i j]))
 
-(defn is-players?
-  "Returns true if the cell is owned by the player."
-  [cell]
-  (= (:owner cell) :player))
 
-(defn is-computers?
-  "Returns true if the cell is owned by the computer."
-  [cell]
-  (= (:owner cell) :computer))
 
 (defn color-of [cell]
   (let
     [terrain-type (:type cell)
      cell-color (if (= terrain-type :city)
-                  (case (:owner cell)
+                  (case (:city-status cell)
                     :player :player-city
                     :computer :computer-city
-                    :free-city)
+                    :free :free-city)
                   terrain-type)]
     (config/cell-colors cell-color)))
 
@@ -88,7 +80,7 @@
                 attention-coords @atoms/cells-needing-attention
                 current [col row]
                 should-flash-black (and (seq attention-coords) (= current (first attention-coords)))
-                completed? (and (= (:type cell) :city) (:owner cell)
+                completed? (and (= (:type cell) :city) (not= :free (:city-status cell))
                                 (let [prod (@atoms/production [col row])]
                                   (and (map? prod) (= (:remaining-rounds prod) 0))))
                 blink-white? (and completed? (even? (quot (System/currentTimeMillis) 500)))
@@ -104,12 +96,12 @@
 (defn update-player-map
   "Reveals cells near player-owned units on the visible map."
   []
-  (movement/update-combatant-map atoms/player-map is-players?))
+  (movement/update-combatant-map atoms/player-map :player))
 
 (defn update-computer-map
   "Updates the computer's visible map by revealing cells near computer-owned units."
   []
-  (movement/update-combatant-map atoms/computer-map is-computers?))
+  (movement/update-combatant-map atoms/computer-map :computer))
 
 (defn on-coast?
   "Checks if a cell is adjacent to sea."
@@ -146,7 +138,7 @@
 (defn is-city-needing-attention?
   "Returns true if the cell needs city handling as the first attention item."
   [cell clicked-coords attention-coords]
-  (and (= (:owner cell) :player)
+  (and (= (:city-status cell) :player)
        (= (:type cell) :city)
        (= clicked-coords (first attention-coords))))
 
@@ -219,7 +211,8 @@
   [i j]
   (let [cell (get-in @atoms/player-map [i j])
         mode (:mode (:contents cell))]
-    (and (= (:owner cell) :player)
+    (and (or (= (:city-status cell) :player)
+             (= (:owner (:contents cell)) :player))
          (or (= mode :awake)
              (and (= (:type cell) :city)
                   (not (@atoms/production [i j])))))))

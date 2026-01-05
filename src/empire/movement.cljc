@@ -1,6 +1,18 @@
 (ns empire.movement
   (:require [empire.atoms :as atoms]))
 
+(defn is-players?
+  "Returns true if the cell is owned by the player."
+  [cell]
+  (or (= (:city-status cell) :player)
+      (= (:owner (:contents cell)) :player)))
+
+(defn is-computers?
+  "Returns true if the cell is owned by the computer."
+  [cell]
+  (or (= (:city-status cell) :computer)
+      (= (:owner (:contents cell)) :computer)))
+
 (defn next-step-pos [pos target]
   (let [[x y] pos
         [tx ty] target
@@ -14,9 +26,10 @@
 
 (defn update-combatant-map
   "Updates a combatant's visible map by revealing cells near their owned units."
-  [visible-map-atom ownership-predicate]
+  [visible-map-atom owner]
   (when @visible-map-atom
-    (let [game-map-val @atoms/game-map
+    (let [ownership-predicate (if (= owner :player) is-players? is-computers?)
+          game-map-val @atoms/game-map
           height (count game-map-val)
           width (count (first game-map-val))]
       (doseq [i (range height)
@@ -43,7 +56,6 @@
             (swap! visible-map-atom assoc-in [ni nj] (get-in game-map-val [ni nj]))))))))
 
 (defn move-unit [from-coords target-coords cell current-map]
-  (prn 'move-unit from-coords target-coords cell)
   (let [unit (:contents cell)
         next-pos (next-step-pos from-coords target-coords)
         is-at-target (= next-pos target-coords)
@@ -52,11 +64,11 @@
                        (dissoc (assoc unit :mode :awake) :target)
                        unit)
         from-cell (assoc cell :contents nil)
-        to-cell (or (get-in current-map final-pos) {:type :land :owner nil})
-        updated-to-cell (assoc to-cell :contents updated-unit :owner (:owner cell))]
+        to-cell (or (get-in current-map final-pos) {:type :land})
+        updated-to-cell (assoc to-cell :contents updated-unit)]
     (swap! atoms/game-map assoc-in from-coords from-cell)
     (swap! atoms/game-map assoc-in final-pos updated-to-cell)
-    (update-cell-visibility final-pos (:owner cell))))
+    (update-cell-visibility final-pos (:owner unit))))
 
 (defn move-units []
   (let [current-map @atoms/game-map

@@ -38,9 +38,8 @@
         (should (contains? cell :type))
         (should (#{:land :sea :city} (:type cell)))
         (should (nil? (:contents cell)))
-        (when (:owner cell)
-          (should (= :city (:type cell)))
-          (should (#{:player :computer} (:owner cell)))))))
+        (when (= :city (:type cell))
+          (should (#{:player :computer :free} (:city-status cell)))))))
 
   (it "has approximately correct land fraction"
     (let [land-count (count (for [row @initial-map

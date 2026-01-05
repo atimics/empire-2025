@@ -74,7 +74,7 @@
    :free-city [255 255 255]    ; white for free cities
    :unexplored [0 0 0]         ; black for unexplored
    :land [139 69 19]           ; brown for land
-   :sea [25 25 112]})          ; midnight blue for water
+   :sea [0 191 255]})          ; deep sky blue for water
 
 (def production-color [128 128 128])
 (def unit-color [0 0 0])

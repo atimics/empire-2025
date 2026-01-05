@@ -59,25 +59,32 @@
   (let [unit (:contents cell)
         next-pos (next-step-pos from-coords target-coords)
         next-cell (get-in current-map next-pos)]
-    (if (= (:type next-cell) :sea)
-      ;; Wake up without moving
+    (cond
+      ;; Unit-specific wake before move
+      (and (= (:type unit) :army) (= (:type next-cell) :sea))
       (let [woken-unit (dissoc (assoc unit :mode :awake) :target)
             updated-cell (assoc cell :contents woken-unit)]
         (swap! atoms/game-map assoc-in from-coords updated-cell)
         (update-cell-visibility from-coords (:owner unit)))
-      ;; Normal move
+
+      ;; Basic movement
+      :else
       (let [is-at-target (= next-pos target-coords)
             final-pos (if is-at-target target-coords next-pos)
-            ;; Check if near enemy or free city
-            near-enemy-city? (some (fn [[di dj]]
-                                     (let [ni (+ (first final-pos) di)
-                                           nj (+ (second final-pos) dj)
-                                           adj-cell (get-in current-map [ni nj])]
-                                       (and adj-cell
-                                            (= (:type adj-cell) :city)
-                                            (#{:free :computer} (:city-status adj-cell)))))
-                                   (for [di [-1 0 1] dj [-1 0 1]] [di dj]))
-            wake-up? (or is-at-target near-enemy-city?)
+            ;; Unit-specific wake at final-pos
+            unit-wakes? (case (:type unit)
+                          :army (and (not is-at-target)
+                                     ;; Near enemy or free city
+                                     (some (fn [[di dj]]
+                                             (let [ni (+ (first final-pos) di)
+                                                   nj (+ (second final-pos) dj)
+                                                   adj-cell (get-in current-map [ni nj])]
+                                               (and adj-cell
+                                                    (= (:type adj-cell) :city)
+                                                    (#{:free :computer} (:city-status adj-cell)))))
+                                           (for [di [-1 0 1] dj [-1 0 1]] [di dj])))
+                          false)
+            wake-up? (or is-at-target unit-wakes?)
             updated-unit (if wake-up?
                            (dissoc (assoc unit :mode :awake) :target)
                            unit)

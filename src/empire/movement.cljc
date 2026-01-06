@@ -29,31 +29,29 @@
   [visible-map-atom owner]
   (when @visible-map-atom
     (let [ownership-predicate (if (= owner :player) is-players? is-computers?)
-          game-map-val @atoms/game-map
-          height (count game-map-val)
-          width (count (first game-map-val))]
+          height (count @atoms/game-map)
+          width (count (first @atoms/game-map))]
       (doseq [i (range height)
               j (range width)
-              :when (ownership-predicate (get-in game-map-val [i j]))]
+              :when (ownership-predicate (get-in @atoms/game-map [i j]))]
         (doseq [di [-1 0 1]
                 dj [-1 0 1]]
           (let [ni (max 0 (min (dec height) (+ i di)))
                 nj (max 0 (min (dec width) (+ j dj)))]
-            (swap! visible-map-atom assoc-in [ni nj] (get-in game-map-val [ni nj]))))))))
+            (swap! visible-map-atom assoc-in [ni nj] (get-in @atoms/game-map [ni nj]))))))))
 
 (defn update-cell-visibility [pos owner]
   "Updates visibility around a specific cell for the given owner."
   (let [visible-map-atom (if (= owner :player) atoms/player-map atoms/computer-map)
         [x y] pos]
     (when @visible-map-atom
-      (let [game-map-val @atoms/game-map
-            height (count game-map-val)
-            width (count (first game-map-val))]
+      (let [height (count @atoms/game-map)
+            width (count (first @atoms/game-map))]
         (doseq [di [-1 0 1]
                 dj [-1 0 1]]
           (let [ni (max 0 (min (dec height) (+ x di)))
                 nj (max 0 (min (dec width) (+ y dj)))
-                game-cell (get-in game-map-val [ni nj])]
+                game-cell (get-in @atoms/game-map [ni nj])]
             (swap! visible-map-atom assoc-in [ni nj] game-cell)))))))
 
 (defn move-unit [from-coords target-coords cell current-map]

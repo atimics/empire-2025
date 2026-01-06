@@ -254,7 +254,8 @@
   "Updates the game map state."
   []
   (update-player-map)
-  (update-computer-map))
+  (update-computer-map)
+  )
 
 (defn game-loop []
   (Thread/sleep ^long config/round-delay)

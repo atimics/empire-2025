@@ -233,11 +233,22 @@
         :when (needs-attention? i j)]
     [i j]))
 
+(defn remove-dead-units
+  "Removes units with hits at or below zero."
+  []
+  (doseq [i (range (count @atoms/game-map))
+          j (range (count (first @atoms/game-map)))
+          :let [cell (get-in @atoms/game-map [i j])
+                contents (:contents cell)]
+          :when (and contents (<= (:hits contents 1) 0))]
+    (swap! atoms/game-map assoc-in [i j] (dissoc cell :contents))))
+
 (defn do-a-round
   "Performs one round of game actions."
   []
   ;; Placeholder for round logic
   (swap! atoms/round-number inc)
+  (remove-dead-units)
   (movement/move-units)
   (production/update-production)
   (reset! atoms/cells-needing-attention (cells-needing-attention))

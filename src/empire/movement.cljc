@@ -106,9 +106,29 @@
         (swap! atoms/game-map assoc-in from-coords updated-cell)
         (update-cell-visibility from-coords (:owner unit)))
       (let [is-at-target (= next-pos target-coords)
-            final-pos (if is-at-target target-coords next-pos)
-            final-unit (wake-after-move unit final-pos current-map is-at-target)]
-        (do-move from-coords final-pos cell final-unit)))))
+            final-pos (if is-at-target target-coords next-pos)]
+        (if (and is-at-target
+                 (= :army (:type unit))
+                 (let [city-cell (get-in @current-map final-pos)]
+                   (and (= :city (:type city-cell))
+                        (#{:free :computer} (:city-status city-cell)))))
+          ;; Conquest attempt
+          (if (< (rand) 0.5)
+            ;; Conquer
+            (let [city-cell (get-in @atoms/game-map final-pos)]
+              (swap! atoms/game-map assoc-in from-coords (dissoc cell :contents))
+              (swap! atoms/game-map assoc-in final-pos (assoc city-cell :city-status :player))
+              (update-cell-visibility final-pos (:owner unit)))
+            ;; Fail
+            (do
+              (reset! atoms/reason "failed to conquer")
+              (let [failed-unit (assoc unit :mode :awake :hits 0)
+                    updated-cell (assoc cell :contents failed-unit)]
+                (swap! atoms/game-map assoc-in from-coords updated-cell)
+                (update-cell-visibility from-coords (:owner unit)))))
+          ;; Normal move
+          (let [final-unit (wake-after-move unit final-pos current-map is-at-target)]
+            (do-move from-coords final-pos cell final-unit)))))))
 
 (defn get-moves []
   (let [current-map @atoms/game-map]

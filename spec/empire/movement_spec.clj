@@ -331,6 +331,43 @@
           (should= {:type :land} (get-in @atoms/game-map [4 5]))
           (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
       )
+
+    (context "army conquest"
+      (it "army conquers free city"
+        (with-redefs [rand (constantly 0.4)]                ; < 0.5, conquer
+          (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
+                                (assoc-in [4 4] {:type :land :contents {:type :army :mode :moving :owner :player :target [4 5]}})
+                                (assoc-in [4 5] {:type :city :city-status :free}))]
+            (reset! atoms/game-map initial-map)
+            (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+            (move-units)
+            (should= {:type :land} (get-in @atoms/game-map [4 4]))
+            (should= {:type :city :city-status :player} (get-in @atoms/game-map [4 5])))))
+
+      (it "army fails to conquer free city"
+        (with-redefs [rand (constantly 0.6)]                ; >= 0.5, fail
+          (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
+                                (assoc-in [4 4] {:type :land :contents {:type :army :mode :moving :owner :player :target [4 5]}})
+                                (assoc-in [4 5] {:type :city :city-status :free}))]
+            (reset! atoms/game-map initial-map)
+            (reset! atoms/reason "")
+            (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+            (move-units)
+            (should= {:type :land :contents {:type :army :mode :awake :owner :player :hits 0}} (get-in @atoms/game-map [4 4]))
+            (should= {:type :city :city-status :free} (get-in @atoms/game-map [4 5]))
+            (should= "failed to conquer" @atoms/reason))))
+
+      (it "army conquers computer city"
+        (with-redefs [rand (constantly 0.4)]
+          (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
+                                (assoc-in [4 4] {:type :land :contents {:type :army :mode :moving :owner :player :target [4 5]}})
+                                (assoc-in [4 5] {:type :city :city-status :computer}))]
+            (reset! atoms/game-map initial-map)
+            (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+            (move-units)
+            (should= {:type :land} (get-in @atoms/game-map [4 4]))
+            (should= {:type :city :city-status :player} (get-in @atoms/game-map [4 5])))))
+      )
     )
   )
 

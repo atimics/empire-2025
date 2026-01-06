@@ -122,7 +122,7 @@
             ;; Fail
             (do
               (reset! atoms/reason "failed to conquer")
-              (let [failed-unit (assoc unit :mode :awake :hits 0)
+              (let [failed-unit (dissoc (assoc unit :mode :awake :hits 0) :target)
                     updated-cell (assoc cell :contents failed-unit)]
                 (swap! atoms/game-map assoc-in from-coords updated-cell)
                 (update-cell-visibility from-coords (:owner unit)))))

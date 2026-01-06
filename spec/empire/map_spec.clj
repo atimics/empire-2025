@@ -41,3 +41,17 @@
                                {:type :land }]])
     (reset! atoms/production {})
     (should= [[0 0] [0 1]] (map/cells-needing-attention))))
+
+(describe "remove-dead-units"
+  (it "removes units with hits at or below zero"
+    (let [initial-map [[{:type :land :contents {:type :army :hits 0 :owner :player}}
+                        {:type :land :contents {:type :fighter :hits 1 :owner :player}}
+                        {:type :land :contents {:type :army :hits -1 :owner :player}}]
+                       [{:type :land }
+                        {:type :land }
+                        {:type :land }]]]
+      (reset! atoms/game-map initial-map)
+      (map/remove-dead-units)
+      (should= {:type :land} (get-in @atoms/game-map [0 0]))
+      (should= {:type :land :contents {:type :fighter :hits 1 :owner :player}} (get-in @atoms/game-map [0 1]))
+      (should= {:type :land} (get-in @atoms/game-map [0 2])))))

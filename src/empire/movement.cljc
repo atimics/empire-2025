@@ -88,9 +88,19 @@
             updated-unit (if wake-up?
                            (dissoc (assoc unit :mode :awake) :target)
                            unit)
+            ;; Handle fighter fuel
+            final-unit (let [is-fighter (= (:type updated-unit) :fighter)
+                             current-fuel (if is-fighter (:fuel updated-unit config/fighter-fuel) nil)
+                             new-fuel (if is-fighter (dec current-fuel) nil)]
+                         (cond (and is-fighter (<= new-fuel -1)) nil
+                               is-fighter (let [waking? (<= new-fuel 0)
+                                                unit (if waking? (dissoc (assoc updated-unit :mode :awake) :target) updated-unit)]
+                                            (when waking? (reset! atoms/reason "fighter out of fuel"))
+                                            (assoc unit :fuel new-fuel))
+                               :else updated-unit))
             from-cell (dissoc cell :contents)
             to-cell (get-in @current-map final-pos)
-            updated-to-cell (assoc to-cell :contents updated-unit)]
+            updated-to-cell (if final-unit (assoc to-cell :contents final-unit) (dissoc to-cell :contents))]
         (swap! atoms/game-map assoc-in from-coords from-cell)
         (swap! atoms/game-map assoc-in final-pos updated-to-cell)
         (update-cell-visibility final-pos (:owner unit))))))
@@ -120,10 +130,10 @@
                   moved-contents (:contents moved-cell)]
               (when (and moved-contents (= :moving (:mode moved-contents)))
                 (let [new-target (:target moved-contents)]
-                  (recur next-pos new-target (dec remaining-steps))))))))))
+                  (recur next-pos new-target (dec remaining-steps)))))))))))
 
 (defn move-units []
-  (do-moves (get-moves))))
+  (do-moves (get-moves)))
 
 (defn set-unit-movement [unit-coords target-coords]
   (let [first-cell (get-in @atoms/game-map unit-coords)

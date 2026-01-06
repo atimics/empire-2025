@@ -79,6 +79,8 @@
 (def production-color [128 128 128])
 (def unit-color [0 0 0])
 
+(def fighter-fuel 32)
+
 ;; Unit speeds (cells per turn)
 (def unit-speed
   {:army 1

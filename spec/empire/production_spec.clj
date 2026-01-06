@@ -30,7 +30,7 @@
     (production/update-production)
     (should= {:item :army :remaining-rounds 1} (@atoms/production [1 0]))
     (should= {:item :fighter :remaining-rounds 10} (@atoms/production [0 1])) ; item-cost :fighter = 10
-    (should= {:type :fighter :hits 1 :mode :awake :owner :player} (:contents (get-in @atoms/game-map [0 1]))))
+    (should= {:type :fighter :hits 1 :mode :awake :owner :player :fuel 32} (:contents (get-in @atoms/game-map [0 1]))))
 
   (it "ignores cities with :no-production"
     (swap! atoms/production assoc [1 0] :no-production)

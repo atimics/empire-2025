@@ -55,55 +55,60 @@
                 game-cell (get-in @atoms/game-map [ni nj])]
             (swap! visible-map-atom assoc-in [ni nj] game-cell)))))))
 
+(defn wake-before-move [unit next-cell]
+  (if (and (= (:type unit) :army) (= (:type next-cell) :sea))
+    [(dissoc (assoc unit :mode :awake) :target) true]
+    [unit false]))
+
+(defn wake-after-move [unit final-pos current-map is-at-target]
+  (let [unit-wakes? (case (:type unit)
+                      :army (and (not is-at-target)
+                                 (some (fn [[di dj]]
+                                         (let [ni (+ (first final-pos) di)
+                                               nj (+ (second final-pos) dj)
+                                               adj-cell (get-in @current-map [ni nj])]
+                                           (and adj-cell
+                                                (= (:type adj-cell) :city)
+                                                (#{:free :computer} (:city-status adj-cell)))))
+                                       (for [di [-1 0 1] dj [-1 0 1]] [di dj])))
+                      false)
+        wake-up? (or is-at-target unit-wakes?)
+        updated-unit (if wake-up?
+                       (dissoc (assoc unit :mode :awake) :target)
+                       unit)
+        ;; Handle fighter fuel
+        final-unit (let [is-fighter (= (:type updated-unit) :fighter)
+                         current-fuel (if is-fighter (:fuel updated-unit config/fighter-fuel) nil)
+                         new-fuel (if is-fighter (dec current-fuel) nil)]
+                     (cond (and is-fighter (<= new-fuel -1)) nil
+                           is-fighter (let [waking? (<= new-fuel 0)
+                                            unit (if waking? (dissoc (assoc updated-unit :mode :awake) :target) updated-unit)]
+                                        (when waking? (reset! atoms/reason "fighter out of fuel"))
+                                        (assoc unit :fuel new-fuel))
+                           :else updated-unit))]
+    final-unit))
+
+(defn do-move [from-coords final-pos cell final-unit]
+  (let [from-cell (dissoc cell :contents)
+        to-cell (get-in @atoms/game-map final-pos)
+        updated-to-cell (if final-unit (assoc to-cell :contents final-unit) (dissoc to-cell :contents))]
+    (swap! atoms/game-map assoc-in from-coords from-cell)
+    (swap! atoms/game-map assoc-in final-pos updated-to-cell)
+    (update-cell-visibility final-pos (:owner (:contents cell)))))
+
 (defn move-unit [from-coords target-coords cell current-map]
   (let [unit (:contents cell)
         next-pos (next-step-pos from-coords target-coords)
-        next-cell (get-in @current-map next-pos)]
-    (cond
-      ;; Unit-specific wake before move
-      (and (= (:type unit) :army) (= (:type next-cell) :sea))
-      (let [woken-unit (dissoc (assoc unit :mode :awake) :target)
-            updated-cell (assoc cell :contents woken-unit)]
+        next-cell (get-in @current-map next-pos)
+        [unit woke?] (wake-before-move unit next-cell)]
+    (if woke?
+      (let [updated-cell (assoc cell :contents unit)]
         (swap! atoms/game-map assoc-in from-coords updated-cell)
         (update-cell-visibility from-coords (:owner unit)))
-
-      ;; Basic movement
-      :else
       (let [is-at-target (= next-pos target-coords)
             final-pos (if is-at-target target-coords next-pos)
-            ;; Unit-specific wake at final-pos
-            unit-wakes? (case (:type unit)
-                          :army (and (not is-at-target)
-                                     ;; Near enemy or free city
-                                     (some (fn [[di dj]]
-                                             (let [ni (+ (first final-pos) di)
-                                                   nj (+ (second final-pos) dj)
-                                                   adj-cell (get-in @current-map [ni nj])]
-                                               (and adj-cell
-                                                    (= (:type adj-cell) :city)
-                                                    (#{:free :computer} (:city-status adj-cell)))))
-                                           (for [di [-1 0 1] dj [-1 0 1]] [di dj])))
-                          false)
-            wake-up? (or is-at-target unit-wakes?)
-            updated-unit (if wake-up?
-                           (dissoc (assoc unit :mode :awake) :target)
-                           unit)
-            ;; Handle fighter fuel
-            final-unit (let [is-fighter (= (:type updated-unit) :fighter)
-                             current-fuel (if is-fighter (:fuel updated-unit config/fighter-fuel) nil)
-                             new-fuel (if is-fighter (dec current-fuel) nil)]
-                         (cond (and is-fighter (<= new-fuel -1)) nil
-                               is-fighter (let [waking? (<= new-fuel 0)
-                                                unit (if waking? (dissoc (assoc updated-unit :mode :awake) :target) updated-unit)]
-                                            (when waking? (reset! atoms/reason "fighter out of fuel"))
-                                            (assoc unit :fuel new-fuel))
-                               :else updated-unit))
-            from-cell (dissoc cell :contents)
-            to-cell (get-in @current-map final-pos)
-            updated-to-cell (if final-unit (assoc to-cell :contents final-unit) (dissoc to-cell :contents))]
-        (swap! atoms/game-map assoc-in from-coords from-cell)
-        (swap! atoms/game-map assoc-in final-pos updated-to-cell)
-        (update-cell-visibility final-pos (:owner unit))))))
+            final-unit (wake-after-move unit final-pos current-map is-at-target)]
+        (do-move from-coords final-pos cell final-unit)))))
 
 (defn get-moves []
   (let [current-map @atoms/game-map]

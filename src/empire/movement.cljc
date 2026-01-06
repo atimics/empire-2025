@@ -52,13 +52,14 @@
         (doseq [di [-1 0 1]
                 dj [-1 0 1]]
           (let [ni (max 0 (min (dec height) (+ x di)))
-                nj (max 0 (min (dec width) (+ y dj)))]
-            (swap! visible-map-atom assoc-in [ni nj] (get-in game-map-val [ni nj]))))))))
+                nj (max 0 (min (dec width) (+ y dj)))
+                game-cell (get-in game-map-val [ni nj])]
+            (swap! visible-map-atom assoc-in [ni nj] game-cell)))))))
 
 (defn move-unit [from-coords target-coords cell current-map]
   (let [unit (:contents cell)
         next-pos (next-step-pos from-coords target-coords)
-        next-cell (get-in current-map next-pos)]
+        next-cell (get-in @current-map next-pos)]
     (cond
       ;; Unit-specific wake before move
       (and (= (:type unit) :army) (= (:type next-cell) :sea))
@@ -78,7 +79,7 @@
                                      (some (fn [[di dj]]
                                              (let [ni (+ (first final-pos) di)
                                                    nj (+ (second final-pos) dj)
-                                                   adj-cell (get-in current-map [ni nj])]
+                                                   adj-cell (get-in @current-map [ni nj])]
                                                (and adj-cell
                                                     (= (:type adj-cell) :city)
                                                     (#{:free :computer} (:city-status adj-cell)))))
@@ -88,8 +89,8 @@
             updated-unit (if wake-up?
                            (dissoc (assoc unit :mode :awake) :target)
                            unit)
-            from-cell (assoc cell :contents nil)
-            to-cell (or (get-in current-map final-pos) {:type :land})
+            from-cell (dissoc cell :contents)
+            to-cell (get-in @current-map final-pos)
             updated-to-cell (assoc to-cell :contents updated-unit)]
         (swap! atoms/game-map assoc-in from-coords from-cell)
         (swap! atoms/game-map assoc-in final-pos updated-to-cell)
@@ -111,7 +112,7 @@
                remaining-steps steps]
           (when (> remaining-steps 0)
             (let [current-cell (get-in @atoms/game-map current-from)]
-              (move-unit current-from current-target current-cell @atoms/game-map)
+              (move-unit current-from current-target current-cell atoms/game-map)
               ;; The unit moved to next-pos towards current-target
               (let [next-pos (next-step-pos current-from current-target)
                     moved-cell (get-in @atoms/game-map next-pos)

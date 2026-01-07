@@ -25,7 +25,7 @@
         screen-h (q/height)
         cols (quot screen-w char-width)
         text-rows 4
-        text-gap 5
+        text-gap 7
         text-h (* text-rows char-height)
         rows (quot (+ (- screen-h text-h) text-gap) char-height)
         map-display-w (* cols char-width)
@@ -65,6 +65,8 @@
       (map/draw-map the-map)
       (menus/draw-menu)
       (let [[text-x text-y text-w _] @atoms/text-area-dimensions]
+        (q/stroke 255)
+        (q/line text-x (- text-y 4) (+ text-x text-w) (- text-y 4))
         (q/text-font @atoms/text-font)
         (q/fill 255)
         (when (seq @atoms/message)

@@ -69,6 +69,11 @@
         (q/fill 255)
         (when (seq @atoms/message)
           (q/text @atoms/message (+ text-x 10) (+ text-y 10)))
+        (when (and (seq @atoms/line3-message)
+                   (even? (quot (System/currentTimeMillis) 500)))
+          (q/fill 255 0 0)
+          (q/text @atoms/line3-message (+ text-x 10) (+ text-y 50))
+          (q/fill 255))
         (q/text (str "Round: " @atoms/round-number) (- (+ text-x text-w) 100) (+ text-y 10))
         (q/text (str (- (System/currentTimeMillis) start-time) " ms" ) (- (+ text-x text-w) 100) (+ text-y 30))))))
 

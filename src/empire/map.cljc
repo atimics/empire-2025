@@ -232,9 +232,16 @@
         cell-h (/ map-h rows)]
     [(int (Math/floor (/ x cell-w))) (int (Math/floor (/ y cell-h)))]))
 
+(defn on-map? [x y]
+  "Returns true if the pixel coordinates are within the map display area."
+  (let [[map-w map-h] @atoms/map-screen-dimensions]
+    (and (>= x 0) (< x map-w)
+         (>= y 0) (< y map-h))))
+
 (defn mouse-down
   "Handles mouse click events."
   [x y]
+  (reset! atoms/line3-message "")
   (let [[cell-x cell-y] (determine-cell-coordinates x y)]
     (menus/dismiss-existing-menu x y)
     (let [clicked-item (menus/handle-menu-click x y)]
@@ -245,11 +252,13 @@
             (swap! atoms/cells-needing-attention rest)))
         (when (= :unit (:header @atoms/menu-state))
           (movement/set-unit-mode (:coords @atoms/menu-state) clicked-item)
-          (swap! atoms/cells-needing-attention rest))
-        )
+          (swap! atoms/cells-needing-attention rest)))
       (when-not clicked-item
-        (reset! atoms/last-clicked-cell [cell-x cell-y])
-        (handle-cell-click cell-x cell-y)))))
+        (if (on-map? x y)
+          (do
+            (reset! atoms/last-clicked-cell [cell-x cell-y])
+            (handle-cell-click cell-x cell-y))
+          (reset! atoms/line3-message (:not-on-map config/messages)))))))
 
 (defn remove-dead-units
   "Removes units with hits at or below zero."

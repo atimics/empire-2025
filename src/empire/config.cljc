@@ -87,7 +87,8 @@
    :fighter-out-of-fuel "Fighter out of fuel."
    :failed-to-conquer "Failed to conquer city."
    :city-needs-attention "City needs attention"
-   :unit-needs-attention " needs attention"})
+   :unit-needs-attention " needs attention"
+   :not-on-map "That's not on the map!"})
 
 ;; Unit speeds (cells per turn)
 (def unit-speed

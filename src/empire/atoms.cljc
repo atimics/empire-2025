@@ -46,6 +46,10 @@
   "An atom containing the current message to display."
   (atom ""))
 
+(def line3-message
+  "An atom containing the message to display on line 3."
+  (atom ""))
+
 (def computer-map
   "An atom containing the computer's visible map areas."
   (atom {}))

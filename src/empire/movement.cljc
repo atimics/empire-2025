@@ -57,6 +57,9 @@
 
 (defn wake-before-move [unit next-cell]
   (cond
+    (:contents next-cell)
+    [(assoc (dissoc (assoc unit :mode :awake) :target) :reason :somethings-in-the-way) true]
+
     (and (= (:type unit) :army) (= (:type next-cell) :sea))
     [(assoc (dissoc (assoc unit :mode :awake) :target) :reason :cant-move-into-water) true]
 

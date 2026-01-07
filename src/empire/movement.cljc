@@ -77,32 +77,30 @@
 
 (defn wake-after-move [unit final-pos current-map]
   (let [is-at-target? (= final-pos (:target unit))
-        unit-wakes? (case (:type unit)
-                      :army (near-conquerable-city? final-pos current-map)
-                      false)
-        wake-up? (or is-at-target? unit-wakes?)
-        reason (when (and (= (:type unit) :army) unit-wakes?) :army-found-city)
-        updated-unit (if wake-up?
-                       (dissoc (cond-> (assoc unit :mode :awake)
-                                 reason (assoc :reason reason)) :target)
-                       unit)
-        ;; Handle fighter fuel
-        final-unit (let [is-fighter (= (:type updated-unit) :fighter)
-                         current-fuel (if is-fighter (:fuel updated-unit config/fighter-fuel) nil)
-                         new-fuel (if is-fighter (dec current-fuel) nil)]
-                     (cond (and is-fighter (<= new-fuel -1)) nil
-                           is-fighter (let [waking? (<= new-fuel 0)
-                                            unit (if waking?
-                                                   (assoc (dissoc (assoc updated-unit :mode :awake) :target) :reason :fighter-out-of-fuel)
-                                                   updated-unit)]
-                                        (assoc unit :fuel new-fuel))
-                           :else updated-unit))]
-    final-unit))
+        [unit-wakes? reason] (case (:type unit)
+                               :army [(near-conquerable-city? final-pos current-map) :army-found-city]
+                               :fighter [(<= (:fuel unit config/fighter-fuel) 1) :fighter-out-of-fuel]
+                               [false nil])
+        wake-up? (or is-at-target? unit-wakes?)]
+    (if wake-up?
+      (dissoc (cond-> (assoc unit :mode :awake)
+                (and unit-wakes? reason) (assoc :reason reason)) :target)
+      unit)))
+
+(defn process-consumables [unit]
+  (if (and unit (= (:type unit) :fighter))
+    (let [current-fuel (:fuel unit config/fighter-fuel)
+          new-fuel (dec current-fuel)]
+      (if (<= new-fuel -1)
+        nil
+        (assoc unit :fuel new-fuel)))
+    unit))
 
 (defn do-move [from-coords final-pos cell final-unit]
   (let [from-cell (dissoc cell :contents)
         to-cell (get-in @atoms/game-map final-pos)
-        updated-to-cell (if final-unit (assoc to-cell :contents final-unit) (dissoc to-cell :contents))]
+        processed-unit (process-consumables final-unit)
+        updated-to-cell (if processed-unit (assoc to-cell :contents processed-unit) (dissoc to-cell :contents))]
     (swap! atoms/game-map assoc-in from-coords from-cell)
     (swap! atoms/game-map assoc-in final-pos updated-to-cell)
     (update-cell-visibility final-pos (:owner (:contents cell)))))

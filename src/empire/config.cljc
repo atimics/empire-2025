@@ -88,6 +88,7 @@
    :failed-to-conquer "Failed to conquer city."
    :conquest-failed "Conquest Failed"
    :cant-move-into-water "Can't move into water."
+   :cant-move-into-city "Can't move into city."
    :city-needs-attention "City needs attention"
    :unit-needs-attention " needs attention"
    :not-on-map "That's not on the map!"})

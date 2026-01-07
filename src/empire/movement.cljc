@@ -56,9 +56,14 @@
             (swap! visible-map-atom assoc-in [ni nj] game-cell)))))))
 
 (defn wake-before-move [unit next-cell]
-  (if (and (= (:type unit) :army) (= (:type next-cell) :sea))
+  (cond
+    (and (= (:type unit) :army) (= (:type next-cell) :sea))
     [(assoc (dissoc (assoc unit :mode :awake) :target) :reason (:cant-move-into-water config/messages)) true]
-    [unit false]))
+
+    (and (= (:type unit) :army) (= (:type next-cell) :city) (= (:city-status next-cell) :player))
+    [(assoc (dissoc (assoc unit :mode :awake) :target) :reason (:cant-move-into-city config/messages)) true]
+
+    :else [unit false]))
 
 (defn wake-after-move [unit final-pos current-map is-at-target]
   (let [unit-wakes? (case (:type unit)

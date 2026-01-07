@@ -170,32 +170,38 @@
 (defn handle-unit-click
   "Handles interaction with an attention-needing unit."
   [cell-x cell-y clicked-coords attention-coords]
-  (let [first-coords (first attention-coords)]
-    (if (= clicked-coords first-coords)
+  (let [attn-coords (first attention-coords)]
+    (if (= clicked-coords attn-coords)
       ;; Clicked on the unit: show menu
       (let [header :unit
             items [:explore :sentry]]
         (menus/show-menu cell-x cell-y header items))
       ;; Clicked elsewhere
-      (if (and (= :army (:type (:contents (get-in @atoms/game-map first-coords))))
-               (= (:reason (:contents (get-in @atoms/game-map first-coords))) (:army-found-city config/messages))
-               (let [target-cell (get-in @atoms/game-map clicked-coords)]
-                 (and (= (:type target-cell) :city)
-                      (#{:free :computer} (:city-status target-cell)))))
+      (let [attn-cell (get-in @atoms/game-map attn-coords)
+            target-cell (get-in @atoms/game-map clicked-coords)
+            [ax ay] attn-coords
+            [cx cy] clicked-coords
+            adjacent? (and (<= (abs (- ax cx)) 1) (<= (abs (- ay cy)) 1))]
+        (if (and (= :army (:type (:contents attn-cell)))
+                 adjacent?
+                 (= (:type target-cell) :city)
+                 (#{:free :computer} (:city-status target-cell)))
         ;; Attempt conquest
         (if (< (rand) 0.5)
           (let [city-cell (get-in @atoms/game-map clicked-coords)
-                army-cell (get-in @atoms/game-map first-coords)]
-            (swap! atoms/game-map assoc-in first-coords (dissoc army-cell :contents))
+                army-cell (get-in @atoms/game-map attn-coords)]
+            (swap! atoms/game-map assoc-in attn-coords (dissoc army-cell :contents))
             (swap! atoms/game-map assoc-in clicked-coords (assoc city-cell :city-status :player))
             (movement/update-cell-visibility clicked-coords :player)
             (reset! atoms/cells-needing-attention (cells-needing-attention)))
-          ;; Fail: update army
-          (let [army-cell (get-in @atoms/game-map first-coords)
-                updated-army (dissoc (assoc (:contents army-cell) :mode :awake :hits 0 :reason (:failed-to-conquer config/messages)) :target)]
-            (swap! atoms/game-map assoc-in first-coords (assoc army-cell :contents updated-army))))
+          ;; Fail: remove army and display message
+          (do
+            (swap! atoms/game-map assoc-in attn-coords (dissoc attn-cell :contents))
+            (movement/update-cell-visibility attn-coords :player)
+            (reset! atoms/cells-needing-attention (cells-needing-attention))
+            (reset! atoms/line3-message (:conquest-failed config/messages))))
         ;; Normal movement
-        (movement/set-unit-movement first-coords clicked-coords))))
+          (movement/set-unit-movement attn-coords clicked-coords)))))
   (swap! atoms/cells-needing-attention rest))
 
 (defn handle-cell-click
@@ -281,11 +287,22 @@
   (reset! atoms/cells-needing-attention (cells-needing-attention))
   (while (seq @atoms/cells-needing-attention)
     (let [first-cell-coords (first @atoms/cells-needing-attention)
-          first-cell (get-in @atoms/game-map first-cell-coords)]
+          first-cell (get-in @atoms/game-map first-cell-coords)
+          [ax ay] first-cell-coords
+          adjacent-enemy-city? (and (= :army (:type (:contents first-cell)))
+                                    (some (fn [[di dj]]
+                                            (let [ni (+ ax di)
+                                                  nj (+ ay dj)
+                                                  adj-cell (get-in @atoms/game-map [ni nj])]
+                                              (and adj-cell
+                                                   (= (:type adj-cell) :city)
+                                                   (#{:free :computer} (:city-status adj-cell)))))
+                                          (for [di [-1 0 1] dj [-1 0 1]] [di dj])))]
       (reset! atoms/message (if (:contents first-cell)
                               (let [unit (:contents first-cell)
                                     unit-name (name (:type unit))
-                                    reason (:reason unit)]
+                                    reason (or (:reason unit)
+                                               (when adjacent-enemy-city? (:army-found-city config/messages)))]
                                 (str unit-name (:unit-needs-attention config/messages) (if reason (str " - " reason) "")))
                               (:city-needs-attention config/messages))))
     (Thread/sleep 100)

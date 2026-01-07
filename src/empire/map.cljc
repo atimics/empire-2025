@@ -167,6 +167,29 @@
         :when (needs-attention? i j)]
     [i j]))
 
+(defn attempt-conquest
+  "Attempts to conquer a city with an army. Returns true if conquest was attempted."
+  [army-coords city-coords]
+  (let [army-cell (get-in @atoms/game-map army-coords)
+        city-cell (get-in @atoms/game-map city-coords)]
+    (if (< (rand) 0.5)
+      (do
+        (swap! atoms/game-map assoc-in army-coords (dissoc army-cell :contents))
+        (swap! atoms/game-map assoc-in city-coords (assoc city-cell :city-status :player))
+        (movement/update-cell-visibility city-coords :player)
+        (reset! atoms/cells-needing-attention (cells-needing-attention)))
+      (do
+        (swap! atoms/game-map assoc-in army-coords (dissoc army-cell :contents))
+        (movement/update-cell-visibility army-coords :player)
+        (reset! atoms/cells-needing-attention (cells-needing-attention))
+        (reset! atoms/line3-message (:conquest-failed config/messages))))
+    true))
+
+(defn conquerable-city? [target-coords]
+  (let [target-cell (get-in @atoms/game-map target-coords)]
+    (and (= (:type target-cell) :city)
+         (#{:free :computer} (:city-status target-cell)))))
+
 (defn handle-unit-click
   "Handles interaction with an attention-needing unit."
   [cell-x cell-y clicked-coords attention-coords]
@@ -178,29 +201,13 @@
         (menus/show-menu cell-x cell-y header items))
       ;; Clicked elsewhere
       (let [attn-cell (get-in @atoms/game-map attn-coords)
-            target-cell (get-in @atoms/game-map clicked-coords)
             [ax ay] attn-coords
             [cx cy] clicked-coords
             adjacent? (and (<= (abs (- ax cx)) 1) (<= (abs (- ay cy)) 1))]
         (if (and (= :army (:type (:contents attn-cell)))
                  adjacent?
-                 (= (:type target-cell) :city)
-                 (#{:free :computer} (:city-status target-cell)))
-        ;; Attempt conquest
-        (if (< (rand) 0.5)
-          (let [city-cell (get-in @atoms/game-map clicked-coords)
-                army-cell (get-in @atoms/game-map attn-coords)]
-            (swap! atoms/game-map assoc-in attn-coords (dissoc army-cell :contents))
-            (swap! atoms/game-map assoc-in clicked-coords (assoc city-cell :city-status :player))
-            (movement/update-cell-visibility clicked-coords :player)
-            (reset! atoms/cells-needing-attention (cells-needing-attention)))
-          ;; Fail: remove army and display message
-          (do
-            (swap! atoms/game-map assoc-in attn-coords (dissoc attn-cell :contents))
-            (movement/update-cell-visibility attn-coords :player)
-            (reset! atoms/cells-needing-attention (cells-needing-attention))
-            (reset! atoms/line3-message (:conquest-failed config/messages))))
-        ;; Normal movement
+                 (conquerable-city? clicked-coords))
+          (attempt-conquest attn-coords clicked-coords)
           (movement/set-unit-movement attn-coords clicked-coords)))))
   (swap! atoms/cells-needing-attention rest))
 
@@ -275,15 +282,40 @@
       (swap! atoms/cells-needing-attention rest)
       true)))
 
+(defn- calculate-extended-target [coords [dx dy]]
+  (let [height (count @atoms/game-map)
+        width (count (first @atoms/game-map))
+        [x y] coords]
+    (loop [tx x ty y]
+      (let [nx (+ tx dx)
+            ny (+ ty dy)]
+        (if (and (>= nx 0) (< nx height) (>= ny 0) (< ny width))
+          (recur nx ny)
+          [tx ty])))))
+
 (defn- handle-unit-movement-key [k coords cell]
-  (when-let [[dx dy] (config/key->direction k)]
-    (let [unit (:contents cell)]
-      (when (and unit (= (:owner unit) :player))
-        (let [[x y] coords
-              target [(+ x dx) (+ y dy)]]
-          (movement/set-unit-movement coords target)
-          (swap! atoms/cells-needing-attention rest)
-          true)))))
+  (let [direction (or (config/key->direction k)
+                      (config/key->extended-direction k))
+        extended? (config/key->extended-direction k)]
+    (when direction
+      (let [unit (:contents cell)]
+        (when (and unit (= (:owner unit) :player))
+          (let [[x y] coords
+                [dx dy] direction
+                adjacent-target [(+ x dx) (+ y dy)]
+                target (if extended?
+                         (calculate-extended-target coords direction)
+                         adjacent-target)]
+            (if (and (= :army (:type unit))
+                     (not extended?)
+                     (conquerable-city? adjacent-target))
+              (do
+                (attempt-conquest coords adjacent-target)
+                true)
+              (do
+                (movement/set-unit-movement coords target)
+                (swap! atoms/cells-needing-attention rest)
+                true))))))))
 
 (defn handle-key [k]
   (when-let [coords (first @atoms/cells-needing-attention)]

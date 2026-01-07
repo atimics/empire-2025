@@ -105,6 +105,17 @@
    (keyword ",") [0 1]     ; south
    :. [1 1]})   ; southeast
 
+;; Shifted keys for extended movement (to map edge)
+(def key->extended-direction
+  {:U [-1 -1]   ; far northwest
+   :I [0 -1]    ; far north
+   :O [1 -1]    ; far northeast
+   :J [-1 0]    ; far west
+   :L [1 0]     ; far east
+   :M [-1 1]    ; far southwest
+   :< [0 1]     ; far south
+   :> [1 1]})   ; far southeast
+
 ;; Key to production item mapping
 (def key->production-item
   {:a :army

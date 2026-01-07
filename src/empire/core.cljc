@@ -108,18 +108,21 @@
 
 (defn key-down [k]
   ;; Handle key down events
+  (prn 'key k)
   (cond
     (= k :+) (swap! atoms/map-to-display {:player-map :computer-map
                                           :computer-map :actual-map
                                           :actual-map :player-map})
+    (= k :shift) nil
     (map/handle-key k) nil
     :else (println "Key down:" k)))
 
 (defn key-pressed [state _]
   (let [k (q/key-as-keyword)]
-    (when (nil? @atoms/last-key)
-      (key-down k))
-    (reset! atoms/last-key k))
+    (when (not= k :shift)
+      (when (nil? @atoms/last-key)
+        (key-down k))
+      (reset! atoms/last-key k)))
   state)
 
 (defn key-released [_ _]

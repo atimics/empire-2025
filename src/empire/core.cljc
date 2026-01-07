@@ -44,7 +44,6 @@
   (calculate-screen-dimensions)
   (init/make-initial-map @atoms/map-size config/smooth-count config/land-fraction config/number-of-cities config/min-city-distance)
   (q/frame-rate 10)
-  (future (map/game-loop))
   {})
 
 (defn update-state
@@ -108,14 +107,12 @@
 
 (defn key-down [k]
   ;; Handle key down events
-  (prn 'key k)
   (cond
     (= k :+) (swap! atoms/map-to-display {:player-map :computer-map
                                           :computer-map :actual-map
                                           :actual-map :player-map})
-    (= k :shift) nil
     (map/handle-key k) nil
-    :else (println "Key down:" k)))
+    :else nil))
 
 (defn key-pressed [state _]
   (let [k (q/key-as-keyword)]
@@ -157,7 +154,7 @@
                :key-pressed key-pressed
                :key-released key-released
                :mouse-pressed mouse-pressed
-               :features [:keep-on-top]
+               :features []
                :middleware [m/fun-mode]
                :on-close on-close
                :host "empire"))

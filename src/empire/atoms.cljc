@@ -39,6 +39,16 @@
   "An atom containing coordinates of player's awake units and cities with no production."
   (atom []))
 
+;; List of player items to process this round
+(def player-items
+  "An atom containing list of player city/unit coords to process."
+  (atom []))
+
+;; Flag indicating we're waiting for user input
+(def waiting-for-input
+  "An atom indicating if we're waiting for user input on current item."
+  (atom false))
+
 ;; Message to display to the player
 (def message
   "An atom containing the current message to display."

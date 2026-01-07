@@ -6,6 +6,8 @@
             [empire.production :as production]
             [quil.core :as q]))
 
+(declare item-processed)
+
 (defn process-map
   "Processes the map by applying f to each cell, where f takes i j and the-map."
   [the-map f]
@@ -176,12 +178,10 @@
       (do
         (swap! atoms/game-map assoc-in army-coords (dissoc army-cell :contents))
         (swap! atoms/game-map assoc-in city-coords (assoc city-cell :city-status :player))
-        (movement/update-cell-visibility city-coords :player)
-        (reset! atoms/cells-needing-attention (cells-needing-attention)))
+        (movement/update-cell-visibility city-coords :player))
       (do
         (swap! atoms/game-map assoc-in army-coords (dissoc army-cell :contents))
         (movement/update-cell-visibility army-coords :player)
-        (reset! atoms/cells-needing-attention (cells-needing-attention))
         (reset! atoms/line3-message (:conquest-failed config/messages))))
     true))
 
@@ -208,8 +208,8 @@
                  adjacent?
                  (conquerable-city? clicked-coords))
           (attempt-conquest attn-coords clicked-coords)
-          (movement/set-unit-movement attn-coords clicked-coords)))))
-  (swap! atoms/cells-needing-attention rest))
+          (movement/set-unit-movement attn-coords clicked-coords))
+        (item-processed)))))
 
 (defn handle-cell-click
   "Handles clicking on a map cell, prioritizing attention-needing items."
@@ -261,11 +261,10 @@
       (when clicked-item
         (when (= :production (:header @atoms/menu-state))
           (production/set-city-production (:coords @atoms/menu-state) clicked-item)
-          (when (seq @atoms/cells-needing-attention)
-            (swap! atoms/cells-needing-attention rest)))
+          (item-processed))
         (when (= :unit (:header @atoms/menu-state))
           (movement/set-unit-mode (:coords @atoms/menu-state) clicked-item)
-          (swap! atoms/cells-needing-attention rest)))
+          (item-processed)))
       (when-not clicked-item
         (if (on-map? x y)
           (do
@@ -279,7 +278,7 @@
                (= (:city-status cell) :player)
                (not (:contents cell)))
       (production/set-city-production coords item)
-      (swap! atoms/cells-needing-attention rest)
+      (item-processed)
       true)))
 
 (defn- calculate-extended-target [coords [dx dy]]
@@ -311,10 +310,11 @@
                      (conquerable-city? adjacent-target))
               (do
                 (attempt-conquest coords adjacent-target)
+                (item-processed)
                 true)
               (do
                 (movement/set-unit-movement coords target)
-                (swap! atoms/cells-needing-attention rest)
+                (item-processed)
                 true))))))))
 
 (defn handle-key [k]
@@ -334,48 +334,108 @@
           :when (and contents (<= (:hits contents 1) 0))]
     (swap! atoms/game-map assoc-in [i j] (dissoc cell :contents))))
 
-(defn do-a-round
-  "Performs one round of game actions."
+(defn build-player-items
+  "Builds list of player city/unit coordinates to process this round."
   []
-  ;; Placeholder for round logic
+  (for [i (range (count @atoms/game-map))
+        j (range (count (first @atoms/game-map)))
+        :let [cell (get-in @atoms/game-map [i j])]
+        :when (or (= (:city-status cell) :player)
+                  (= (:owner (:contents cell)) :player))]
+    [i j]))
+
+(defn item-needs-attention?
+  "Returns true if the item at coords needs user input."
+  [coords]
+  (let [cell (get-in @atoms/game-map coords)
+        unit (:contents cell)]
+    (or (= (:mode unit) :awake)
+        (and (= (:type cell) :city)
+             (= (:city-status cell) :player)
+             (not (@atoms/production coords))))))
+
+(defn set-attention-message
+  "Sets the message for the current item needing attention."
+  [coords]
+  (let [cell (get-in @atoms/game-map coords)
+        [ax ay] coords
+        adjacent-enemy-city? (and (= :army (:type (:contents cell)))
+                                  (some (fn [[di dj]]
+                                          (let [ni (+ ax di)
+                                                nj (+ ay dj)
+                                                adj-cell (get-in @atoms/game-map [ni nj])]
+                                            (and adj-cell
+                                                 (= (:type adj-cell) :city)
+                                                 (#{:free :computer} (:city-status adj-cell)))))
+                                        (for [di [-1 0 1] dj [-1 0 1]] [di dj])))]
+    (reset! atoms/message (if (:contents cell)
+                            (let [unit (:contents cell)
+                                  unit-name (name (:type unit))
+                                  reason-key (or (:reason unit)
+                                                 (when adjacent-enemy-city? :army-found-city))
+                                  reason-str (when reason-key (reason-key config/messages))]
+                              (str unit-name (:unit-needs-attention config/messages) (if reason-str (str " - " reason-str) "")))
+                            (:city-needs-attention config/messages)))))
+
+(defn move-current-unit
+  "Moves the unit at coords if it's in moving mode, respecting unit speed."
+  [coords]
+  (let [cell (get-in @atoms/game-map coords)
+        unit (:contents cell)]
+    (when (= (:mode unit) :moving)
+      (let [steps (get config/unit-speed (:type unit) 1)]
+        (loop [current-from coords
+               remaining-steps steps]
+          (when (> remaining-steps 0)
+            (let [current-cell (get-in @atoms/game-map current-from)
+                  current-unit (:contents current-cell)]
+              (when (and current-unit (= :moving (:mode current-unit)))
+                (movement/move-unit current-from (:target current-unit) current-cell atoms/game-map)
+                (let [next-pos (movement/next-step-pos current-from (:target current-unit))
+                      moved-cell (get-in @atoms/game-map next-pos)
+                      moved-unit (:contents moved-cell)]
+                  (when (and moved-unit (= :moving (:mode moved-unit)))
+                    (recur next-pos (dec remaining-steps))))))))))))
+
+(defn start-new-round
+  "Starts a new round by building player items list and updating game state."
+  []
   (swap! atoms/round-number inc)
   (remove-dead-units)
-  (movement/move-units)
   (production/update-production)
-  (reset! atoms/cells-needing-attention (cells-needing-attention))
-  (while (seq @atoms/cells-needing-attention)
-    (let [first-cell-coords (first @atoms/cells-needing-attention)
-          first-cell (get-in @atoms/game-map first-cell-coords)
-          [ax ay] first-cell-coords
-          adjacent-enemy-city? (and (= :army (:type (:contents first-cell)))
-                                    (some (fn [[di dj]]
-                                            (let [ni (+ ax di)
-                                                  nj (+ ay dj)
-                                                  adj-cell (get-in @atoms/game-map [ni nj])]
-                                              (and adj-cell
-                                                   (= (:type adj-cell) :city)
-                                                   (#{:free :computer} (:city-status adj-cell)))))
-                                          (for [di [-1 0 1] dj [-1 0 1]] [di dj])))]
-      (reset! atoms/message (if (:contents first-cell)
-                              (let [unit (:contents first-cell)
-                                    unit-name (name (:type unit))
-                                    reason-key (or (:reason unit)
-                                                   (when adjacent-enemy-city? :army-found-city))
-                                    reason-str (when reason-key (reason-key config/messages))]
-                                (str unit-name (:unit-needs-attention config/messages) (if reason-str (str " - " reason-str) "")))
-                              (:city-needs-attention config/messages))))
-    (Thread/sleep 100)
-    (reset! atoms/message "")))
+  (reset! atoms/player-items (vec (build-player-items)))
+  (reset! atoms/waiting-for-input false)
+  (reset! atoms/message "")
+  (reset! atoms/cells-needing-attention []))
+
+(defn advance-game
+  "Advances the game by processing the current item or starting new round."
+  []
+  (if (empty? @atoms/player-items)
+    (start-new-round)
+    (when-not @atoms/waiting-for-input
+      (let [coords (first @atoms/player-items)]
+        (if (item-needs-attention? coords)
+          (do
+            (reset! atoms/cells-needing-attention [coords])
+            (set-attention-message coords)
+            (reset! atoms/waiting-for-input true))
+          (do
+            (move-current-unit coords)
+            (swap! atoms/player-items rest)))))))
+
+(defn item-processed
+  "Called when user input has been processed for current item."
+  []
+  (reset! atoms/waiting-for-input false)
+  (reset! atoms/message "")
+  (reset! atoms/cells-needing-attention [])
+  )
 
 (defn update-map
   "Updates the game map state."
   []
   (update-player-map)
   (update-computer-map)
-  )
-
-(defn game-loop []
-  (Thread/sleep ^long config/round-delay)
-  (do-a-round)
-  (recur))
+  (advance-game))
 

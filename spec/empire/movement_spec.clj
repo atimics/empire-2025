@@ -121,7 +121,7 @@
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
           (move-units)
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player}} (get-in @atoms/game-map [4 4]))
+          (should= {:type :land :contents {:type :army :mode :awake :owner :player :reason (:cant-move-into-water config/messages)}} (get-in @atoms/game-map [4 4]))
           (should= {:type :sea} (get-in @atoms/game-map [4 5]))))
 
       (it "wakes up a unit when moving near an enemy city"

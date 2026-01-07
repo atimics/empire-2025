@@ -57,7 +57,7 @@
 
 (defn wake-before-move [unit next-cell]
   (if (and (= (:type unit) :army) (= (:type next-cell) :sea))
-    [(dissoc (assoc unit :mode :awake) :target) true]
+    [(assoc (dissoc (assoc unit :mode :awake) :target) :reason (:cant-move-into-water config/messages)) true]
     [unit false]))
 
 (defn wake-after-move [unit final-pos current-map is-at-target]

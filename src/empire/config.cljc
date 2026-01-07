@@ -87,6 +87,7 @@
    :fighter-out-of-fuel "Fighter out of fuel."
    :failed-to-conquer "Failed to conquer city."
    :conquest-failed "Conquest Failed"
+   :cant-move-into-water "Can't move into water."
    :city-needs-attention "City needs attention"
    :unit-needs-attention " needs attention"
    :not-on-map "That's not on the map!"})

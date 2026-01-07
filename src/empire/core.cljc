@@ -53,6 +53,44 @@
   (map/update-map)
   state)
 
+(defn draw-line-1
+  "Draws the main message on line 1."
+  [text-x text-y]
+  (when (seq @atoms/message)
+    (q/text @atoms/message (+ text-x 10) (+ text-y 10))))
+
+(defn draw-line-2
+  "Draws content on line 2."
+  [text-x text-y])
+
+(defn draw-line-3
+  "Draws the flashing red message on line 3."
+  [text-x text-y]
+  (when (and (seq @atoms/line3-message)
+             (even? (quot (System/currentTimeMillis) 500)))
+    (q/fill 255 0 0)
+    (q/text @atoms/line3-message (+ text-x 10) (+ text-y 50))
+    (q/fill 255)))
+
+(defn draw-status
+  "Draws the status info (round number and render time) on the right."
+  [text-x text-y text-w start-time]
+  (q/text (str "Round: " @atoms/round-number) (- (+ text-x text-w) 100) (+ text-y 10))
+  (q/text (str (- (System/currentTimeMillis) start-time) " ms") (- (+ text-x text-w) 100) (+ text-y 30)))
+
+(defn draw-message-area
+  "Draws the message area including separator line and messages."
+  [start-time]
+  (let [[text-x text-y text-w _] @atoms/text-area-dimensions]
+    (q/stroke 255)
+    (q/line text-x (- text-y 4) (+ text-x text-w) (- text-y 4))
+    (q/text-font @atoms/text-font)
+    (q/fill 255)
+    (draw-line-1 text-x text-y)
+    (draw-line-2 text-x text-y)
+    (draw-line-3 text-x text-y)
+    (draw-status text-x text-y text-w start-time)))
+
 (defn draw-state
   "Draw the current game state."
   [_state]
@@ -64,20 +102,7 @@
                     :actual-map @atoms/game-map)]
       (map/draw-map the-map)
       (menus/draw-menu)
-      (let [[text-x text-y text-w _] @atoms/text-area-dimensions]
-        (q/stroke 255)
-        (q/line text-x (- text-y 4) (+ text-x text-w) (- text-y 4))
-        (q/text-font @atoms/text-font)
-        (q/fill 255)
-        (when (seq @atoms/message)
-          (q/text @atoms/message (+ text-x 10) (+ text-y 10)))
-        (when (and (seq @atoms/line3-message)
-                   (even? (quot (System/currentTimeMillis) 500)))
-          (q/fill 255 0 0)
-          (q/text @atoms/line3-message (+ text-x 10) (+ text-y 50))
-          (q/fill 255))
-        (q/text (str "Round: " @atoms/round-number) (- (+ text-x text-w) 100) (+ text-y 10))
-        (q/text (str (- (System/currentTimeMillis) start-time) " ms" ) (- (+ text-x text-w) 100) (+ text-y 30))))))
+      (draw-message-area start-time))))
 
 (defn key-down [k]
   ;; Handle key down events

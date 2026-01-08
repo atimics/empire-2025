@@ -71,6 +71,7 @@
                             unit-color (case (:mode contents)
                                          :awake config/awake-unit-color
                                          :sentry config/sentry-unit-color
+                                         :explore config/explore-unit-color
                                          config/sleeping-unit-color)]
                         (apply q/fill unit-color)
                         (q/text-font @atoms/production-char-font)
@@ -368,11 +369,20 @@
   (when-let [coords (first @atoms/cells-needing-attention)]
     (let [cell (get-in @atoms/game-map coords)]
       (if (:contents cell)
-        (if (and (= k :s) (not= :city (:type cell)))
+        (cond
+          (and (= k :s) (not= :city (:type cell)))
           (do
             (movement/set-unit-mode coords :sentry)
             (item-processed)
             true)
+
+          (and (= k :x) (= :army (:type (:contents cell))))
+          (do
+            (movement/set-explore-mode coords)
+            (item-processed)
+            true)
+
+          :else
           (handle-unit-movement-key k coords cell))
         (handle-city-production-key k coords cell)))))
 
@@ -503,21 +513,32 @@
   (reset! atoms/message "")
   (reset! atoms/cells-needing-attention []))
 
+(defn move-explore-unit
+  "Moves an exploring unit. Returns new coords if still exploring, nil if done."
+  [coords]
+  (movement/move-explore-unit coords))
+
 (defn advance-game
   "Advances the game by processing the current item or starting new round."
   []
   (if (empty? @atoms/player-items)
     (start-new-round)
     (when-not @atoms/waiting-for-input
-      (let [coords (first @atoms/player-items)]
+      (let [coords (first @atoms/player-items)
+            cell (get-in @atoms/game-map coords)
+            unit (:contents cell)]
         (if (item-needs-attention? coords)
           (do
             (reset! atoms/cells-needing-attention [coords])
             (set-attention-message coords)
             (reset! atoms/waiting-for-input true))
-          (if-let [new-coords (move-current-unit coords)]
-            (swap! atoms/player-items #(cons new-coords (rest %)))
-            (swap! atoms/player-items rest)))))))
+          (let [new-coords (case (:mode unit)
+                             :explore (move-explore-unit coords)
+                             :moving (move-current-unit coords)
+                             nil)]
+            (if new-coords
+              (swap! atoms/player-items #(cons new-coords (rest %)))
+              (swap! atoms/player-items rest))))))))
 
 (defn item-processed
   "Called when user input has been processed for current item."

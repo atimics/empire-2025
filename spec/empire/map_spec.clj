@@ -227,3 +227,174 @@
       (reset! atoms/game-map initial-map)
       (map/consume-sentry-fighter-fuel)
       (should= 0 (:hits (:contents (get-in @atoms/game-map [0 0])))))))
+
+(describe "explore mode"
+  (it "handle-key with 'x' puts army in explore mode"
+    (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :awake}}]]]
+      (reset! atoms/game-map initial-map)
+      (reset! atoms/cells-needing-attention [[0 0]])
+      (map/handle-key :x)
+      (let [unit (:contents (get-in @atoms/game-map [0 0]))]
+        (should= :explore (:mode unit))
+        (should= config/explore-steps (:explore-steps unit)))))
+
+  (it "handle-key with 'x' does nothing for non-army units"
+    (let [initial-map [[{:type :land :contents {:type :fighter :owner :player :mode :awake}}]]]
+      (reset! atoms/game-map initial-map)
+      (reset! atoms/cells-needing-attention [[0 0]])
+      (map/handle-key :x)
+      (should= :awake (:mode (:contents (get-in @atoms/game-map [0 0]))))))
+
+  (it "explore army moves to valid adjacent cell"
+    (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :explore :explore-steps 50}}
+                        {:type :land}]
+                       [{:type :land}
+                        {:type :land}]]]
+      (reset! atoms/game-map initial-map)
+      (reset! atoms/player-map (vec (repeat 2 (vec (repeat 2 nil)))))
+      (let [result (movement/move-explore-unit [0 0])]
+        ;; Returns nil (one step per round)
+        (should= nil result)
+        ;; Original cell should be empty
+        (should= nil (:contents (get-in @atoms/game-map [0 0])))
+        ;; Unit should be at some new position with decremented steps
+        (let [moved-unit (some #(:contents (get-in @atoms/game-map %))
+                               [[0 1] [1 0] [1 1]])]
+          (should= :army (:type moved-unit))
+          (should= :explore (:mode moved-unit))
+          (should= 49 (:explore-steps moved-unit))))))
+
+  (it "explore army avoids cells with units"
+    (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :explore :explore-steps 50}}
+                        {:type :land :contents {:type :army :owner :computer}}]
+                       [{:type :land :contents {:type :army :owner :computer}}
+                        {:type :land}]]]
+      (reset! atoms/game-map initial-map)
+      (reset! atoms/player-map (vec (repeat 2 (vec (repeat 2 nil)))))
+      (movement/move-explore-unit [0 0])
+      ;; Should move to [1 1] - the only valid cell
+      (should-not-be-nil (:contents (get-in @atoms/game-map [1 1])))))
+
+  (it "explore army avoids cities"
+    (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :explore :explore-steps 50}}
+                        {:type :city :city-status :free}]
+                       [{:type :city :city-status :player}
+                        {:type :land}]]]
+      (reset! atoms/game-map initial-map)
+      (reset! atoms/player-map (vec (repeat 2 (vec (repeat 2 nil)))))
+      (movement/move-explore-unit [0 0])
+      ;; Should move to [1 1] - the only valid land cell
+      (should-not-be-nil (:contents (get-in @atoms/game-map [1 1])))))
+
+  (it "explore army wakes up after 50 steps"
+    (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :explore :explore-steps 1}}
+                        {:type :land}]]]
+      (reset! atoms/game-map initial-map)
+      (reset! atoms/player-map (vec (repeat 1 (vec (repeat 2 nil)))))
+      (let [result (movement/move-explore-unit [0 0])]
+        ;; Should return nil (done exploring)
+        (should= nil result)
+        ;; Unit should be awake at original position
+        (let [unit (:contents (get-in @atoms/game-map [0 0]))]
+          (should= :awake (:mode unit))
+          (should= nil (:explore-steps unit))))))
+
+  (it "explore army wakes up when stuck"
+    (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :explore :explore-steps 50}}
+                        {:type :sea}]
+                       [{:type :sea}
+                        {:type :sea}]]]
+      (reset! atoms/game-map initial-map)
+      (reset! atoms/player-map (vec (repeat 2 (vec (repeat 2 nil)))))
+      (let [result (movement/move-explore-unit [0 0])]
+        ;; Should return nil (stuck)
+        (should= nil result)
+        ;; Unit should be awake
+        (should= :awake (:mode (:contents (get-in @atoms/game-map [0 0])))))))
+
+  (it "explore army prefers coastal moves when on coast"
+    (let [initial-map [[{:type :sea}
+                        {:type :land :contents {:type :army :owner :player :mode :explore :explore-steps 50}}
+                        {:type :land}]
+                       [{:type :sea}
+                        {:type :land}
+                        {:type :land}]
+                       [{:type :land}
+                        {:type :land}
+                        {:type :land}]]]
+      ;; Make player-map fully explored so unexplored preference doesn't interfere
+      (reset! atoms/player-map initial-map)
+      ;; Run multiple times to check it stays on coast
+      (dotimes [_ 10]
+        (reset! atoms/game-map initial-map)
+        (movement/move-explore-unit [0 1])
+        ;; Find where the unit moved
+        (let [new-pos (first (for [i (range 3) j (range 3)
+                                   :when (:contents (get-in @atoms/game-map [i j]))]
+                               [i j]))]
+          ;; Should move to a coastal cell (adjacent to sea)
+          (should (movement/adjacent-to-sea? new-pos atoms/game-map))))))
+
+  (it "explore army prefers moves towards unexplored cells"
+    (let [initial-map [[{:type :land}
+                        {:type :land :contents {:type :army :owner :player :mode :explore :explore-steps 50}}
+                        {:type :land}]
+                       [{:type :land}
+                        {:type :land}
+                        {:type :land}]
+                       [{:type :land}
+                        {:type :land}
+                        {:type :land}]]
+          ;; Player map with only rows 0-1 explored - row 2 is unexplored
+          player-map [[{:type :land} {:type :land} {:type :land}]
+                      [{:type :land} {:type :land} {:type :land}]
+                      [nil nil nil]]]
+      ;; Run multiple times - should always move towards unexplored (into row 1)
+      (dotimes [_ 10]
+        (reset! atoms/game-map initial-map)
+        (reset! atoms/player-map player-map)
+        (movement/move-explore-unit [0 1])
+        ;; Find where the unit moved
+        (let [new-pos (first (for [i (range 3) j (range 3)
+                                   :when (:contents (get-in @atoms/game-map [i j]))]
+                               [i j]))]
+          ;; Should move to row 1 (adjacent to unexplored row 2)
+          (should= 1 (first new-pos))))))
+
+  (it "explore army does not retrace steps"
+    (let [initial-map [[{:type :land}
+                        {:type :land :contents {:type :army :owner :player :mode :explore :explore-steps 50 :visited #{[0 0]}}}
+                        {:type :land}]]]
+      (reset! atoms/game-map initial-map)
+      (reset! atoms/player-map initial-map)
+      ;; Run multiple times - should never go back to [0 0]
+      (dotimes [_ 10]
+        (reset! atoms/game-map initial-map)
+        (movement/move-explore-unit [0 1])
+        ;; Should move to [0 2], not back to [0 0]
+        (should-not-be-nil (:contents (get-in @atoms/game-map [0 2]))))))
+
+  (it "explore army wakes up when finding enemy city"
+    (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :explore :explore-steps 50}}
+                        {:type :land}
+                        {:type :city :city-status :computer}]]]
+      (reset! atoms/game-map initial-map)
+      (reset! atoms/player-map initial-map)
+      (movement/move-explore-unit [0 0])
+      ;; Army should have moved to [0 1] and woken up
+      (let [unit (:contents (get-in @atoms/game-map [0 1]))]
+        (should= :awake (:mode unit))
+        (should= :army-found-city (:reason unit))
+        (should= nil (:explore-steps unit)))))
+
+  (it "explore army wakes up when finding free city"
+    (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :explore :explore-steps 50}}
+                        {:type :land}
+                        {:type :city :city-status :free}]]]
+      (reset! atoms/game-map initial-map)
+      (reset! atoms/player-map initial-map)
+      (movement/move-explore-unit [0 0])
+      ;; Army should have moved to [0 1] and woken up
+      (let [unit (:contents (get-in @atoms/game-map [0 1]))]
+        (should= :awake (:mode unit))
+        (should= :army-found-city (:reason unit))))))

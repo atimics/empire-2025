@@ -172,3 +172,142 @@
         updated-unit (dissoc (assoc unit :mode mode) :reason)
         updated-cell (assoc cell :contents updated-unit)]
     (swap! atoms/game-map assoc-in coords updated-cell)))
+
+(defn set-explore-mode [coords]
+  (let [cell (get-in @atoms/game-map coords)
+        unit (:contents cell)
+        updated-unit (-> unit
+                         (assoc :mode :explore
+                                :explore-steps config/explore-steps
+                                :visited #{coords})
+                         (dissoc :reason :target))]
+    (swap! atoms/game-map assoc-in coords (assoc cell :contents updated-unit))))
+
+(defn valid-explore-cell?
+  "Returns true if a cell is valid for army exploration (land, no city, no unit)."
+  [cell]
+  (and cell
+       (= :land (:type cell))
+       (nil? (:contents cell))))
+
+(defn adjacent-to-sea?
+  "Returns true if the position has an adjacent sea cell."
+  [pos current-map]
+  (let [[x y] pos
+        height (count @current-map)
+        width (count (first @current-map))]
+    (some (fn [[dx dy]]
+            (let [nx (+ x dx)
+                  ny (+ y dy)]
+              (and (>= nx 0) (< nx height)
+                   (>= ny 0) (< ny width)
+                   (= :sea (:type (get-in @current-map [nx ny]))))))
+          [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]])))
+
+(defn get-valid-explore-moves
+  "Returns list of valid adjacent positions for exploration."
+  [pos current-map]
+  (let [[x y] pos
+        height (count @current-map)
+        width (count (first @current-map))]
+    (for [[dx dy] [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]]
+          :let [nx (+ x dx)
+                ny (+ y dy)
+                cell (when (and (>= nx 0) (< nx height)
+                                (>= ny 0) (< ny width))
+                       (get-in @current-map [nx ny]))]
+          :when (valid-explore-cell? cell)]
+      [nx ny])))
+
+(defn get-coastal-explore-moves
+  "Returns valid moves that keep the army on coast (adjacent to sea)."
+  [pos current-map]
+  (filter #(adjacent-to-sea? % current-map)
+          (get-valid-explore-moves pos current-map)))
+
+(defn adjacent-to-unexplored?
+  "Returns true if the position has an adjacent unexplored cell."
+  [pos]
+  (let [[x y] pos
+        height (count @atoms/player-map)
+        width (count (first @atoms/player-map))]
+    (some (fn [[dx dy]]
+            (let [nx (+ x dx)
+                  ny (+ y dy)]
+              (and (>= nx 0) (< nx height)
+                   (>= ny 0) (< ny width)
+                   (nil? (get-in @atoms/player-map [nx ny])))))
+          [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]])))
+
+(defn get-unexplored-explore-moves
+  "Returns valid moves that are adjacent to unexplored cells."
+  [pos current-map]
+  (filter adjacent-to-unexplored?
+          (get-valid-explore-moves pos current-map)))
+
+(defn pick-explore-move
+  "Picks the next explore move - prefers unexplored, then coast following, then random.
+   Avoids visited cells unless no other option."
+  [pos current-map visited]
+  (let [all-moves (get-valid-explore-moves pos current-map)
+        unvisited-moves (remove visited all-moves)
+        unexplored-moves (filter adjacent-to-unexplored? unvisited-moves)
+        on-coast? (adjacent-to-sea? pos current-map)
+        coastal-moves (when on-coast? (filter #(adjacent-to-sea? % current-map) unvisited-moves))]
+    (cond
+      ;; Prefer moves towards unexplored areas
+      (seq unexplored-moves)
+      (rand-nth unexplored-moves)
+
+      ;; On coast with coastal moves available - follow coast
+      (seq coastal-moves)
+      (rand-nth coastal-moves)
+
+      ;; Unvisited random walk
+      (seq unvisited-moves)
+      (rand-nth unvisited-moves)
+
+      ;; All visited - allow revisiting as last resort
+      (seq all-moves)
+      (rand-nth all-moves)
+
+      ;; No valid moves - stuck
+      :else nil)))
+
+(defn move-explore-unit
+  "Moves an exploring army one step. Returns new position or nil if done/stuck."
+  [coords]
+  (let [cell (get-in @atoms/game-map coords)
+        unit (:contents cell)
+        remaining-steps (dec (:explore-steps unit config/explore-steps))
+        visited (or (:visited unit) #{})]
+    (if (<= remaining-steps 0)
+      ;; Wake up after 50 steps
+      (do
+        (swap! atoms/game-map assoc-in coords
+               (assoc cell :contents (-> unit
+                                         (assoc :mode :awake)
+                                         (dissoc :explore-steps :visited))))
+        nil)
+      ;; Try to move (return nil to limit to one step per round)
+      (if-let [next-pos (pick-explore-move coords atoms/game-map visited)]
+        (let [next-cell (get-in @atoms/game-map next-pos)
+              found-city? (near-hostile-city? next-pos atoms/game-map)
+              moved-unit (if found-city?
+                           (-> unit
+                               (assoc :mode :awake :reason :army-found-city)
+                               (dissoc :explore-steps :visited))
+                           (-> unit
+                               (assoc :explore-steps remaining-steps)
+                               (assoc :visited (conj visited next-pos))))]
+          (swap! atoms/game-map assoc-in coords (dissoc cell :contents))
+          (swap! atoms/game-map assoc-in next-pos (assoc next-cell :contents moved-unit))
+          (update-cell-visibility next-pos (:owner unit))
+          nil)
+        ;; Stuck - wake up
+        (do
+          (swap! atoms/game-map assoc-in coords
+                 (assoc cell :contents (-> unit
+                                           (assoc :mode :awake)
+                                           (dissoc :explore-steps :visited))))
+          nil)))))

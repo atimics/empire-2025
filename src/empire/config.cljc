@@ -80,8 +80,11 @@
 (def awake-unit-color [255 255 255])
 (def sleeping-unit-color [0 0 0])
 (def sentry-unit-color [255 128 128])
+(def explore-unit-color [144 238 144])
 
 (def fighter-fuel 32)
+
+(def explore-steps 50)
 
 ;; Messages and reasons
 (def messages

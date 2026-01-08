@@ -76,8 +76,8 @@
 (defn draw-status
   "Draws the status info (round number and render time) on the right."
   [text-x text-y text-w start-time]
-  (q/text (str "Round: " @atoms/round-number) (- (+ text-x text-w) 100) (+ text-y 10))
-  (q/text (str (- (System/currentTimeMillis) start-time) " ms") (- (+ text-x text-w) 100) (+ text-y 30)))
+  (q/text (str "Round: " @atoms/round-number) (- (+ text-x text-w) 120) (+ text-y 10))
+  (q/text (str (- (System/currentTimeMillis) start-time) " ms") (- (+ text-x text-w) 120) (+ text-y 30)))
 
 (defn draw-message-area
   "Draws the message area including separator line and messages."

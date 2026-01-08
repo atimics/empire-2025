@@ -83,29 +83,46 @@
                  (#{:free :computer} (:city-status adj-cell)))))
         (for [di [-1 0 1] dj [-1 0 1]] [di dj])))
 
+(defn friendly-city-in-range? [pos max-dist current-map]
+  (let [[px py] pos
+        height (count @current-map)
+        width (count (first @current-map))]
+    (some (fn [[i j]]
+            (let [cell (get-in @current-map [i j])]
+              (and (= (:type cell) :city)
+                   (= (:city-status cell) :player)
+                   (<= (max (abs (- i px)) (abs (- j py))) max-dist))))
+          (for [i (range height) j (range width)] [i j]))))
+
 (defn wake-after-move [unit final-pos current-map]
   (let [is-at-target? (= final-pos (:target unit))
         dest-cell (get-in @current-map final-pos)
-        [unit-wakes? reason refuel? shot-down?] (case (:type unit)
-                                                  :army [(near-hostile-city? final-pos current-map) :army-found-city false false]
-                                                  :fighter (let [entering-city? (= (:type dest-cell) :city)
-                                                                 friendly-city? (= (:city-status dest-cell) :player)
-                                                                 hostile-city? (and entering-city? (not friendly-city?))
-                                                                 low-fuel? (<= (:fuel unit config/fighter-fuel) 1)]
-                                                             (cond
-                                                               hostile-city? [true :fighter-shot-down false true]
-                                                               entering-city? [true :fighter-landed-and-refueled true false]
-                                                               low-fuel? [true :fighter-out-of-fuel false false]
-                                                               :else [false nil false false]))
-                                                  [false nil false false])
+        [unit-wakes?
+         reason refuel?
+         shot-down?] (case (:type unit)
+                       :army [(near-hostile-city? final-pos current-map) :army-found-city false false]
+                       :fighter (let [entering-city? (= (:type dest-cell) :city)
+                                      friendly-city? (= (:city-status dest-cell) :player)
+                                      hostile-city? (and entering-city? (not friendly-city?))
+                                      fuel (:fuel unit config/fighter-fuel)
+                                      low-fuel? (<= fuel 1)
+                                      bingo-fuel? (and (<= fuel (quot config/fighter-fuel 4))
+                                                       (friendly-city-in-range? final-pos fuel current-map))]
+                                  (cond
+                                    hostile-city? [true :fighter-shot-down false true]
+                                    entering-city? [true :fighter-landed-and-refueled true false]
+                                    low-fuel? [true :fighter-out-of-fuel false false]
+                                    bingo-fuel? [true :fighter-bingo false false]
+                                    :else [false nil false false]))
+                       [false nil false false])
         wake-up? (or is-at-target? unit-wakes?)]
     (when shot-down?
       (reset! atoms/line3-message (:fighter-destroyed-by-city config/messages)))
     (if wake-up?
       (dissoc (cond-> (assoc unit :mode :awake)
-                (and unit-wakes? reason) (assoc :reason reason)
-                refuel? (assoc :fuel config/fighter-fuel)
-                shot-down? (assoc :hits 0 :steps-remaining 0)) :target)
+                      (and unit-wakes? reason) (assoc :reason reason)
+                      refuel? (assoc :fuel config/fighter-fuel)
+                      shot-down? (assoc :hits 0 :steps-remaining 0)) :target)
       unit)))
 
 (defn process-consumables [unit to-cell]

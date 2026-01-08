@@ -399,6 +399,48 @@
             (should= :fighter-over-defended-city (:reason fighter)))
           ;; City should be empty
           (should= nil (:contents (get-in @atoms/game-map [4 5])))))
+
+      (it "fighter wakes with bingo warning when fuel at 25% and friendly city in range"
+        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
+                              (assoc-in [4 4] {:type :land :contents {:type :fighter :mode :moving :owner :player :target [4 8] :fuel 8}})
+                              (assoc-in [4 5] {:type :land})
+                              (assoc-in [4 0] {:type :city :city-status :player}))]
+          (reset! atoms/game-map initial-map)
+          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+          (move-units)
+          ;; Fighter should wake up with bingo warning
+          (let [fighter (:contents (get-in @atoms/game-map [4 5]))]
+            (should= :fighter (:type fighter))
+            (should= :awake (:mode fighter))
+            (should= :fighter-bingo (:reason fighter)))))
+
+      (it "fighter does not wake with bingo warning when no friendly city in range"
+        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
+                              (assoc-in [4 4] {:type :land :contents {:type :fighter :mode :moving :owner :player :target [4 5] :fuel 3}})
+                              (assoc-in [4 5] {:type :land})
+                              (assoc-in [0 0] {:type :city :city-status :player}))]
+          (reset! atoms/game-map initial-map)
+          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+          (move-units)
+          ;; Fighter should wake at target, not due to bingo (city at [0 0] is distance 5, beyond fuel 3)
+          (let [fighter (:contents (get-in @atoms/game-map [4 5]))]
+            (should= :fighter (:type fighter))
+            (should= :awake (:mode fighter))
+            (should= nil (:reason fighter)))))
+
+      (it "fighter does not wake with bingo warning when fuel above 25%"
+        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
+                              (assoc-in [4 4] {:type :land :contents {:type :fighter :mode :moving :owner :player :target [4 5] :fuel 10}})
+                              (assoc-in [4 5] {:type :land})
+                              (assoc-in [4 0] {:type :city :city-status :player}))]
+          (reset! atoms/game-map initial-map)
+          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+          (move-units)
+          ;; Fighter should wake at target, not due to bingo (fuel 10 > 8 = 25% of 32)
+          (let [fighter (:contents (get-in @atoms/game-map [4 5]))]
+            (should= :fighter (:type fighter))
+            (should= :awake (:mode fighter))
+            (should= nil (:reason fighter)))))
       )
     )
   )

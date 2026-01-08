@@ -84,6 +84,7 @@
 ;; Messages and reasons
 (def messages
   {:army-found-city "Army found a city!"
+   :fighter-bingo "Bingo! Refuel?"
    :fighter-out-of-fuel "Fighter out of fuel."
    :fighter-landed-and-refueled "Landed and refueled."
    :fighter-over-defended-city "Fighter about to fly over defended city."

@@ -358,7 +358,14 @@
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
           (map/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :city :city-status :player :contents {:type :fighter :mode :awake :owner :player :fuel config/fighter-fuel :reason :fighter-landed-and-refueled :steps-remaining 0}} (get-in @atoms/game-map [4 5]))))
+          (let [city-cell (get-in @atoms/game-map [4 5])
+                fighter (first (:airport city-cell))]
+            (should= :city (:type city-cell))
+            (should= :player (:city-status city-cell))
+            (should= :fighter (:type fighter))
+            (should= :awake (:mode fighter))
+            (should= config/fighter-fuel (:fuel fighter))
+            (should= :fighter-landed-and-refueled (:reason fighter)))))
 
 
       (it "fighter safely lands at friendly city"
@@ -370,7 +377,7 @@
           (reset! atoms/line3-message "")
           (map/move-current-unit [4 4])
           (let [city-cell (get-in @atoms/game-map [4 5])
-                fighter (:contents city-cell)]
+                fighter (first (:airport city-cell))]
             (should= :fighter (:type fighter))
             (should= :awake (:mode fighter))
             (should= :fighter-landed-and-refueled (:reason fighter))

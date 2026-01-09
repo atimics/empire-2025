@@ -66,16 +66,25 @@
         cell-h (/ map-h rows)
 
         draw-unit (fn [col row cell]
-                    (when-let [contents (get-in cell [:contents])]
-                      (let [item (:type contents)
-                            unit-color (case (:mode contents)
-                                         :awake config/awake-unit-color
-                                         :sentry config/sentry-unit-color
-                                         :explore config/explore-unit-color
-                                         config/sleeping-unit-color)]
-                        (apply q/fill unit-color)
-                        (q/text-font @atoms/production-char-font)
-                        (q/text (config/item-chars item) (+ (* col cell-w) 2) (+ (* row cell-h) 12)))))]
+                    (let [contents (:contents cell)
+                          airport (:airport cell)
+                          awake-airport-fighter (first (filter #(= (:mode %) :awake) airport))
+                          display-unit (cond
+                                         (and contents (= (:mode contents) :awake)) contents
+                                         awake-airport-fighter awake-airport-fighter
+                                         contents contents
+                                         (seq airport) (first airport)
+                                         :else nil)]
+                      (when display-unit
+                        (let [item (:type display-unit)
+                              unit-color (case (:mode display-unit)
+                                           :awake config/awake-unit-color
+                                           :sentry config/sentry-unit-color
+                                           :explore config/explore-unit-color
+                                           config/sleeping-unit-color)]
+                          (apply q/fill unit-color)
+                          (q/text-font @atoms/production-char-font)
+                          (q/text (config/item-chars item) (+ (* col cell-w) 2) (+ (* row cell-h) 12))))))]
 
     (doseq [col (range cols)
             row (range rows)]
@@ -143,7 +152,8 @@
   [attention-coords]
   (and (seq attention-coords)
        (let [first-cell (get-in @atoms/game-map (first attention-coords))]
-         (:contents first-cell))))
+         (or (:contents first-cell)
+             (some #(= (:mode %) :awake) (:airport first-cell))))))
 
 (defn is-city-needing-attention?
   "Returns true if the cell needs city handling as the first attention item."
@@ -154,13 +164,16 @@
 
 
 (defn needs-attention?
-  "Returns true if the cell at [i j] needs attention (awake unit or city with no production)."
+  "Returns true if the cell at [i j] needs attention (awake unit, city with no production, or awake airport fighter)."
   [i j]
   (let [cell (get-in @atoms/player-map [i j])
-        mode (:mode (:contents cell))]
+        mode (:mode (:contents cell))
+        has-awake-airport-fighter? (some #(= (:mode %) :awake) (:airport cell))]
     (and (or (= (:city-status cell) :player)
-             (= (:owner (:contents cell)) :player))
+             (= (:owner (:contents cell)) :player)
+             has-awake-airport-fighter?)
          (or (= mode :awake)
+             has-awake-airport-fighter?
              (and (= (:type cell) :city)
                   (not (@atoms/production [i j])))))))
 
@@ -216,11 +229,17 @@
         (menus/show-menu cell-x cell-y header items))
       ;; Clicked elsewhere
       (let [attn-cell (get-in @atoms/game-map attn-coords)
-            unit-type (:type (:contents attn-cell))
+            active-unit (movement/get-active-unit attn-cell)
+            unit-type (:type active-unit)
+            is-airport-fighter? (and (= unit-type :fighter)
+                                     (some #(= % active-unit) (:airport attn-cell)))
             [ax ay] attn-coords
             [cx cy] clicked-coords
             adjacent? (and (<= (abs (- ax cx)) 1) (<= (abs (- ay cy)) 1))]
         (cond
+          is-airport-fighter?
+          (movement/launch-fighter-from-airport attn-coords clicked-coords)
+
           (and (= :army unit-type) adjacent? (hostile-city? clicked-coords))
           (attempt-conquest attn-coords clicked-coords)
 
@@ -342,8 +361,10 @@
                       (config/key->extended-direction k))
         extended? (config/key->extended-direction k)]
     (when direction
-      (let [unit (:contents cell)]
-        (when (and unit (= (:owner unit) :player))
+      (let [active-unit (movement/get-active-unit cell)
+            is-airport-fighter? (and (= (:type active-unit) :fighter)
+                                     (some #(= % active-unit) (:airport cell)))]
+        (when (and active-unit (= (:owner active-unit) :player))
           (let [[x y] coords
                 [dx dy] direction
                 adjacent-target [(+ x dx) (+ y dy)]
@@ -351,7 +372,13 @@
                          (calculate-extended-target coords direction)
                          adjacent-target)]
             (cond
-              (and (= :army (:type unit))
+              is-airport-fighter?
+              (do
+                (movement/launch-fighter-from-airport coords target)
+                (item-processed)
+                true)
+
+              (and (= :army (:type active-unit))
                    (not extended?)
                    (hostile-city? adjacent-target))
               (do
@@ -359,7 +386,7 @@
                 (item-processed)
                 true)
 
-              (and (= :fighter (:type unit))
+              (and (= :fighter (:type active-unit))
                    (not extended?)
                    (hostile-city? adjacent-target))
               (do
@@ -375,16 +402,20 @@
 
 (defn handle-key [k]
   (when-let [coords (first @atoms/cells-needing-attention)]
-    (let [cell (get-in @atoms/game-map coords)]
-      (if (:contents cell)
+    (let [cell (get-in @atoms/game-map coords)
+          active-unit (movement/get-active-unit cell)
+          is-airport-fighter? (and active-unit
+                                   (= (:type active-unit) :fighter)
+                                   (some #(= % active-unit) (:airport cell)))]
+      (if active-unit
         (cond
-          (and (= k :s) (not= :city (:type cell)))
+          (and (= k :s) (not= :city (:type cell)) (not is-airport-fighter?))
           (do
             (movement/set-unit-mode coords :sentry)
             (item-processed)
             true)
 
-          (and (= k :x) (= :army (:type (:contents cell))))
+          (and (= k :x) (= :army (:type active-unit)))
           (do
             (movement/set-explore-mode coords)
             (item-processed)
@@ -419,8 +450,10 @@
   "Returns true if the item at coords needs user input."
   [coords]
   (let [cell (get-in @atoms/game-map coords)
-        unit (:contents cell)]
+        unit (:contents cell)
+        has-awake-airport-fighter? (some #(= (:mode %) :awake) (:airport cell))]
     (or (= (:mode unit) :awake)
+        has-awake-airport-fighter?
         (and (= (:type cell) :city)
              (= (:city-status cell) :player)
              (not (@atoms/production coords))))))
@@ -430,6 +463,10 @@
   [coords]
   (let [cell (get-in @atoms/game-map coords)
         [ax ay] coords
+        active-unit (movement/get-active-unit cell)
+        is-airport-fighter? (and active-unit
+                                 (= (:type active-unit) :fighter)
+                                 (some #(= % active-unit) (:airport cell)))
         adjacent-enemy-city? (and (= :army (:type (:contents cell)))
                                   (some (fn [[di dj]]
                                           (let [ni (+ ax di)
@@ -439,13 +476,19 @@
                                                  (= (:type adj-cell) :city)
                                                  (config/hostile-city? (:city-status adj-cell)))))
                                         (for [di [-1 0 1] dj [-1 0 1]] [di dj])))]
-    (reset! atoms/message (if (:contents cell)
+    (reset! atoms/message (cond
+                            is-airport-fighter?
+                            "Fighter needs attention, refuelled."
+
+                            (:contents cell)
                             (let [unit (:contents cell)
                                   unit-name (name (:type unit))
                                   reason-key (or (:reason unit)
                                                  (when adjacent-enemy-city? :army-found-city))
                                   reason-str (when reason-key (reason-key config/messages))]
                               (str unit-name (:unit-needs-attention config/messages) (if reason-str (str " - " reason-str) "")))
+
+                            :else
                             (:city-needs-attention config/messages)))))
 
 (defn move-current-unit

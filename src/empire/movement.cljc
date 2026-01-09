@@ -143,7 +143,14 @@
   (let [from-cell (dissoc cell :contents)
         to-cell (get-in @atoms/game-map final-pos)
         processed-unit (process-consumables final-unit to-cell)
-        updated-to-cell (if processed-unit (assoc to-cell :contents processed-unit) (dissoc to-cell :contents))]
+        fighter-landing? (and processed-unit
+                              (= (:type processed-unit) :fighter)
+                              (= (:type to-cell) :city)
+                              (= (:city-status to-cell) :player))
+        updated-to-cell (cond
+                          (nil? processed-unit) (dissoc to-cell :contents)
+                          fighter-landing? (update to-cell :airport (fnil conj []) processed-unit)
+                          :else (assoc to-cell :contents processed-unit))]
     (swap! atoms/game-map assoc-in from-coords from-cell)
     (swap! atoms/game-map assoc-in final-pos updated-to-cell)
     (update-cell-visibility final-pos (:owner (:contents cell)))))
@@ -168,6 +175,30 @@
                              (assoc :mode :moving :target target-coords)
                              (dissoc :reason))]
     (swap! atoms/game-map assoc-in unit-coords (assoc first-cell :contents updated-contents))))
+
+(defn get-active-unit
+  "Returns the unit currently needing attention: contents if awake, else first awake airport fighter."
+  [cell]
+  (let [contents (:contents cell)
+        airport (:airport cell)]
+    (cond
+      (and contents (= (:mode contents) :awake)) contents
+      :else (first (filter #(= (:mode %) :awake) airport)))))
+
+(defn launch-fighter-from-airport
+  "Removes first awake fighter from airport and sets it moving to target."
+  [city-coords target-coords]
+  (let [cell (get-in @atoms/game-map city-coords)
+        airport (:airport cell)
+        awake-fighter (first (filter #(= (:mode %) :awake) airport))
+        remaining-airport (vec (remove #(= % awake-fighter) airport))
+        moving-fighter (-> awake-fighter
+                           (assoc :mode :moving :target target-coords)
+                           (dissoc :reason))
+        updated-cell (-> cell
+                         (assoc :airport remaining-airport)
+                         (assoc :contents moving-fighter))]
+    (swap! atoms/game-map assoc-in city-coords updated-cell)))
 
 (defn set-unit-mode [coords mode]
   (let [cell (get-in @atoms/game-map coords)
@@ -221,12 +252,6 @@
                        (get-in @current-map [nx ny]))]
           :when (valid-explore-cell? cell)]
       [nx ny])))
-
-(defn get-coastal-explore-moves
-  "Returns valid moves that keep the army on coast (adjacent to sea)."
-  [pos current-map]
-  (filter #(adjacent-to-sea? % current-map)
-          (get-valid-explore-moves pos current-map)))
 
 (defn adjacent-to-unexplored?
   "Returns true if the position has an adjacent unexplored cell."

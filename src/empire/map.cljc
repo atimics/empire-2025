@@ -668,6 +668,23 @@
     (let [steps (get config/unit-speed (:type unit) 1)]
       (swap! atoms/game-map assoc-in [i j :contents :steps-remaining] steps))))
 
+(defn wake-airport-fighters
+  "Wakes fighters in player city airports at start of round.
+   Fighters that just landed (resting) stay asleep this round but will wake next round."
+  []
+  (doseq [i (range (count @atoms/game-map))
+          j (range (count (first @atoms/game-map)))
+          :let [cell (get-in @atoms/game-map [i j])]
+          :when (and (= (:type cell) :city)
+                     (= (:city-status cell) :player)
+                     (pos? (uc/get-count cell :fighter-count)))]
+    (let [total (uc/get-count cell :fighter-count)
+          resting (get cell :resting-fighters 0)
+          to-wake (- total resting)]
+      (swap! atoms/game-map update-in [i j] assoc
+             :awake-fighters to-wake
+             :resting-fighters 0))))
+
 (defn consume-sentry-fighter-fuel
   "Consumes fuel for sentry fighters each round, applying fuel warnings."
   []
@@ -708,6 +725,7 @@
   (remove-dead-units)
   (production/update-production)
   (reset-steps-remaining)
+  (wake-airport-fighters)
   (reset! atoms/player-items (vec (build-player-items)))
   (reset! atoms/waiting-for-input false)
   (reset! atoms/message "")

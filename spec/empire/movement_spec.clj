@@ -362,7 +362,7 @@
             (should= :city (:type city-cell))
             (should= :player (:city-status city-cell))
             (should= 1 (:fighter-count city-cell))
-            (should= 1 (:awake-fighters city-cell)))))
+            (should= 0 (:awake-fighters city-cell 0)))))
 
 
       (it "fighter safely lands at friendly city"
@@ -375,7 +375,7 @@
           (map/move-current-unit [4 4])
           (let [city-cell (get-in @atoms/game-map [4 5])]
             (should= 1 (:fighter-count city-cell))
-            (should= 1 (:awake-fighters city-cell)))
+            (should= 0 (:awake-fighters city-cell 0)))
           (should= "" @atoms/line3-message)))
 
       (it "fighter wakes before flying over free city"

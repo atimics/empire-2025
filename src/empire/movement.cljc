@@ -211,7 +211,9 @@
                                       (not (uc/full? to-contents :fighter-count config/carrier-capacity)))
         updated-to-cell (cond
                           (nil? processed-unit) (dissoc to-cell :contents)
-                          fighter-landing-city? (uc/add-awake-unit to-cell :fighter-count :awake-fighters)
+                          fighter-landing-city? (-> to-cell
+                                                    (uc/add-unit :fighter-count)
+                                                    (update :resting-fighters (fnil inc 0)))
                           fighter-landing-carrier? (update to-cell :contents uc/add-unit :fighter-count)
                           :else (assoc to-cell :contents processed-unit))]
     (swap! atoms/game-map assoc-in from-coords from-cell)

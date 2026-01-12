@@ -43,7 +43,7 @@
   (create-fonts)
   (calculate-screen-dimensions)
   (init/make-initial-map @atoms/map-size config/smooth-count config/land-fraction config/number-of-cities config/min-city-distance)
-  (q/frame-rate 10)
+  (q/frame-rate 30)
   {})
 
 (defn update-state
@@ -105,14 +105,40 @@
       (menus/draw-menu)
       (draw-message-area start-time))))
 
+(defn add-unit-at-mouse [unit-type]
+  (let [x (q/mouse-x)
+        y (q/mouse-y)]
+    (when (map/on-map? x y)
+      (let [[cx cy] (map/determine-cell-coordinates x y)
+            cell (get-in @atoms/game-map [cx cy])
+            unit {:type unit-type
+                  :hits (config/item-hits unit-type)
+                  :mode :awake
+                  :owner :player}
+            unit (if (= unit-type :fighter)
+                   (assoc unit :fuel config/fighter-fuel)
+                   unit)]
+        (when-not (:contents cell)
+          (swap! atoms/game-map assoc-in [cx cy :contents] unit))))))
+
 (defn key-down [k]
   ;; Handle key down events
-  (cond
-    (= k :+) (swap! atoms/map-to-display {:player-map :computer-map
-                                          :computer-map :actual-map
-                                          :actual-map :player-map})
-    (map/handle-key k) nil
-    :else nil))
+  (if @atoms/backtick-pressed
+    (do
+      (reset! atoms/backtick-pressed false)
+      (case k
+        :c (add-unit-at-mouse :carrier)
+        :t (add-unit-at-mouse :transport)
+        :a (add-unit-at-mouse :army)
+        :f (add-unit-at-mouse :fighter)
+        nil))
+    (cond
+      (= k (keyword "`")) (reset! atoms/backtick-pressed true)
+      (= k :+) (swap! atoms/map-to-display {:player-map :computer-map
+                                            :computer-map :actual-map
+                                            :actual-map :player-map})
+      (map/handle-key k) nil
+      :else nil)))
 
 (defn key-pressed [state _]
   (let [k (q/key-as-keyword)]

@@ -89,6 +89,7 @@
 (def fighter-fuel 32)
 
 (def transport-capacity 6)
+(def carrier-capacity 8)
 
 (def explore-steps 50)
 

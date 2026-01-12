@@ -358,14 +358,11 @@
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
           (map/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (let [city-cell (get-in @atoms/game-map [4 5])
-                fighter (first (:airport city-cell))]
+          (let [city-cell (get-in @atoms/game-map [4 5])]
             (should= :city (:type city-cell))
             (should= :player (:city-status city-cell))
-            (should= :fighter (:type fighter))
-            (should= :awake (:mode fighter))
-            (should= config/fighter-fuel (:fuel fighter))
-            (should= :fighter-landed-and-refueled (:reason fighter)))))
+            (should= 1 (:fighter-count city-cell))
+            (should= 1 (:awake-fighters city-cell)))))
 
 
       (it "fighter safely lands at friendly city"
@@ -376,12 +373,9 @@
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
           (reset! atoms/line3-message "")
           (map/move-current-unit [4 4])
-          (let [city-cell (get-in @atoms/game-map [4 5])
-                fighter (first (:airport city-cell))]
-            (should= :fighter (:type fighter))
-            (should= :awake (:mode fighter))
-            (should= :fighter-landed-and-refueled (:reason fighter))
-            (should-not-be-nil fighter))
+          (let [city-cell (get-in @atoms/game-map [4 5])]
+            (should= 1 (:fighter-count city-cell))
+            (should= 1 (:awake-fighters city-cell)))
           (should= "" @atoms/line3-message)))
 
       (it "fighter wakes before flying over free city"
@@ -604,6 +598,90 @@
         (let [army {:type :army :mode :awake :owner :player :hits 1}
               cell {:type :sea :contents {:type :transport :mode :sentry :owner :player :army-count 1}}]
           (should-not (is-army-aboard-transport? cell army))))
+      )
+
+    (describe "carrier fighter deployment"
+      (it "fighter lands on carrier and sleeps"
+        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
+                              (assoc-in [4 4] {:type :sea :contents {:type :fighter :mode :moving :owner :player :target [4 5] :fuel 10 :steps-remaining 1}})
+                              (assoc-in [4 5] {:type :sea :contents {:type :carrier :mode :sentry :owner :player :hits 8}}))]
+          (reset! atoms/game-map initial-map)
+          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+          (map/move-current-unit [4 4])
+          (let [carrier-cell (get-in @atoms/game-map [4 5])
+                carrier (:contents carrier-cell)]
+            (should= :carrier (:type carrier))
+            (should= 1 (:fighter-count carrier))
+            (should= 0 (:awake-fighters carrier 0)))))
+
+      (it "wake-fighters-on-carrier wakes all fighters and sets carrier to sentry"
+        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
+                              (assoc-in [4 4] {:type :sea :contents {:type :carrier :mode :awake :owner :player :hits 8 :fighter-count 2}}))]
+          (reset! atoms/game-map initial-map)
+          (wake-fighters-on-carrier [4 4])
+          (let [carrier (:contents (get-in @atoms/game-map [4 4]))]
+            (should= :sentry (:mode carrier))
+            (should= 2 (:fighter-count carrier))
+            (should= 2 (:awake-fighters carrier)))))
+
+      (it "sleep-fighters-on-carrier puts fighters to sleep and wakes carrier"
+        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
+                              (assoc-in [4 4] {:type :sea :contents {:type :carrier :mode :sentry :owner :player :hits 8 :fighter-count 2 :awake-fighters 2}}))]
+          (reset! atoms/game-map initial-map)
+          (sleep-fighters-on-carrier [4 4])
+          (let [carrier (:contents (get-in @atoms/game-map [4 4]))]
+            (should= :awake (:mode carrier))
+            (should= 2 (:fighter-count carrier))
+            (should= 0 (:awake-fighters carrier)))))
+
+      (it "launch-fighter-from-carrier removes fighter and places it at adjacent cell"
+        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
+                              (assoc-in [4 4] {:type :sea :contents {:type :carrier :mode :sentry :owner :player :hits 8 :fighter-count 2 :awake-fighters 2}})
+                              (assoc-in [4 5] {:type :sea}))]
+          (reset! atoms/game-map initial-map)
+          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+          (launch-fighter-from-carrier [4 4] [4 6])
+          (let [carrier (:contents (get-in @atoms/game-map [4 4]))
+                launched-fighter (:contents (get-in @atoms/game-map [4 5]))]
+            (should= 1 (:fighter-count carrier))
+            (should= 1 (:awake-fighters carrier))
+            (should= :fighter (:type launched-fighter))
+            (should= :moving (:mode launched-fighter))
+            (should= [4 6] (:target launched-fighter)))))
+
+      (it "launch-fighter-from-carrier wakes carrier when last awake fighter launches"
+        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
+                              (assoc-in [4 4] {:type :sea :contents {:type :carrier :mode :sentry :owner :player :hits 8 :fighter-count 1 :awake-fighters 1}})
+                              (assoc-in [4 5] {:type :sea}))]
+          (reset! atoms/game-map initial-map)
+          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+          (launch-fighter-from-carrier [4 4] [4 6])
+          (let [carrier (:contents (get-in @atoms/game-map [4 4]))]
+            (should= :awake (:mode carrier))
+            (should= 0 (:fighter-count carrier)))))
+
+      (it "get-active-unit returns synthetic fighter when carrier has awake fighters"
+        (let [cell {:type :sea :contents {:type :carrier :mode :sentry :owner :player :fighter-count 3 :awake-fighters 2}}]
+          (let [active (get-active-unit cell)]
+            (should= :fighter (:type active))
+            (should= :awake (:mode active))
+            (should= true (:from-carrier active)))))
+
+      (it "get-active-unit returns carrier when no awake fighters"
+        (let [cell {:type :sea :contents {:type :carrier :mode :awake :owner :player :fighter-count 1 :awake-fighters 0}}]
+          (let [active (get-active-unit cell)]
+            (should= :carrier (:type active))
+            (should= :awake (:mode active)))))
+
+      (it "is-fighter-from-carrier? returns true for synthetic fighter with :from-carrier"
+        (let [fighter {:type :fighter :mode :awake :owner :player :from-carrier true}
+              cell {:type :sea :contents {:type :carrier :mode :sentry :owner :player :fighter-count 2 :awake-fighters 1}}]
+          (should= true (is-fighter-from-carrier? cell fighter))))
+
+      (it "is-fighter-from-carrier? returns falsy for fighter without :from-carrier"
+        (let [fighter {:type :fighter :mode :awake :owner :player :hits 1}
+              cell {:type :sea :contents {:type :carrier :mode :sentry :owner :player :fighter-count 1}}]
+          (should-not (is-fighter-from-carrier? cell fighter))))
       )
     )
   )

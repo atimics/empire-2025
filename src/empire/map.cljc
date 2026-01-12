@@ -4,6 +4,7 @@
             [empire.menus :as menus]
             [empire.movement :as movement]
             [empire.production :as production]
+            [empire.unit-container :as uc]
             [quil.core :as q]))
 
 (declare item-processed)
@@ -67,13 +68,13 @@
 
         draw-unit (fn [col row cell]
                     (let [contents (:contents cell)
-                          airport (:airport cell)
-                          awake-airport-fighter (first (filter #(= (:mode %) :awake) airport))
+                          has-awake-airport-fighter? (uc/has-awake? cell :awake-fighters)
+                          has-any-airport-fighter? (pos? (uc/get-count cell :fighter-count))
                           display-unit (cond
                                          (and contents (= (:mode contents) :awake)) contents
-                                         awake-airport-fighter awake-airport-fighter
+                                         has-awake-airport-fighter? {:type :fighter :mode :awake}
                                          contents contents
-                                         (seq airport) (first airport)
+                                         has-any-airport-fighter? {:type :fighter :mode :sentry}
                                          :else nil)]
                       (when display-unit
                         (let [item (:type display-unit)
@@ -154,7 +155,7 @@
        (let [first-cell (get-in @atoms/game-map (first attention-coords))
              unit (:contents first-cell)]
          (or unit
-             (some #(= (:mode %) :awake) (:airport first-cell))
+             (uc/has-awake? first-cell :awake-fighters)
              (pos? (:awake-armies unit 0))))))
 
 (defn is-city-needing-attention?
@@ -166,19 +167,23 @@
 
 
 (defn needs-attention?
-  "Returns true if the cell at [i j] needs attention (awake unit, city with no production, awake airport fighter, or transport with awake armies)."
+  "Returns true if the cell at [i j] needs attention (awake unit, city with no production, awake airport fighter, carrier with awake fighters, or transport with awake armies)."
   [i j]
   (let [cell (get-in @atoms/player-map [i j])
         unit (:contents cell)
         mode (:mode unit)
-        has-awake-airport-fighter? (some #(= (:mode %) :awake) (:airport cell))
-        has-awake-army-aboard? (pos? (:awake-armies unit 0))]
+        has-awake-airport-fighter? (uc/has-awake? cell :awake-fighters)
+        has-awake-army-aboard? (pos? (:awake-armies unit 0))
+        has-awake-carrier-fighter? (and (= (:type unit) :carrier)
+                                        (uc/has-awake? unit :awake-fighters))]
     (and (or (= (:city-status cell) :player)
              (= (:owner unit) :player)
-             has-awake-airport-fighter?)
+             has-awake-airport-fighter?
+             has-awake-carrier-fighter?)
          (or (= mode :awake)
              has-awake-airport-fighter?
              has-awake-army-aboard?
+             has-awake-carrier-fighter?
              (and (= (:type cell) :city)
                   (not (@atoms/production [i j])))))))
 
@@ -236,8 +241,7 @@
       (let [attn-cell (get-in @atoms/game-map attn-coords)
             active-unit (movement/get-active-unit attn-cell)
             unit-type (:type active-unit)
-            is-airport-fighter? (and (= unit-type :fighter)
-                                     (some #(= % active-unit) (:airport attn-cell)))
+            is-airport-fighter? (movement/is-fighter-from-airport? attn-cell active-unit)
             is-army-aboard? (movement/is-army-aboard-transport? attn-cell active-unit)
             target-cell (get-in @atoms/game-map clicked-coords)
             [ax ay] attn-coords
@@ -375,8 +379,8 @@
         extended? (config/key->extended-direction k)]
     (when direction
       (let [active-unit (movement/get-active-unit cell)
-            is-airport-fighter? (and (= (:type active-unit) :fighter)
-                                     (some #(= % active-unit) (:airport cell)))
+            is-airport-fighter? (movement/is-fighter-from-airport? cell active-unit)
+            is-carrier-fighter? (movement/is-fighter-from-carrier? cell active-unit)
             is-army-aboard? (movement/is-army-aboard-transport? cell active-unit)]
         (when (and active-unit (= (:owner active-unit) :player))
           (let [[x y] coords
@@ -390,6 +394,12 @@
               is-airport-fighter?
               (do
                 (movement/launch-fighter-from-airport coords target)
+                (item-processed)
+                true)
+
+              is-carrier-fighter?
+              (do
+                (movement/launch-fighter-from-carrier coords target)
                 (item-processed)
                 true)
 
@@ -428,18 +438,26 @@
   (when-let [coords (first @atoms/cells-needing-attention)]
     (let [cell (get-in @atoms/game-map coords)
           active-unit (movement/get-active-unit cell)
-          is-airport-fighter? (and active-unit
-                                   (= (:type active-unit) :fighter)
-                                   (some #(= % active-unit) (:airport cell)))
+          contents (:contents cell)
+          is-airport-fighter? (movement/is-fighter-from-airport? cell active-unit)
+          is-carrier-fighter? (movement/is-fighter-from-carrier? cell active-unit)
           is-army-aboard? (movement/is-army-aboard-transport? cell active-unit)
           transport-at-beach? (and (= (:type active-unit) :transport)
                                    (= (:reason active-unit) :transport-at-beach)
-                                   (pos? (:army-count active-unit 0)))]
+                                   (pos? (:army-count active-unit 0)))
+          carrier-with-fighters? (and (= (:type active-unit) :carrier)
+                                      (pos? (uc/get-count active-unit :fighter-count)))]
       (if active-unit
         (cond
           (and (= k :w) transport-at-beach?)
           (do
             (movement/wake-armies-on-transport coords)
+            (item-processed)
+            true)
+
+          (and (= k :w) carrier-with-fighters?)
+          (do
+            (movement/wake-fighters-on-carrier coords)
             (item-processed)
             true)
 
@@ -449,7 +467,13 @@
             (item-processed)
             true)
 
-          (and (= k :s) (not= :city (:type cell)) (not is-airport-fighter?))
+          (and (= k :s) is-carrier-fighter?)
+          (do
+            (movement/sleep-fighters-on-carrier coords)
+            (item-processed)
+            true)
+
+          (and (= k :s) (not= :city (:type cell)) (not is-airport-fighter?) (not is-carrier-fighter?))
           (do
             (movement/set-unit-mode coords :sentry)
             (item-processed)
@@ -491,11 +515,14 @@
   [coords]
   (let [cell (get-in @atoms/game-map coords)
         unit (:contents cell)
-        has-awake-airport-fighter? (some #(= (:mode %) :awake) (:airport cell))
-        has-awake-army-aboard? (pos? (:awake-armies unit 0))]
+        has-awake-airport-fighter? (uc/has-awake? cell :awake-fighters)
+        has-awake-army-aboard? (pos? (:awake-armies unit 0))
+        has-awake-carrier-fighter? (and (= (:type unit) :carrier)
+                                        (uc/has-awake? unit :awake-fighters))]
     (or (= (:mode unit) :awake)
         has-awake-airport-fighter?
         has-awake-army-aboard?
+        has-awake-carrier-fighter?
         (and (= (:type cell) :city)
              (= (:city-status cell) :player)
              (not (@atoms/production coords))))))
@@ -507,9 +534,7 @@
         [ax ay] coords
         unit (:contents cell)
         active-unit (movement/get-active-unit cell)
-        is-airport-fighter? (and active-unit
-                                 (= (:type active-unit) :fighter)
-                                 (some #(= % active-unit) (:airport cell)))
+        is-airport-fighter? (movement/is-fighter-from-airport? cell active-unit)
         awake-army-aboard? (pos? (:awake-armies unit 0))
         adjacent-enemy-city? (and (= :army (:type unit))
                                   (some (fn [[di dj]]

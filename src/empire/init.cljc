@@ -51,14 +51,28 @@
     sea-level))
 
 
+(defn coastal?
+  "Returns true if the position [i j] is adjacent to a sea cell."
+  [[i j] the-map]
+  (let [height (count the-map)
+        width (count (first the-map))]
+    (some (fn [[di dj]]
+            (let [ni (+ i di)
+                  nj (+ j dj)]
+              (and (>= ni 0) (< ni height)
+                   (>= nj 0) (< nj width)
+                   (= :sea (:type (get-in the-map [ni nj]))))))
+          [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]])))
+
 (defn occupy-random-free-city
-  "Occupies a random free city with the given owner (:player or :computer)."
+  "Occupies a random free coastal city with the given owner (:player or :computer)."
   [the-map owner]
   (let [free-city-positions (map/filter-map the-map (fn [cell] (and (= :city (:type cell)) (= :free (:city-status cell)))))
-        num-free (count free-city-positions)]
-    (if (> num-free 0)
-      (let [idx (rand-int num-free)
-            [i j] (nth free-city-positions idx)]
+        coastal-cities (filter #(coastal? % the-map) free-city-positions)
+        num-coastal (count coastal-cities)]
+    (if (> num-coastal 0)
+      (let [idx (rand-int num-coastal)
+            [i j] (nth coastal-cities idx)]
         (assoc-in the-map [i j] {:type :city :contents nil :city-status owner}))
       the-map)))
 

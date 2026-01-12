@@ -155,7 +155,7 @@
              unit (:contents first-cell)]
          (or unit
              (some #(= (:mode %) :awake) (:airport first-cell))
-             (some #(= (:mode %) :awake) (:armies unit))))))
+             (pos? (:awake-armies unit 0))))))
 
 (defn is-city-needing-attention?
   "Returns true if the cell needs city handling as the first attention item."
@@ -172,7 +172,7 @@
         unit (:contents cell)
         mode (:mode unit)
         has-awake-airport-fighter? (some #(= (:mode %) :awake) (:airport cell))
-        has-awake-army-aboard? (some #(= (:mode %) :awake) (:armies unit))]
+        has-awake-army-aboard? (pos? (:awake-armies unit 0))]
     (and (or (= (:city-status cell) :player)
              (= (:owner unit) :player)
              has-awake-airport-fighter?)
@@ -434,7 +434,7 @@
           is-army-aboard? (movement/is-army-aboard-transport? cell active-unit)
           transport-at-beach? (and (= (:type active-unit) :transport)
                                    (= (:reason active-unit) :transport-at-beach)
-                                   (seq (:armies active-unit)))]
+                                   (pos? (:army-count active-unit 0)))]
       (if active-unit
         (cond
           (and (= k :w) transport-at-beach?)
@@ -492,7 +492,7 @@
   (let [cell (get-in @atoms/game-map coords)
         unit (:contents cell)
         has-awake-airport-fighter? (some #(= (:mode %) :awake) (:airport cell))
-        has-awake-army-aboard? (some #(= (:mode %) :awake) (:armies unit))]
+        has-awake-army-aboard? (pos? (:awake-armies unit 0))]
     (or (= (:mode unit) :awake)
         has-awake-airport-fighter?
         has-awake-army-aboard?
@@ -510,7 +510,7 @@
         is-airport-fighter? (and active-unit
                                  (= (:type active-unit) :fighter)
                                  (some #(= % active-unit) (:airport cell)))
-        awake-army-aboard? (some #(= (:mode %) :awake) (:armies unit))
+        awake-army-aboard? (pos? (:awake-armies unit 0))
         adjacent-enemy-city? (and (= :army (:type unit))
                                   (some (fn [[di dj]]
                                           (let [ni (+ ax di)
@@ -530,7 +530,7 @@
                             unit
                             (let [unit-name (name (:type unit))
                                   armies-str (when (= (:type unit) :transport)
-                                               (str " (" (count (or (:armies unit) [])) " armies)"))
+                                               (str " (" (:army-count unit 0) " armies)"))
                                   reason-key (or (:reason unit)
                                                  (when adjacent-enemy-city? :army-found-city))
                                   reason-str (when reason-key (reason-key config/messages))]

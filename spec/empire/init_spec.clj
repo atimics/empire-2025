@@ -99,3 +99,66 @@
           result (smooth-cell 0 1 test-map)]
       ;; Neighbors: [1 1 1] [1 2 3] [4 5 6] = 24/9=2.666.. round=3
       (should= 3 result))))
+
+(describe "coastal?"
+  (it "returns true for city adjacent to sea"
+    (let [test-map [[{:type :sea} {:type :land} {:type :land}]
+                    [{:type :sea} {:type :city :city-status :free} {:type :land}]
+                    [{:type :land} {:type :land} {:type :land}]]]
+      (should (coastal? [1 1] test-map))))
+
+  (it "returns false for inland city"
+    (let [test-map [[{:type :land} {:type :land} {:type :land}]
+                    [{:type :land} {:type :city :city-status :free} {:type :land}]
+                    [{:type :land} {:type :land} {:type :land}]]]
+      (should-not (coastal? [1 1] test-map))))
+
+  (it "returns true for city with diagonal sea neighbor"
+    (let [test-map [[{:type :sea} {:type :land} {:type :land}]
+                    [{:type :land} {:type :city :city-status :free} {:type :land}]
+                    [{:type :land} {:type :land} {:type :land}]]]
+      (should (coastal? [1 1] test-map)))))
+
+(describe "occupy-random-free-city"
+  (it "selects only coastal cities for player"
+    (let [;; Map with one inland city and one coastal city
+          test-map [[{:type :sea} {:type :land} {:type :land}]
+                    [{:type :sea} {:type :city :city-status :free} {:type :land}]
+                    [{:type :land} {:type :land} {:type :city :city-status :free}]]
+          ;; Run multiple times to ensure coastal is always chosen
+          results (repeatedly 10 #(occupy-random-free-city test-map :player))
+          occupied-positions (map (fn [m]
+                                    (first (for [i (range 3) j (range 3)
+                                                 :when (= :player (:city-status (get-in m [i j])))]
+                                             [i j])))
+                                  results)]
+      ;; [1 1] is coastal, [2 2] is inland - should always pick [1 1]
+      (should (every? #(= [1 1] %) occupied-positions))))
+
+  (it "returns unchanged map when no coastal cities available"
+    (let [test-map [[{:type :land} {:type :land} {:type :land}]
+                    [{:type :land} {:type :city :city-status :free} {:type :land}]
+                    [{:type :land} {:type :land} {:type :land}]]
+          result (occupy-random-free-city test-map :player)]
+      ;; No coastal cities, map should be unchanged
+      (should= :free (:city-status (get-in result [1 1])))))
+
+  (it "player and computer starting cities are coastal"
+    (let [test-map [[{:type :sea}  {:type :land} {:type :land} {:type :city :city-status :free}]
+                    [{:type :sea}  {:type :city :city-status :free} {:type :land} {:type :land}]
+                    [{:type :land} {:type :land} {:type :land} {:type :land}]
+                    [{:type :land} {:type :city :city-status :free} {:type :land} {:type :land}]]
+          ;; [1 1] is coastal (adjacent to [0,0] and [1,0] sea)
+          ;; [0 3] and [3 1] are inland (no adjacent sea)
+          with-player (occupy-random-free-city test-map :player)
+          with-both (occupy-random-free-city with-player :computer)
+          player-pos (first (for [i (range 4) j (range 4)
+                                  :when (= :player (:city-status (get-in with-both [i j])))]
+                              [i j]))
+          computer-pos (first (for [i (range 4) j (range 4)
+                                    :when (= :computer (:city-status (get-in with-both [i j])))]
+                                [i j]))]
+      ;; Only [1 1] is coastal, so player gets it
+      (should= [1 1] player-pos)
+      ;; No coastal cities left, computer gets nothing
+      (should= nil computer-pos))))

@@ -9,8 +9,6 @@
 
 (def min-city-distance 5)
 
-(def round-delay 1000)
-
 ;; Menu items: keywords -> display strings
 (def menu-items->strings
   {:army "Army"

@@ -189,6 +189,12 @@
                                       (pos? (uc/get-count contents :fighter-count)))]
       (if active-unit
         (cond
+          (= k :space)
+          (do
+            (swap! atoms/player-items rest)
+            (game-loop/item-processed)
+            true)
+
           (and (= k :w) transport-at-beach?)
           (do
             (movement/wake-armies-on-transport coords)

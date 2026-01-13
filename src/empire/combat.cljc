@@ -21,7 +21,7 @@
       (do
         (swap! atoms/game-map assoc-in army-coords (dissoc army-cell :contents))
         (movement/update-cell-visibility army-coords :player)
-        (reset! atoms/line3-message (:conquest-failed config/messages))))
+        (atoms/set-line3-message (:conquest-failed config/messages) 3000)))
     true))
 
 (defn attempt-fighter-overfly
@@ -33,5 +33,5 @@
         shot-down-fighter (assoc fighter :mode :awake :hits 0 :steps-remaining 0 :reason :fighter-shot-down)]
     (swap! atoms/game-map assoc-in fighter-coords (dissoc fighter-cell :contents))
     (swap! atoms/game-map assoc-in city-coords (assoc city-cell :contents shot-down-fighter))
-    (reset! atoms/line3-message (:fighter-destroyed-by-city config/messages))
+    (atoms/set-line3-message (:fighter-destroyed-by-city config/messages) 3000)
     true))

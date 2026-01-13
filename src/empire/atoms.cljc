@@ -64,6 +64,16 @@
   "An atom containing the message to display on line 3."
   (atom ""))
 
+(def line3-until
+  "An atom containing the timestamp until which line3-message should be displayed."
+  (atom 0))
+
+(defn set-line3-message
+  "Sets a flashing message on line 3 that displays for the specified milliseconds."
+  [msg ms]
+  (reset! line3-message msg)
+  (reset! line3-until (+ (System/currentTimeMillis) ms)))
+
 (def computer-map
   "An atom containing the computer's visible map areas."
   (atom {}))

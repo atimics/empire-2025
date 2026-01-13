@@ -132,11 +132,13 @@
 (defn draw-line-3
   "Draws the flashing red message on line 3."
   [text-x text-y]
-  (when (and (seq @atoms/line3-message)
-             (even? (quot (System/currentTimeMillis) 500)))
-    (q/fill 255 0 0)
-    (q/text @atoms/line3-message (+ text-x 10) (+ text-y 50))
-    (q/fill 255)))
+  (if (>= (System/currentTimeMillis) @atoms/line3-until)
+    (reset! atoms/line3-message "")
+    (when (and (seq @atoms/line3-message)
+               (even? (quot (System/currentTimeMillis) 500)))
+      (q/fill 255 0 0)
+      (q/text @atoms/line3-message (+ text-x 10) (+ text-y 50))
+      (q/fill 255))))
 
 (defn draw-status
   "Draws the status area on the right (3 lines, 20 chars wide)."

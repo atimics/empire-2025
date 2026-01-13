@@ -59,7 +59,6 @@
 (defn mouse-down
   "Handles mouse click events."
   [x y button]
-  (reset! atoms/line3-message "")
   (when (and (= button :left) (map-utils/on-map? x y))
     (let [[cell-x cell-y] (map-utils/determine-cell-coordinates x y)]
       (reset! atoms/last-clicked-cell [cell-x cell-y])
@@ -85,7 +84,7 @@
             naval? (config/naval-unit? item)]
         (if (and naval? (not coastal?))
           (do
-            (reset! atoms/line3-message (format "Must be coastal city to produce %s." (name item)))
+            (atoms/set-line3-message (format "Must be coastal city to produce %s." (name item)) 3000)
             true)
           (do
             (production/set-city-production coords item)

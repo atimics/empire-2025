@@ -143,7 +143,7 @@
                        [false nil false false])
         wake-up? (or is-at-target? unit-wakes?)]
     (when shot-down?
-      (reset! atoms/line3-message (:fighter-destroyed-by-city config/messages)))
+      (atoms/set-line3-message (:fighter-destroyed-by-city config/messages) 3000))
     (if wake-up?
       (dissoc (cond-> (assoc unit :mode :awake)
                       (and unit-wakes? reason) (assoc :reason reason)

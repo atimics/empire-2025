@@ -76,36 +76,15 @@
     (q/text @atoms/line3-message (+ text-x 10) (+ text-y 50))
     (q/fill 255)))
 
-(def ^:private frame-history (atom []))
-(def ^:private rolling-avg-length 10)
-
-(defn- update-frame-avg [history value]
-  (let [updated (conj history value)
-        trimmed (if (> (count updated) rolling-avg-length)
-                  (vec (drop 1 updated))
-                  updated)]
-    trimmed))
-
-(defn- calc-avg [values]
-  (if (seq values)
-    (/ (reduce + values) (count values))
-    0))
-
 (defn draw-status
-  "Draws the status info (round number, grid size, and render time) on the right."
-  [text-x text-y text-w start-time]
-  (let [[cols rows] @atoms/map-size
-        right-margin 300
-        {:keys [setup loop]} (rendering/get-render-timing)
-        frame-time (- (System/currentTimeMillis) start-time)
-        _ (swap! frame-history update-frame-avg frame-time)
-        avg-frame (calc-avg @frame-history)]
-    (q/text (str "Round: " @atoms/round-number) (- (+ text-x text-w) right-margin) (+ text-y 10))
-    (q/text (str cols "x" rows " " (int avg-frame) "ms (loop:" (int loop) ")") (- (+ text-x text-w) right-margin) (+ text-y 30))))
+  "Draws the round number on the right."
+  [text-x text-y text-w]
+  (let [right-margin 130]
+    (q/text (str "Round: " @atoms/round-number) (- (+ text-x text-w) right-margin) (+ text-y 10))))
 
 (defn draw-message-area
   "Draws the message area including separator line and messages."
-  [start-time]
+  []
   (let [[text-x text-y text-w _] @atoms/text-area-dimensions]
     (q/stroke 255)
     (q/line text-x (- text-y 4) (+ text-x text-w) (- text-y 4))
@@ -114,20 +93,19 @@
     (draw-line-1 text-x text-y)
     (draw-line-2 text-x text-y)
     (draw-line-3 text-x text-y)
-    (draw-status text-x text-y text-w start-time)))
+    (draw-status text-x text-y text-w)))
 
 (defn draw-state
   "Draw the current game state."
   [_state]
-  (let [start-time (System/currentTimeMillis)]
-    (q/background 0)
-    (let [the-map (case @atoms/map-to-display
-                    :player-map @atoms/player-map
-                    :computer-map @atoms/computer-map
-                    :actual-map @atoms/game-map)]
-      (rendering/draw-map the-map)
-      (menus/draw-menu)
-      (draw-message-area start-time))))
+  (q/background 0)
+  (let [the-map (case @atoms/map-to-display
+                  :player-map @atoms/player-map
+                  :computer-map @atoms/computer-map
+                  :actual-map @atoms/game-map)]
+    (rendering/draw-map the-map)
+    (menus/draw-menu)
+    (draw-message-area)))
 
 (defn add-unit-at-mouse [unit-type]
   (let [x (q/mouse-x)

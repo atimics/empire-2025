@@ -86,32 +86,10 @@
         (q/text-font @atoms/production-char-font)
         (q/text (config/item-chars item) (+ (* col cell-w) 2) (+ (* row cell-h) 12))))))
 
-(def ^:private timing-history (atom {:setup [] :loop []}))
-(def ^:private rolling-avg-length 10)
-
-(defn- update-rolling-avg [history key value]
-  (let [current (get history key [])
-        updated (conj current value)
-        trimmed (if (> (count updated) rolling-avg-length)
-                  (vec (drop 1 updated))
-                  updated)]
-    (assoc history key trimmed)))
-
-(defn- calc-avg [values]
-  (if (seq values)
-    (/ (reduce + values) (count values))
-    0))
-
-(defn get-render-timing []
-  (let [{:keys [setup loop]} @timing-history]
-    {:setup (calc-avg setup)
-     :loop (calc-avg loop)}))
-
 (defn draw-map
   "Draws the map on the screen."
   [the-map]
-  (let [t0 (System/nanoTime)
-        [map-w map-h] @atoms/map-screen-dimensions
+  (let [[map-w map-h] @atoms/map-screen-dimensions
         cols (count the-map)
         rows (count (first the-map))
         cell-w (/ map-w cols)
@@ -139,26 +117,20 @@
                         {}
                         (for [col (range cols) row (range rows)] [col row]))]
     (q/no-stroke)
-    (let [t1 (System/nanoTime)]
-      ;; Second pass: draw all rects batched by color
-      (doseq [[color cells] cells-by-color]
-        (let [[r g b] color]
-          (q/fill r g b)
-          (doseq [{:keys [col row]} cells]
-            (q/rect (* col cell-w) (* row cell-h) cell-w cell-h))))
-      ;; Draw grid lines
-      (q/stroke 0)
-      (doseq [col (range (inc cols))]
-        (q/line (* col cell-w) 0 (* col cell-w) map-h))
-      (doseq [row (range (inc rows))]
-        (q/line 0 (* row cell-h) map-w (* row cell-h)))
-      ;; Third pass: draw production indicators and units
-      (doseq [[_ cells] cells-by-color]
-        (doseq [{:keys [col row cell]} cells]
-          (draw-production-indicators row col cell cell-w cell-h)
-          (draw-unit col row cell cell-w cell-h)))
-      (let [t2 (System/nanoTime)]
-        (swap! timing-history
-               #(-> %
-                    (update-rolling-avg :setup (/ (- t1 t0) 1e6))
-                    (update-rolling-avg :loop (/ (- t2 t1) 1e6))))))))
+    ;; Draw all rects batched by color
+    (doseq [[color cells] cells-by-color]
+      (let [[r g b] color]
+        (q/fill r g b)
+        (doseq [{:keys [col row]} cells]
+          (q/rect (* col cell-w) (* row cell-h) cell-w cell-h))))
+    ;; Draw grid lines
+    (q/stroke 0)
+    (doseq [col (range (inc cols))]
+      (q/line (* col cell-w) 0 (* col cell-w) map-h))
+    (doseq [row (range (inc rows))]
+      (q/line 0 (* row cell-h) map-w (* row cell-h)))
+    ;; Draw production indicators and units
+    (doseq [[_ cells] cells-by-color]
+      (doseq [{:keys [col row cell]} cells]
+        (draw-production-indicators row col cell cell-w cell-h)
+        (draw-unit col row cell cell-w cell-h)))))

@@ -31,11 +31,13 @@
               base-color (color-of cell)
               dark-color (mapv #(* % 0.5) base-color)]
           (when (and (> progress 0) (> remaining 0))
-            (apply q/fill (conj dark-color 128))            ; semi-transparent darker version
+            (let [[r g b] dark-color]
+              (q/fill r g b 128))                           ; semi-transparent darker version
             (let [bar-height (* cell-h progress)]
               (q/rect (* j cell-w) (+ (* i cell-h) (- cell-h bar-height)) cell-w bar-height))))
         ;; Draw production character
-        (apply q/fill config/production-color)
+        (let [[r g b] config/production-color]
+          (q/fill r g b))
         (q/text-font @atoms/production-char-font)
         (q/text (config/item-chars (:item prod)) (+ (* j cell-w) 2) (+ (* i cell-h) 12))))))
 
@@ -75,40 +77,88 @@
                        :else nil)]
     (when display-unit
       (let [item (:type display-unit)
-            unit-color (case (:mode display-unit)
-                         :awake config/awake-unit-color
-                         :sentry config/sentry-unit-color
-                         :explore config/explore-unit-color
-                         config/sleeping-unit-color)]
-        (apply q/fill unit-color)
+            [r g b] (case (:mode display-unit)
+                      :awake config/awake-unit-color
+                      :sentry config/sentry-unit-color
+                      :explore config/explore-unit-color
+                      config/sleeping-unit-color)]
+        (q/fill r g b)
         (q/text-font @atoms/production-char-font)
         (q/text (config/item-chars item) (+ (* col cell-w) 2) (+ (* row cell-h) 12))))))
+
+(def ^:private timing-history (atom {:setup [] :loop []}))
+(def ^:private rolling-avg-length 10)
+
+(defn- update-rolling-avg [history key value]
+  (let [current (get history key [])
+        updated (conj current value)
+        trimmed (if (> (count updated) rolling-avg-length)
+                  (vec (drop 1 updated))
+                  updated)]
+    (assoc history key trimmed)))
+
+(defn- calc-avg [values]
+  (if (seq values)
+    (/ (reduce + values) (count values))
+    0))
+
+(defn get-render-timing []
+  (let [{:keys [setup loop]} @timing-history]
+    {:setup (calc-avg setup)
+     :loop (calc-avg loop)}))
 
 (defn draw-map
   "Draws the map on the screen."
   [the-map]
-  (let [[map-w map-h] @atoms/map-screen-dimensions
+  (let [t0 (System/nanoTime)
+        [map-w map-h] @atoms/map-screen-dimensions
         cols (count the-map)
         rows (count (first the-map))
         cell-w (/ map-w cols)
-        cell-h (/ map-h rows)]
-    (doseq [col (range cols)
-            row (range rows)]
-      (let [cell (get-in the-map [col row])]
-        (when (not= :unexplored (:type cell))
-          (let [color (color-of cell)
-                attention-coords @atoms/cells-needing-attention
-                current [col row]
-                should-flash-black (and (seq attention-coords) (= current (first attention-coords)))
-                completed? (and (= (:type cell) :city) (not= :free (:city-status cell))
-                                (let [prod (@atoms/production [col row])]
-                                  (and (map? prod) (= (:remaining-rounds prod) 0))))
-                blink-white? (and completed? (blink? 500))
-                blink-black? (and should-flash-black (blink? 125))
-                final-color (cond blink-black? [0 0 0]
-                                  blink-white? [255 255 255]
-                                  :else color)]
-            (apply q/fill final-color)
-            (q/rect (* col cell-w) (* row cell-h) (inc cell-w) (inc cell-h))
-            (draw-production-indicators row col cell cell-w cell-h)
-            (draw-unit col row cell cell-w cell-h)))))))
+        cell-h (/ map-h rows)
+        attention-coords @atoms/cells-needing-attention
+        production @atoms/production
+        ;; First pass: collect cells grouped by color
+        cells-by-color (reduce
+                        (fn [acc [col row]]
+                          (let [cell (get-in the-map [col row])]
+                            (if (= :unexplored (:type cell))
+                              acc
+                              (let [color (color-of cell)
+                                    current [col row]
+                                    should-flash-black (and (seq attention-coords) (= current (first attention-coords)))
+                                    completed? (and (= (:type cell) :city) (not= :free (:city-status cell))
+                                                    (let [prod (production [col row])]
+                                                      (and (map? prod) (= (:remaining-rounds prod) 0))))
+                                    blink-white? (and completed? (blink? 500))
+                                    blink-black? (and should-flash-black (blink? 125))
+                                    final-color (cond blink-black? [0 0 0]
+                                                      blink-white? [255 255 255]
+                                                      :else color)]
+                                (update acc final-color conj {:col col :row row :cell cell})))))
+                        {}
+                        (for [col (range cols) row (range rows)] [col row]))]
+    (q/no-stroke)
+    (let [t1 (System/nanoTime)]
+      ;; Second pass: draw all rects batched by color
+      (doseq [[color cells] cells-by-color]
+        (let [[r g b] color]
+          (q/fill r g b)
+          (doseq [{:keys [col row]} cells]
+            (q/rect (* col cell-w) (* row cell-h) cell-w cell-h))))
+      ;; Draw grid lines
+      (q/stroke 0)
+      (doseq [col (range (inc cols))]
+        (q/line (* col cell-w) 0 (* col cell-w) map-h))
+      (doseq [row (range (inc rows))]
+        (q/line 0 (* row cell-h) map-w (* row cell-h)))
+      ;; Third pass: draw production indicators and units
+      (doseq [[_ cells] cells-by-color]
+        (doseq [{:keys [col row cell]} cells]
+          (draw-production-indicators row col cell cell-w cell-h)
+          (draw-unit col row cell cell-w cell-h)))
+      (let [t2 (System/nanoTime)]
+        (swap! timing-history
+               #(-> %
+                    (update-rolling-avg :setup (/ (- t1 t0) 1e6))
+                    (update-rolling-avg :loop (/ (- t2 t1) 1e6))))))))

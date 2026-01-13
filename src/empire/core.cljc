@@ -76,11 +76,32 @@
     (q/text @atoms/line3-message (+ text-x 10) (+ text-y 50))
     (q/fill 255)))
 
+(def ^:private frame-history (atom []))
+(def ^:private rolling-avg-length 10)
+
+(defn- update-frame-avg [history value]
+  (let [updated (conj history value)
+        trimmed (if (> (count updated) rolling-avg-length)
+                  (vec (drop 1 updated))
+                  updated)]
+    trimmed))
+
+(defn- calc-avg [values]
+  (if (seq values)
+    (/ (reduce + values) (count values))
+    0))
+
 (defn draw-status
-  "Draws the status info (round number and render time) on the right."
+  "Draws the status info (round number, grid size, and render time) on the right."
   [text-x text-y text-w start-time]
-  (q/text (str "Round: " @atoms/round-number) (- (+ text-x text-w) 120) (+ text-y 10))
-  (q/text (str (- (System/currentTimeMillis) start-time) " ms") (- (+ text-x text-w) 120) (+ text-y 30)))
+  (let [[cols rows] @atoms/map-size
+        right-margin 300
+        {:keys [setup loop]} (rendering/get-render-timing)
+        frame-time (- (System/currentTimeMillis) start-time)
+        _ (swap! frame-history update-frame-avg frame-time)
+        avg-frame (calc-avg @frame-history)]
+    (q/text (str "Round: " @atoms/round-number) (- (+ text-x text-w) right-margin) (+ text-y 10))
+    (q/text (str cols "x" rows " " (int avg-frame) "ms (loop:" (int loop) ")") (- (+ text-x text-w) right-margin) (+ text-y 30))))
 
 (defn draw-message-area
   "Draws the message area including separator line and messages."

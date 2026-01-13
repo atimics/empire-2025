@@ -132,10 +132,15 @@
     (q/fill 255)))
 
 (defn draw-status
-  "Draws the round number on the right."
+  "Draws the status area on the right (3 lines, 20 chars wide)."
   [text-x text-y text-w]
-  (let [right-margin 130]
-    (q/text (str "Round: " @atoms/round-number) (- (+ text-x text-w) right-margin) (+ text-y 10))))
+  (let [char-width (q/text-width "M")
+        status-width (* 20 char-width)
+        status-x (- (+ text-x text-w) status-width)
+        dest @atoms/destination
+        dest-str (if dest (str "Dest: " (first dest) "," (second dest)) "")]
+    (q/text (str "Round: " @atoms/round-number) status-x (+ text-y 10))
+    (q/text dest-str status-x (+ text-y 30))))
 
 (defn draw-message-area
   "Draws the message area including separator line and messages."

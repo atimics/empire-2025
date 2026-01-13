@@ -67,7 +67,7 @@
 (defn- handle-city-production-key [k coords cell]
   (when (and (= (:type cell) :city)
              (= (:city-status cell) :player)
-             (not (:contents cell)))
+             (not (movement/get-active-unit cell)))
     (cond
       ;; 'x' sets production to nothing
       (= k :x)
@@ -224,13 +224,13 @@
             (game-loop/item-processed)
             true)
 
-          (and (= k :x) (= :army (:type active-unit)) (not is-army-aboard?))
+          (and (= k :l) (= :army (:type active-unit)) (not is-army-aboard?))
           (do
             (movement/set-explore-mode coords)
             (game-loop/item-processed)
             true)
 
-          (and (= k :x) is-army-aboard?)
+          (and (= k :l) is-army-aboard?)
           (let [[x y] coords
                 adjacent-cells (for [dx [-1 0 1] dy [-1 0 1]
                                      :when (not (and (zero? dx) (zero? dy)))]

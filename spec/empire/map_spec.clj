@@ -296,11 +296,11 @@
       (should= 0 (:hits (:contents (get-in @atoms/game-map [0 0])))))))
 
 (describe "explore mode"
-  (it "handle-key with 'x' puts army in explore mode"
+  (it "handle-key with 'l' puts army in explore mode"
     (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :awake}}]]]
       (reset! atoms/game-map initial-map)
       (reset! atoms/cells-needing-attention [[0 0]])
-      (input/handle-key :x)
+      (input/handle-key :l)
       (let [unit (:contents (get-in @atoms/game-map [0 0]))]
         (should= :explore (:mode unit))
         (should= config/explore-steps (:explore-steps unit)))))

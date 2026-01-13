@@ -1,9 +1,12 @@
 (ns empire.core
   (:require [empire.atoms :as atoms]
             [empire.config :as config]
+            [empire.game-loop :as game-loop]
             [empire.init :as init]
-            [empire.map :as map]
+            [empire.input :as input]
+            [empire.map-utils :as map-utils]
             [empire.menus :as menus]
+            [empire.rendering :as rendering]
             [quil.core :as q]
             [quil.middleware :as m]))
 
@@ -49,7 +52,7 @@
 (defn update-state
   "Update the game state."
   [state]
-  (map/update-map)
+  (game-loop/update-map)
   state)
 
 (defn draw-line-1
@@ -101,15 +104,15 @@
                     :player-map @atoms/player-map
                     :computer-map @atoms/computer-map
                     :actual-map @atoms/game-map)]
-      (map/draw-map the-map)
+      (rendering/draw-map the-map)
       (menus/draw-menu)
       (draw-message-area start-time))))
 
 (defn add-unit-at-mouse [unit-type]
   (let [x (q/mouse-x)
         y (q/mouse-y)]
-    (when (map/on-map? x y)
-      (let [[cx cy] (map/determine-cell-coordinates x y)
+    (when (map-utils/on-map? x y)
+      (let [[cx cy] (map-utils/determine-cell-coordinates x y)
             cell (get-in @atoms/game-map [cx cy])
             unit {:type unit-type
                   :hits (config/item-hits unit-type)
@@ -137,7 +140,7 @@
       (= k :+) (swap! atoms/map-to-display {:player-map :computer-map
                                             :computer-map :actual-map
                                             :actual-map :player-map})
-      (map/handle-key k) nil
+      (input/handle-key k) nil
       :else nil)))
 
 (defn key-pressed [state _]
@@ -152,7 +155,7 @@
   (reset! atoms/last-key nil))
 
 (defn mouse-pressed [_ _]
-  (map/mouse-down (q/mouse-x) (q/mouse-y) (q/mouse-button)))
+  (input/mouse-down (q/mouse-x) (q/mouse-y) (q/mouse-button)))
 
 (defn on-close [_]
   (q/no-loop)

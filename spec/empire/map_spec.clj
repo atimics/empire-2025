@@ -1,8 +1,11 @@
 (ns empire.map-spec
   (:require [speclj.core :refer :all]
-            [empire.map :as map]
+            [empire.attention :as attention]
             [empire.atoms :as atoms]
+            [empire.combat :as combat]
             [empire.config :as config]
+            [empire.game-loop :as game-loop]
+            [empire.input :as input]
             [empire.movement :as movement]))
 
 (describe "cells-needing-attention"
@@ -12,7 +15,7 @@
                               [{:type :city :city-status :computer :contents nil}
                                {:type :land }]])
     (reset! atoms/production {})
-    (should= [] (map/cells-needing-attention)))
+    (should= [] (attention/cells-needing-attention)))
 
   (it "returns coordinates of awake units"
     (reset! atoms/player-map [[{:type :land :contents {:type :army :mode :awake :owner :player}}
@@ -20,7 +23,7 @@
                               [{:type :land }
                                {:type :land }]])
     (reset! atoms/production {})
-    (should= [[0 0]] (map/cells-needing-attention)))
+    (should= [[0 0]] (attention/cells-needing-attention)))
 
   (it "returns coordinates of cities with no production"
     (reset! atoms/player-map [[{:type :land }
@@ -28,13 +31,13 @@
                               [{:type :land }
                                {:type :land }]])
     (reset! atoms/production {})
-    (should= [[0 1]] (map/cells-needing-attention)))
+    (should= [[0 1]] (attention/cells-needing-attention)))
 
   (it "excludes cities with production"
     (reset! atoms/player-map [[{:type :city :city-status :player :contents nil}
                                {:type :land }]])
     (reset! atoms/production {[0 0] {:item :army :remaining-rounds 5}})
-    (should= [] (map/cells-needing-attention)))
+    (should= [] (attention/cells-needing-attention)))
 
   (it "returns multiple coordinates"
     (reset! atoms/player-map [[{:type :land :contents {:type :army :mode :awake :owner :player}}
@@ -42,7 +45,7 @@
                               [{:type :land }
                                {:type :land }]])
     (reset! atoms/production {})
-    (should= [[0 0] [0 1]] (map/cells-needing-attention))))
+    (should= [[0 0] [0 1]] (attention/cells-needing-attention))))
 
 (describe "remove-dead-units"
   (it "removes units with hits at or below zero"
@@ -53,7 +56,7 @@
                         {:type :land }
                         {:type :land }]]]
       (reset! atoms/game-map initial-map)
-      (map/remove-dead-units)
+      (game-loop/remove-dead-units)
       (should= {:type :land} (get-in @atoms/game-map [0 0]))
       (should= {:type :land :contents {:type :fighter :hits 1 :owner :player}} (get-in @atoms/game-map [0 1]))
       (should= {:type :land} (get-in @atoms/game-map [0 2])))))
@@ -65,7 +68,7 @@
                        [{:type :land :contents {:type :army :owner :computer}}
                         {:type :land}]]]
       (reset! atoms/game-map initial-map)
-      (map/reset-steps-remaining)
+      (game-loop/reset-steps-remaining)
       (should= (config/unit-speed :army) (:steps-remaining (:contents (get-in @atoms/game-map [0 0]))))
       (should= (config/unit-speed :fighter) (:steps-remaining (:contents (get-in @atoms/game-map [0 1]))))
       (should= nil (:steps-remaining (:contents (get-in @atoms/game-map [1 0]))))))
@@ -73,7 +76,7 @@
   (it "overwrites existing steps-remaining values"
     (let [initial-map [[{:type :land :contents {:type :fighter :owner :player :steps-remaining 2}}]]]
       (reset! atoms/game-map initial-map)
-      (map/reset-steps-remaining)
+      (game-loop/reset-steps-remaining)
       (should= (config/unit-speed :fighter) (:steps-remaining (:contents (get-in @atoms/game-map [0 0])))))))
 
 (describe "set-unit-movement"
@@ -96,7 +99,7 @@
                         {:type :land}
                         {:type :land}]]]
       (reset! atoms/game-map initial-map)
-      (map/move-current-unit [0 0])
+      (game-loop/move-current-unit [0 0])
       (should= 2 (:steps-remaining (:contents (get-in @atoms/game-map [0 1]))))))
 
   (it "returns new coords when steps remain"
@@ -104,20 +107,20 @@
                         {:type :land}
                         {:type :land}]]]
       (reset! atoms/game-map initial-map)
-      (should= [0 1] (map/move-current-unit [0 0]))))
+      (should= [0 1] (game-loop/move-current-unit [0 0]))))
 
   (it "returns nil when steps-remaining reaches zero"
     (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :moving :target [0 2] :steps-remaining 1}}
                         {:type :land}
                         {:type :land}]]]
       (reset! atoms/game-map initial-map)
-      (should= nil (map/move-current-unit [0 0]))))
+      (should= nil (game-loop/move-current-unit [0 0]))))
 
   (it "returns new coords when unit wakes up with steps remaining"
     (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :moving :target [0 1] :steps-remaining 3}}
                         {:type :land}]]]
       (reset! atoms/game-map initial-map)
-      (let [result (map/move-current-unit [0 0])]
+      (let [result (game-loop/move-current-unit [0 0])]
         (should= [0 1] result)
         (should= :awake (:mode (:contents (get-in @atoms/game-map [0 1])))))))
 
@@ -125,7 +128,7 @@
     (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :moving :target [0 1] :steps-remaining 1}}
                         {:type :land}]]]
       (reset! atoms/game-map initial-map)
-      (should= nil (map/move-current-unit [0 0]))))
+      (should= nil (game-loop/move-current-unit [0 0]))))
 
   (it "limits unit to its rate per round even with new orders"
     (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :moving :target [0 1] :steps-remaining 1}}
@@ -133,14 +136,14 @@
                         {:type :land}]]]
       (reset! atoms/game-map initial-map)
       ;; Move once, using the last step
-      (map/move-current-unit [0 0])
+      (game-loop/move-current-unit [0 0])
       (should= 0 (:steps-remaining (:contents (get-in @atoms/game-map [0 1]))))
       ;; Give new orders
       (movement/set-unit-movement [0 1] [0 2])
       ;; steps-remaining should still be 0
       (should= 0 (:steps-remaining (:contents (get-in @atoms/game-map [0 1]))))
       ;; Try to move again - should return nil since no steps left
-      (should= nil (map/move-current-unit [0 1])))))
+      (should= nil (game-loop/move-current-unit [0 1])))))
 
 (describe "attempt-fighter-overfly"
   (it "shoots down fighter when flying over free city"
@@ -148,7 +151,7 @@
                         {:type :city :city-status :free}]]]
       (reset! atoms/game-map initial-map)
       (reset! atoms/line3-message "")
-      (map/attempt-fighter-overfly [0 0] [0 1])
+      (combat/attempt-fighter-overfly [0 0] [0 1])
       ;; Fighter should be removed from original cell
       (should= nil (:contents (get-in @atoms/game-map [0 0])))
       ;; Fighter should be on city with hits=0
@@ -164,7 +167,7 @@
                         {:type :city :city-status :computer}]]]
       (reset! atoms/game-map initial-map)
       (reset! atoms/line3-message "")
-      (map/attempt-fighter-overfly [0 0] [0 1])
+      (combat/attempt-fighter-overfly [0 0] [0 1])
       ;; Fighter should be removed from original cell
       (should= nil (:contents (get-in @atoms/game-map [0 0])))
       ;; Fighter should be on city with hits=0
@@ -180,34 +183,34 @@
     (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :awake}}]]]
       (reset! atoms/game-map initial-map)
       (reset! atoms/cells-needing-attention [[0 0]])
-      (map/handle-key :s)
+      (input/handle-key :s)
       (should= :sentry (:mode (:contents (get-in @atoms/game-map [0 0]))))))
 
   (it "handle-key with 's' does not put unit in sentry when in city"
     (let [initial-map [[{:type :city :city-status :player :contents {:type :army :owner :player :mode :awake}}]]]
       (reset! atoms/game-map initial-map)
       (reset! atoms/cells-needing-attention [[0 0]])
-      (map/handle-key :s)
+      (input/handle-key :s)
       (should= :awake (:mode (:contents (get-in @atoms/game-map [0 0]))))))
 
   (it "sentry units do not move"
     (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :sentry}}
                         {:type :land}]]]
       (reset! atoms/game-map initial-map)
-      (should= nil (map/move-current-unit [0 0]))
+      (should= nil (game-loop/move-current-unit [0 0]))
       (should= :sentry (:mode (:contents (get-in @atoms/game-map [0 0]))))))
 
   (it "consume-sentry-fighter-fuel decrements fuel each round"
     (let [initial-map [[{:type :land :contents {:type :fighter :owner :player :mode :sentry :fuel 20}}]]]
       (reset! atoms/game-map initial-map)
-      (map/consume-sentry-fighter-fuel)
+      (game-loop/consume-sentry-fighter-fuel)
       (should= 19 (:fuel (:contents (get-in @atoms/game-map [0 0]))))))
 
   (it "consume-sentry-fighter-fuel wakes fighter with bingo warning when city in range"
     (let [initial-map [[{:type :land :contents {:type :fighter :owner :player :mode :sentry :fuel 9}}
                         {:type :city :city-status :player}]]]
       (reset! atoms/game-map initial-map)
-      (map/consume-sentry-fighter-fuel)
+      (game-loop/consume-sentry-fighter-fuel)
       (let [fighter (:contents (get-in @atoms/game-map [0 0]))]
         (should= 8 (:fuel fighter))
         (should= :awake (:mode fighter))
@@ -216,7 +219,7 @@
   (it "consume-sentry-fighter-fuel wakes fighter with out-of-fuel warning"
     (let [initial-map [[{:type :land :contents {:type :fighter :owner :player :mode :sentry :fuel 2}}]]]
       (reset! atoms/game-map initial-map)
-      (map/consume-sentry-fighter-fuel)
+      (game-loop/consume-sentry-fighter-fuel)
       (let [fighter (:contents (get-in @atoms/game-map [0 0]))]
         (should= 1 (:fuel fighter))
         (should= :awake (:mode fighter))
@@ -225,7 +228,7 @@
   (it "consume-sentry-fighter-fuel kills fighter when fuel hits zero"
     (let [initial-map [[{:type :land :contents {:type :fighter :owner :player :mode :sentry :fuel 1}}]]]
       (reset! atoms/game-map initial-map)
-      (map/consume-sentry-fighter-fuel)
+      (game-loop/consume-sentry-fighter-fuel)
       (should= 0 (:hits (:contents (get-in @atoms/game-map [0 0])))))))
 
 (describe "explore mode"
@@ -233,7 +236,7 @@
     (let [initial-map [[{:type :land :contents {:type :army :owner :player :mode :awake}}]]]
       (reset! atoms/game-map initial-map)
       (reset! atoms/cells-needing-attention [[0 0]])
-      (map/handle-key :x)
+      (input/handle-key :x)
       (let [unit (:contents (get-in @atoms/game-map [0 0]))]
         (should= :explore (:mode unit))
         (should= config/explore-steps (:explore-steps unit)))))
@@ -242,7 +245,7 @@
     (let [initial-map [[{:type :land :contents {:type :fighter :owner :player :mode :awake}}]]]
       (reset! atoms/game-map initial-map)
       (reset! atoms/cells-needing-attention [[0 0]])
-      (map/handle-key :x)
+      (input/handle-key :x)
       (should= :awake (:mode (:contents (get-in @atoms/game-map [0 0]))))))
 
   (it "explore army moves to valid adjacent cell"

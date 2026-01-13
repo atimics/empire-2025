@@ -1,5 +1,5 @@
 (ns empire.init
-  (:require [empire.map :as map]
+  (:require [empire.map-utils :as map-utils]
             [empire.atoms :as atoms]))
 
 (defn smooth-cell
@@ -17,7 +17,7 @@
   "Takes a map and returns a smoothed version where each cell is the rounded average
    of itself and its 8 surrounding cells. Edge cells use their own value for missing neighbors."
   [input-map]
-  (map/process-map input-map smooth-cell))
+  (map-utils/process-map input-map smooth-cell))
 
 (defn make-map
   "Creates and initializes the game map with random integers, then applies smoothing."
@@ -34,7 +34,7 @@
 (defn finalize-map
   "Converts a height map to a terrain map with land/sea types."
   [the-map sea-level]
-  (map/process-map the-map (fn [i j the-map]
+  (map-utils/process-map the-map (fn [i j the-map]
                              (let [height (get-in the-map [i j])
                                    terrain-type (if (> height sea-level) :land :sea)]
                                {:type terrain-type}))))
@@ -67,7 +67,7 @@
 (defn occupy-random-free-city
   "Occupies a random free coastal city with the given owner (:player or :computer)."
   [the-map owner]
-  (let [free-city-positions (map/filter-map the-map (fn [cell] (and (= :city (:type cell)) (= :free (:city-status cell)))))
+  (let [free-city-positions (map-utils/filter-map the-map (fn [cell] (and (= :city (:type cell)) (= :free (:city-status cell)))))
         coastal-cities (filter #(coastal? % the-map) free-city-positions)
         num-coastal (count coastal-cities)]
     (if (> num-coastal 0)
@@ -79,7 +79,7 @@
 (defn generate-cities
   "Places free cities on land cells with minimum distance constraints."
   [the-map number-of-cities min-city-distance]
-  (let [land-positions (map/filter-map the-map (fn [cell] (= :land (:type cell))))
+  (let [land-positions (map-utils/filter-map the-map (fn [cell] (= :land (:type cell))))
         land-positions-vec (vec land-positions)
         num-land (count land-positions-vec)]
     (loop [placed-cities []

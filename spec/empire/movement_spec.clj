@@ -2,7 +2,7 @@
   (:require
     [empire.atoms :as atoms]
     [empire.config :as config]
-    [empire.map :as map]
+    [empire.game-loop :as game-loop]
     [empire.movement :refer :all]
     [speclj.core :refer :all]))
 
@@ -10,7 +10,7 @@
   "Helper to move a unit until it stops (returns nil)."
   [coords]
   (loop [current coords]
-    (when-let [next-coords (map/move-current-unit current)]
+    (when-let [next-coords (game-loop/move-current-unit current)]
       (recur next-coords))))
 
 (describe "movement"
@@ -21,7 +21,7 @@
                             (assoc-in [4 5] {:type :land}))]
         (reset! atoms/game-map initial-map)
         (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-        (map/move-current-unit [4 4])
+        (game-loop/move-current-unit [4 4])
         (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
 
     (context "single moves that awaken the unit"
@@ -32,7 +32,7 @@
                               (assoc-in [4 5] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
           (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
@@ -44,7 +44,7 @@
                               (assoc-in [4 3] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [4 3]))
           (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
@@ -56,7 +56,7 @@
                               (assoc-in [3 4] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [3 4]))
           (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
@@ -68,7 +68,7 @@
                               (assoc-in [5 4] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [5 4]))
           (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
@@ -80,7 +80,7 @@
                               (assoc-in [3 3] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [3 3]))
           (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
@@ -92,7 +92,7 @@
                               (assoc-in [5 3] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [5 3]))
           (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
@@ -104,7 +104,7 @@
                               (assoc-in [3 5] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [3 5]))
           (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
@@ -116,7 +116,7 @@
                               (assoc-in [5 5] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [5 5]))
           (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
@@ -128,7 +128,7 @@
                               (assoc-in [4 5] {:type :sea}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land :contents {:type :army :mode :awake :owner :player :reason :cant-move-into-water :steps-remaining 1}} (get-in @atoms/game-map [4 4]))
           (should= {:type :sea} (get-in @atoms/game-map [4 5]))))
 
@@ -139,7 +139,7 @@
                               (assoc-in [4 5] {:type :city :city-status :player}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land :contents {:type :army :mode :awake :owner :player :reason :cant-move-into-city :steps-remaining 1}} (get-in @atoms/game-map [4 4]))
           (should= {:type :city :city-status :player} (get-in @atoms/game-map [4 5]))))
 
@@ -151,7 +151,7 @@
                               (assoc-in [4 6] {:type :city :city-status :computer :contents nil}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :awake :owner :player :reason :army-found-city :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
           (should= {:type :city :city-status :computer :contents nil} (get-in @atoms/game-map [4 6]))))
@@ -190,7 +190,7 @@
                               (assoc-in [8 4] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [8 4] :steps-remaining 0}} (get-in @atoms/game-map [5 4]))
           (should= {:type :land} (get-in @atoms/game-map [8 4]))
@@ -204,7 +204,7 @@
                               (assoc-in [0 4] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [0 4] :steps-remaining 0}} (get-in @atoms/game-map [3 4]))
           (should= {:type :land} (get-in @atoms/game-map [0 4]))
@@ -218,7 +218,7 @@
                               (assoc-in [4 0] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [4 0] :steps-remaining 0}} (get-in @atoms/game-map [4 3]))
           (should= {:type :land} (get-in @atoms/game-map [4 0]))
@@ -232,7 +232,7 @@
                               (assoc-in [4 8] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [4 8] :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
           (should= {:type :land} (get-in @atoms/game-map [4 8]))
@@ -246,7 +246,7 @@
                               (assoc-in [8 0] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [8 0] :steps-remaining 0}} (get-in @atoms/game-map [5 3]))
           (should= {:type :land} (get-in @atoms/game-map [8 0]))
@@ -260,7 +260,7 @@
                               (assoc-in [0 0] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [0 0] :steps-remaining 0}} (get-in @atoms/game-map [3 3]))
           (should= {:type :land} (get-in @atoms/game-map [0 0]))
@@ -274,7 +274,7 @@
                               (assoc-in [8 8] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [8 8] :steps-remaining 0}} (get-in @atoms/game-map [5 5]))
           (should= {:type :land} (get-in @atoms/game-map [8 8]))
@@ -288,7 +288,7 @@
                               (assoc-in [0 8] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [0 8] :steps-remaining 0}} (get-in @atoms/game-map [3 5]))
           (should= {:type :land} (get-in @atoms/game-map [0 8]))
@@ -304,14 +304,14 @@
                               (assoc-in [4 6] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           ;; After first move, unit at [4 5], still moving
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [4 6] :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
           (should= {:type :land} (get-in @atoms/game-map [4 6]))
           ;; Give the unit another step and call again
           (swap! atoms/game-map assoc-in [4 5 :contents :steps-remaining] 1)
-          (map/move-current-unit [4 5])
+          (game-loop/move-current-unit [4 5])
           ;; After second move, unit at [4 6], awake
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land} (get-in @atoms/game-map [4 5]))
@@ -325,7 +325,7 @@
                               (assoc-in [4 5] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :fighter :mode :awake :owner :player :fuel 9 :steps-remaining 0}} (get-in @atoms/game-map [4 5]))))
 
@@ -335,7 +335,7 @@
                               (assoc-in [4 5] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land :contents {:type :fighter :mode :awake :owner :player :fuel 0 :reason :fighter-out-of-fuel :steps-remaining 0}} (get-in @atoms/game-map [4 5]))))
 
@@ -345,7 +345,7 @@
                               (assoc-in [4 5] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (should= {:type :land} (get-in @atoms/game-map [4 5]))
           (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
@@ -356,7 +356,7 @@
                               (assoc-in [4 5] {:type :city :city-status :player}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (should= {:type :land} (get-in @atoms/game-map [4 4]))
           (let [city-cell (get-in @atoms/game-map [4 5])]
             (should= :city (:type city-cell))
@@ -372,7 +372,7 @@
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
           (reset! atoms/line3-message "")
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (let [city-cell (get-in @atoms/game-map [4 5])]
             (should= 1 (:fighter-count city-cell))
             (should= 0 (:awake-fighters city-cell 0)))
@@ -385,7 +385,7 @@
                               (assoc-in [4 6] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           ;; Fighter should stay at starting position, awake
           (let [fighter (:contents (get-in @atoms/game-map [4 4]))]
             (should= :fighter (:type fighter))
@@ -401,7 +401,7 @@
                               (assoc-in [4 6] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           ;; Fighter should stay at starting position, awake
           (let [fighter (:contents (get-in @atoms/game-map [4 4]))]
             (should= :fighter (:type fighter))
@@ -417,7 +417,7 @@
                               (assoc-in [4 0] {:type :city :city-status :player}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           ;; Fighter should wake up with bingo warning
           (let [fighter (:contents (get-in @atoms/game-map [4 5]))]
             (should= :fighter (:type fighter))
@@ -431,7 +431,7 @@
                               (assoc-in [0 0] {:type :city :city-status :player}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           ;; Fighter should wake at target, not due to bingo (city at [0 0] is distance 5, beyond fuel 3)
           (let [fighter (:contents (get-in @atoms/game-map [4 5]))]
             (should= :fighter (:type fighter))
@@ -445,7 +445,7 @@
                               (assoc-in [4 0] {:type :city :city-status :player}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           ;; Fighter should wake at target, not due to bingo (fuel 10 > 8 = 25% of 32)
           (let [fighter (:contents (get-in @atoms/game-map [4 5]))]
             (should= :fighter (:type fighter))
@@ -559,7 +559,7 @@
                               (assoc-in [5 5] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (let [transport (:contents (get-in @atoms/game-map [4 5]))]
             (should= :awake (:mode transport))
             (should= :transport-at-beach (:reason transport)))))
@@ -571,7 +571,7 @@
                               (assoc-in [5 5] {:type :land}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (let [transport (:contents (get-in @atoms/game-map [4 5]))]
             (should= :awake (:mode transport))
             (should= nil (:reason transport)))))
@@ -607,7 +607,7 @@
                               (assoc-in [4 5] {:type :sea :contents {:type :carrier :mode :sentry :owner :player :hits 8}}))]
           (reset! atoms/game-map initial-map)
           (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (map/move-current-unit [4 4])
+          (game-loop/move-current-unit [4 4])
           (let [carrier-cell (get-in @atoms/game-map [4 5])
                 carrier (:contents carrier-cell)]
             (should= :carrier (:type carrier))

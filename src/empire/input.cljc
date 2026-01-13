@@ -5,128 +5,65 @@
             [empire.config :as config]
             [empire.game-loop :as game-loop]
             [empire.map-utils :as map-utils]
-            [empire.menus :as menus]
             [empire.movement :as movement]
             [empire.production :as production]
             [empire.unit-container :as uc]))
 
-(defn handle-city-click
-  "Handles clicking on a city cell."
-  [cell-x cell-y]
-  (let [cell (get-in @atoms/game-map [cell-x cell-y])
-        header (if (= (:city-status cell) :player) :production :city-info)
-        coastal-city? (map-utils/on-coast? cell-x cell-y)
-        basic-items (if (= header :production)
-                      [:army :fighter :satellite]
-                      ["City Status" (name (:city-status cell))])
-        coastal-items (if (= header :production)
-                        [:transport :patrol-boat :destroyer :submarine :carrier :battleship]
-                        [])
-        all-items (cond-> basic-items coastal-city? (into coastal-items))
-        items all-items]
-    (menus/show-menu cell-x cell-y header items)))
-
 (defn handle-unit-click
   "Handles interaction with an attention-needing unit."
   [cell-x cell-y clicked-coords attention-coords]
-  (let [attn-coords (first attention-coords)]
-    (if (= clicked-coords attn-coords)
-      ;; Clicked on the unit: show menu
-      (let [header :unit
-            items [:explore :sentry]]
-        (menus/show-menu cell-x cell-y header items))
-      ;; Clicked elsewhere
-      (let [attn-cell (get-in @atoms/game-map attn-coords)
-            active-unit (movement/get-active-unit attn-cell)
-            unit-type (:type active-unit)
-            is-airport-fighter? (movement/is-fighter-from-airport? attn-cell active-unit)
-            is-army-aboard? (movement/is-army-aboard-transport? attn-cell active-unit)
-            target-cell (get-in @atoms/game-map clicked-coords)
-            [ax ay] attn-coords
-            [cx cy] clicked-coords
-            adjacent? (and (<= (abs (- ax cx)) 1) (<= (abs (- ay cy)) 1))]
-        (cond
-          is-airport-fighter?
-          (let [fighter-pos (movement/launch-fighter-from-airport attn-coords clicked-coords)]
-            (reset! atoms/waiting-for-input false)
-            (reset! atoms/message "")
-            (reset! atoms/cells-needing-attention [])
-            (swap! atoms/player-items #(cons fighter-pos (rest %))))
+  (let [attn-coords (first attention-coords)
+        attn-cell (get-in @atoms/game-map attn-coords)
+        active-unit (movement/get-active-unit attn-cell)
+        unit-type (:type active-unit)
+        is-airport-fighter? (movement/is-fighter-from-airport? attn-cell active-unit)
+        is-army-aboard? (movement/is-army-aboard-transport? attn-cell active-unit)
+        target-cell (get-in @atoms/game-map clicked-coords)
+        [ax ay] attn-coords
+        [cx cy] clicked-coords
+        adjacent? (and (<= (abs (- ax cx)) 1) (<= (abs (- ay cy)) 1))]
+    (cond
+      is-airport-fighter?
+      (let [fighter-pos (movement/launch-fighter-from-airport attn-coords clicked-coords)]
+        (reset! atoms/waiting-for-input false)
+        (reset! atoms/message "")
+        (reset! atoms/cells-needing-attention [])
+        (swap! atoms/player-items #(cons fighter-pos (rest %))))
 
-          (and is-army-aboard? adjacent? (= (:type target-cell) :land) (not (:contents target-cell)))
-          (do
-            (movement/disembark-army-from-transport attn-coords clicked-coords)
-            (game-loop/item-processed))
+      (and is-army-aboard? adjacent? (= (:type target-cell) :land) (not (:contents target-cell)))
+      (do
+        (movement/disembark-army-from-transport attn-coords clicked-coords)
+        (game-loop/item-processed))
 
-          is-army-aboard?
-          nil ;; Awake army aboard - ignore invalid disembark targets
+      is-army-aboard?
+      nil ;; Awake army aboard - ignore invalid disembark targets
 
-          (and (= :army unit-type) adjacent? (combat/hostile-city? clicked-coords))
-          (combat/attempt-conquest attn-coords clicked-coords)
+      (and (= :army unit-type) adjacent? (combat/hostile-city? clicked-coords))
+      (combat/attempt-conquest attn-coords clicked-coords)
 
-          (and (= :fighter unit-type) adjacent? (combat/hostile-city? clicked-coords))
-          (combat/attempt-fighter-overfly attn-coords clicked-coords)
+      (and (= :fighter unit-type) adjacent? (combat/hostile-city? clicked-coords))
+      (combat/attempt-fighter-overfly attn-coords clicked-coords)
 
-          :else
-          (movement/set-unit-movement attn-coords clicked-coords))
-        (game-loop/item-processed)))))
+      :else
+      (movement/set-unit-movement attn-coords clicked-coords))
+    (game-loop/item-processed)))
 
 (defn handle-cell-click
   "Handles clicking on a map cell, prioritizing attention-needing items."
   [cell-x cell-y]
-  (let [cell (get-in @atoms/game-map [cell-x cell-y])
-        clicked-coords [cell-x cell-y]
-        attention-coords @atoms/cells-needing-attention]
-    (cond
-      (attention/is-unit-needing-attention? attention-coords)
-      (handle-unit-click cell-x cell-y clicked-coords attention-coords)
-
-      (attention/is-city-needing-attention? cell clicked-coords attention-coords)
-      (handle-city-click cell-x cell-y)
-
-      (= (:type cell) :city)
-      (handle-city-click cell-x cell-y)
-
-      ;; Otherwise, do nothing
-      :else nil)))
+  (let [attention-coords @atoms/cells-needing-attention
+        clicked-coords [cell-x cell-y]]
+    (when (attention/is-unit-needing-attention? attention-coords)
+      (handle-unit-click cell-x cell-y clicked-coords attention-coords))))
 
 (defn mouse-down
   "Handles mouse click events."
   [x y button]
   (reset! atoms/line3-message "")
-  (if-not (map-utils/on-map? x y)
-    (reset! atoms/line3-message (:not-on-map config/messages))
-    (let [[cell-x cell-y] (map-utils/determine-cell-coordinates x y)
-          cell (get-in @atoms/game-map [cell-x cell-y])]
-      (case button
-        :right
-        (cond
-          (and (= (:type cell) :city)
-               (= (:city-status cell) :player))
-          (handle-city-click cell-x cell-y)
-
-          (= (:owner (:contents cell)) :player)
-          (movement/set-unit-mode [cell-x cell-y] :awake)
-
-          :else
-          (reset! atoms/line2-message (str cell)))
-
-        :left
-        (do
-          (menus/dismiss-existing-menu x y)
-          (let [clicked-item (menus/handle-menu-click x y)]
-            (when clicked-item
-              (when (= :production (:header @atoms/menu-state))
-                (production/set-city-production (:coords @atoms/menu-state) clicked-item)
-                (game-loop/item-processed))
-              (when (= :unit (:header @atoms/menu-state))
-                (movement/set-unit-mode (:coords @atoms/menu-state) clicked-item)
-                (game-loop/item-processed)))
-            (when-not clicked-item
-              (reset! atoms/last-clicked-cell [cell-x cell-y])
-              (handle-cell-click cell-x cell-y))))
-
-        nil))))
+  (when (and (= button :left) (map-utils/on-map? x y))
+    (let [[cell-x cell-y] (map-utils/determine-cell-coordinates x y)]
+      (reset! atoms/last-clicked-cell [cell-x cell-y])
+      (handle-cell-click cell-x cell-y))))
 
 (defn- handle-city-production-key [k coords cell]
   (when (and (= (:type cell) :city)
@@ -245,11 +182,11 @@
           is-airport-fighter? (movement/is-fighter-from-airport? cell active-unit)
           is-carrier-fighter? (movement/is-fighter-from-carrier? cell active-unit)
           is-army-aboard? (movement/is-army-aboard-transport? cell active-unit)
-          transport-at-beach? (and (= (:type active-unit) :transport)
-                                   (= (:reason active-unit) :transport-at-beach)
-                                   (pos? (:army-count active-unit 0)))
-          carrier-with-fighters? (and (= (:type active-unit) :carrier)
-                                      (pos? (uc/get-count active-unit :fighter-count)))]
+          transport-at-beach? (and (= (:type contents) :transport)
+                                   (= (:reason contents) :transport-at-beach)
+                                   (pos? (:army-count contents 0)))
+          carrier-with-fighters? (and (= (:type contents) :carrier)
+                                      (pos? (uc/get-count contents :fighter-count)))]
       (if active-unit
         (cond
           (and (= k :w) transport-at-beach?)

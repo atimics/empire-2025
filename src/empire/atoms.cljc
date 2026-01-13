@@ -16,12 +16,8 @@
 
 (def last-clicked-cell (atom nil))
 
-(def menu-state (atom {:visible false :x 0 :y 0 :items []}))
-
 ;; Fonts
 (def text-font (atom nil))
-(def menu-header-font (atom nil))
-(def menu-item-font (atom nil))
 (def production-char-font (atom nil))
 
 ;; Production map: coordinates -> production status

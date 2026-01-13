@@ -5,7 +5,6 @@
             [empire.init :as init]
             [empire.input :as input]
             [empire.map-utils :as map-utils]
-            [empire.menus :as menus]
             [empire.rendering :as rendering]
             [quil.core :as q]
             [quil.middleware :as m]))
@@ -14,9 +13,7 @@
   "Creates and caches font objects."
   []
   (reset! atoms/text-font (q/create-font "Courier New" 18))
-  (reset! atoms/menu-header-font (q/create-font "CourierNewPS-BoldMT" 16))
-  (reset! atoms/production-char-font (q/create-font "CourierNewPS-BoldMT" 12))
-  (reset! atoms/menu-item-font (q/create-font "Courier New" 14)))
+  (reset! atoms/production-char-font (q/create-font "CourierNewPS-BoldMT" 12)))
 
 (defn calculate-screen-dimensions
   "Calculates map size and display dimensions based on screen and sets config values."
@@ -104,7 +101,6 @@
                   :computer-map @atoms/computer-map
                   :actual-map @atoms/game-map)]
     (rendering/draw-map the-map)
-    (menus/draw-menu)
     (draw-message-area)))
 
 (defn add-unit-at-mouse [unit-type]
@@ -123,6 +119,22 @@
         (when-not (:contents cell)
           (swap! atoms/game-map assoc-in [cx cy :contents] unit))))))
 
+(defn wake-at-mouse []
+  (let [x (q/mouse-x)
+        y (q/mouse-y)]
+    (when (map-utils/on-map? x y)
+      (let [[cx cy] (map-utils/determine-cell-coordinates x y)
+            cell (get-in @atoms/game-map [cx cy])]
+        (cond
+          ;; Wake a friendly city - cancel production
+          (and (= (:type cell) :city)
+               (= (:city-status cell) :player))
+          (swap! atoms/production assoc [cx cy] :none)
+
+          ;; Wake a friendly unit
+          (= (:owner (:contents cell)) :player)
+          (swap! atoms/game-map assoc-in [cx cy :contents :mode] :awake))))))
+
 (defn key-down [k]
   ;; Handle key down events
   (if @atoms/backtick-pressed
@@ -139,6 +151,7 @@
       (= k :+) (swap! atoms/map-to-display {:player-map :computer-map
                                             :computer-map :actual-map
                                             :actual-map :player-map})
+      (= k :w) (wake-at-mouse)
       (input/handle-key k) nil
       :else nil)))
 

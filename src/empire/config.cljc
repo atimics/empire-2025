@@ -1,5 +1,4 @@
-(ns empire.config
-  (:require [clojure.set]))
+(ns empire.config)
 
 (def smooth-count 10)
 
@@ -8,26 +7,6 @@
 (def number-of-cities 70)
 
 (def min-city-distance 5)
-
-;; Menu items: keywords -> display strings
-(def menu-items->strings
-  {:army "Army"
-   :fighter "Fighter"
-   :satellite "Satellite"
-   :transport "Transport"
-   :patrol-boat "Patrol Boat"
-   :destroyer "Destroyer"
-   :submarine "Submarine"
-   :carrier "Carrier"
-   :battleship "Battleship"
-   :explore "Explore"
-   :sentry "Sentry"})
-
-(def menu-header->string{:production "Set Production"
-                          :unit "Unit Command"})
-
-;; Reverse lookup: display strings -> keywords
-(def menu-strings->items (clojure.set/map-invert menu-items->strings))
 
 ;; Naval unit types (require coastal cities to produce, can only travel on water)
 (def naval-unit? #{:transport :patrol-boat :destroyer :submarine :carrier :battleship})

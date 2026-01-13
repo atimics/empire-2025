@@ -46,10 +46,57 @@
   (q/frame-rate 30)
   {})
 
+(defn format-hover-status
+  "Formats a status string for the cell under the mouse."
+  [cell coords]
+  (let [unit (:contents cell)
+        city? (= (:type cell) :city)]
+    (cond
+      unit
+      (let [type-name (name (:type unit))
+            hits (:hits unit)
+            max-hits (config/item-hits (:type unit))
+            mode (:mode unit)
+            fuel (when (= (:type unit) :fighter) (:fuel unit))
+            cargo (cond
+                    (= (:type unit) :transport) (:army-count unit 0)
+                    (= (:type unit) :carrier) (:fighter-count unit 0)
+                    :else nil)]
+        (str type-name
+             " [" hits "/" max-hits "]"
+             (when fuel (str " fuel:" fuel))
+             (when cargo (str " cargo:" cargo))
+             " " (name mode)))
+
+      city?
+      (let [status (:city-status cell)
+            production (get @atoms/production coords)
+            fighters (:fighter-count cell 0)]
+        (str "city:" (name status)
+             (when (and (= status :player) production)
+               (str " producing:" (if (= production :none) "none" (name (:item production)))))
+             (when (pos? fighters) (str " fighters:" fighters))))
+
+      :else nil)))
+
+(defn update-hover-status
+  "Updates line2-message based on mouse position."
+  []
+  (let [x (q/mouse-x)
+        y (q/mouse-y)]
+    (if (map-utils/on-map? x y)
+      (let [[cx cy] (map-utils/determine-cell-coordinates x y)
+            coords [cx cy]
+            cell (get-in @atoms/player-map coords)
+            status (format-hover-status cell coords)]
+        (reset! atoms/line2-message (or status "")))
+      (reset! atoms/line2-message ""))))
+
 (defn update-state
   "Update the game state."
   [state]
   (game-loop/update-map)
+  (update-hover-status)
   state)
 
 (defn draw-line-1

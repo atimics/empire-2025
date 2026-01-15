@@ -73,3 +73,22 @@
   [contents]
   (and (= (:type contents) :transport)
        (has-awake? contents :awake-armies)))
+
+(defn blinking-contained-unit
+  "Returns the contained unit to display during attention blink, or nil."
+  [has-awake-airport? has-awake-carrier? has-awake-army?]
+  (cond
+    has-awake-airport? {:type :fighter :mode :awake}
+    has-awake-carrier? {:type :fighter :mode :awake}
+    has-awake-army? {:type :army :mode :awake}
+    :else nil))
+
+(defn normal-display-unit
+  "Returns the unit to display during normal (non-blink) rendering."
+  [cell contents has-awake-airport? has-any-airport?]
+  (cond
+    (and contents (= (:mode contents) :awake)) contents
+    has-awake-airport? {:type :fighter :mode :awake}
+    contents contents
+    has-any-airport? {:type :fighter :mode :sentry}
+    :else nil))

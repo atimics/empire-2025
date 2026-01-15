@@ -75,9 +75,9 @@
         [ax ay] coords
         unit (:contents cell)
         active-unit (movement/get-active-unit cell)
-        is-airport-fighter? (movement/is-fighter-from-airport? cell active-unit)
-        is-carrier-fighter? (movement/is-fighter-from-carrier? cell active-unit)
-        is-army-aboard? (movement/is-army-aboard-transport? cell active-unit)
+        is-airport-fighter? (movement/is-fighter-from-airport? active-unit)
+        is-carrier-fighter? (movement/is-fighter-from-carrier? active-unit)
+        is-army-aboard? (movement/is-army-aboard-transport? active-unit)
         adjacent-enemy-city? (and (= :army (:type active-unit))
                                   (some (fn [[di dj]]
                                           (let [ni (+ ax di)

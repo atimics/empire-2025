@@ -118,7 +118,7 @@
                    (= :land (:type (get-in @current-map [nx ny]))))))
           map-utils/neighbor-offsets)))
 
-(defn- wake-army-check [unit final-pos current-map]
+(defn- wake-army-check [_unit final-pos current-map]
   (when (near-hostile-city? final-pos current-map)
     {:wake? true :reason :army-found-city}))
 
@@ -301,30 +301,30 @@
 
 (defn is-army-aboard-transport?
   "Returns true if the active unit is an army aboard a transport."
-  [cell active-unit]
+  [active-unit]
   (and active-unit
        (:aboard-transport active-unit)))
 
 (defn is-fighter-from-airport?
   "Returns true if the active unit is a fighter from the airport."
-  [cell active-unit]
+  [active-unit]
   (and active-unit
        (:from-airport active-unit)))
 
 (defn is-fighter-from-carrier?
   "Returns true if the active unit is a fighter from a carrier."
-  [cell active-unit]
+  [active-unit]
   (and active-unit
        (:from-carrier active-unit)))
 
 (defn movement-context
   "Determines the movement context for a cell and active unit.
    Returns :airport-fighter, :carrier-fighter, :army-aboard, or :standard-unit."
-  [cell active-unit]
+  [_cell active-unit]
   (cond
-    (is-fighter-from-airport? cell active-unit) :airport-fighter
-    (is-fighter-from-carrier? cell active-unit) :carrier-fighter
-    (is-army-aboard-transport? cell active-unit) :army-aboard
+    (is-fighter-from-airport? active-unit) :airport-fighter
+    (is-fighter-from-carrier? active-unit) :carrier-fighter
+    (is-army-aboard-transport? active-unit) :army-aboard
     :else :standard-unit))
 
 (defn launch-fighter-from-airport

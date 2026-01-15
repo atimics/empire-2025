@@ -66,3 +66,7 @@ Units operate in modes: `:awake` (needs orders), `:sentry` (sleeping), `:explore
 ### Quil Isolation
 
 Functions in `input.cljc` and `rendering.cljc` that do not depend on Quil should be moved to appropriate non-Quil modules. Keep Quil dependencies (e.g., `q/mouse-x`, `q/mouse-y`, drawing functions) isolated to thin wrapper functions, with core logic extracted into testable, Quil-independent functions in modules like `movement.cljc`, `config.cljc`, or `unit-container.cljc`.
+
+### Unused Arguments
+
+Remove unused function arguments before committing. If an argument must be retained for API consistency (e.g., polymorphic dispatch where all implementations share the same signature), prefix it with `_` to indicate it is intentionally unused.

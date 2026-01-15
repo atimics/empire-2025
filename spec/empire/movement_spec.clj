@@ -590,14 +590,12 @@
             (should= :awake (:mode active)))))
 
       (it "is-army-aboard-transport? returns true for synthetic army with :aboard-transport"
-        (let [army {:type :army :mode :awake :owner :player :aboard-transport true}
-              cell {:type :sea :contents {:type :transport :mode :sentry :owner :player :army-count 2 :awake-armies 1}}]
-          (should= true (is-army-aboard-transport? cell army))))
+        (let [army {:type :army :mode :awake :owner :player :aboard-transport true}]
+          (should= true (is-army-aboard-transport? army))))
 
       (it "is-army-aboard-transport? returns falsy for army without :aboard-transport"
-        (let [army {:type :army :mode :awake :owner :player :hits 1}
-              cell {:type :sea :contents {:type :transport :mode :sentry :owner :player :army-count 1}}]
-          (should-not (is-army-aboard-transport? cell army))))
+        (let [army {:type :army :mode :awake :owner :player :hits 1}]
+          (should-not (is-army-aboard-transport? army))))
       )
 
     (describe "carrier fighter deployment"
@@ -674,14 +672,12 @@
             (should= :awake (:mode active)))))
 
       (it "is-fighter-from-carrier? returns true for synthetic fighter with :from-carrier"
-        (let [fighter {:type :fighter :mode :awake :owner :player :from-carrier true}
-              cell {:type :sea :contents {:type :carrier :mode :sentry :owner :player :fighter-count 2 :awake-fighters 1}}]
-          (should= true (is-fighter-from-carrier? cell fighter))))
+        (let [fighter {:type :fighter :mode :awake :owner :player :from-carrier true}]
+          (should= true (is-fighter-from-carrier? fighter))))
 
       (it "is-fighter-from-carrier? returns falsy for fighter without :from-carrier"
-        (let [fighter {:type :fighter :mode :awake :owner :player :hits 1}
-              cell {:type :sea :contents {:type :carrier :mode :sentry :owner :player :fighter-count 1}}]
-          (should-not (is-fighter-from-carrier? cell fighter))))
+        (let [fighter {:type :fighter :mode :awake :owner :player :hits 1}]
+          (should-not (is-fighter-from-carrier? fighter))))
       )
 
     (describe "is-computers?"
@@ -781,14 +777,12 @@
             (should= true (:from-airport active)))))
 
       (it "is-fighter-from-airport? returns true for synthetic airport fighter"
-        (let [fighter {:type :fighter :mode :awake :owner :player :from-airport true}
-              cell {:type :city :city-status :player :fighter-count 2 :awake-fighters 1}]
-          (should= true (is-fighter-from-airport? cell fighter))))
+        (let [fighter {:type :fighter :mode :awake :owner :player :from-airport true}]
+          (should= true (is-fighter-from-airport? fighter))))
 
       (it "is-fighter-from-airport? returns falsy for regular fighter"
-        (let [fighter {:type :fighter :mode :awake :owner :player :hits 1}
-              cell {:type :city :city-status :player :fighter-count 1}]
-          (should-not (is-fighter-from-airport? cell fighter)))))
+        (let [fighter {:type :fighter :mode :awake :owner :player :hits 1}]
+          (should-not (is-fighter-from-airport? fighter)))))
 
     (describe "launch-fighter-from-airport"
       (it "removes awake fighter from airport and places it moving"

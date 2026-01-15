@@ -125,3 +125,44 @@
 
   (it "returns false for non-transport"
     (should-not (uc/has-awake-army-aboard? {:type :carrier :awake-armies 1}))))
+
+(describe "blinking-contained-unit"
+  (it "returns fighter for awake airport"
+    (should= {:type :fighter :mode :awake}
+             (uc/blinking-contained-unit true false false)))
+
+  (it "returns fighter for awake carrier"
+    (should= {:type :fighter :mode :awake}
+             (uc/blinking-contained-unit false true false)))
+
+  (it "returns army for awake army aboard"
+    (should= {:type :army :mode :awake}
+             (uc/blinking-contained-unit false false true)))
+
+  (it "returns nil when nothing awake"
+    (should-not (uc/blinking-contained-unit false false false)))
+
+  (it "prioritizes airport over carrier"
+    (should= {:type :fighter :mode :awake}
+             (uc/blinking-contained-unit true true false))))
+
+(describe "normal-display-unit"
+  (it "returns awake contents first"
+    (let [unit {:type :army :mode :awake}]
+      (should= unit (uc/normal-display-unit {} unit false false))))
+
+  (it "returns awake airport fighter over non-awake contents"
+    (let [unit {:type :army :mode :sentry}]
+      (should= {:type :fighter :mode :awake}
+               (uc/normal-display-unit {} unit true false))))
+
+  (it "returns non-awake contents when no awake airport"
+    (let [unit {:type :army :mode :sentry}]
+      (should= unit (uc/normal-display-unit {} unit false false))))
+
+  (it "returns sentry fighter for airport with no awake fighters"
+    (should= {:type :fighter :mode :sentry}
+             (uc/normal-display-unit {} nil false true)))
+
+  (it "returns nil when nothing to display"
+    (should-not (uc/normal-display-unit {} nil false false))))

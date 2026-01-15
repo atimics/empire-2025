@@ -70,3 +70,8 @@
   "Returns true if the cell at coords is a city."
   [[x y]]
   (= :city (:type (get-in @atoms/game-map [x y]))))
+
+(defn blink?
+  "Returns true during the 'on' phase of a blink cycle with the given period in milliseconds."
+  [period-ms]
+  (even? (quot (System/currentTimeMillis) period-ms)))

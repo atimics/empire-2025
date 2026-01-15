@@ -5,9 +5,6 @@
             [empire.unit-container :as uc]
             [quil.core :as q]))
 
-(defn- blink? [period-ms]
-  (even? (quot (System/currentTimeMillis) period-ms)))
-
 (defn draw-production-indicators
   "Draws production indicator for a city cell."
   [i j cell cell-w cell-h]
@@ -32,25 +29,6 @@
         (q/text (config/item-chars (:item prod)) (+ (* j cell-w) 2) (+ (* i cell-h) 12))))))
 
 
-(defn- blinking-contained-unit
-  "Returns the contained unit to display during attention blink, or nil."
-  [cell has-awake-airport? has-awake-carrier? has-awake-army?]
-  (cond
-    has-awake-airport? {:type :fighter :mode :awake}
-    has-awake-carrier? {:type :fighter :mode :awake}
-    has-awake-army? {:type :army :mode :awake}
-    :else nil))
-
-(defn- normal-display-unit
-  "Returns the unit to display during normal (non-blink) rendering."
-  [cell contents has-awake-airport? has-any-airport?]
-  (cond
-    (and contents (= (:mode contents) :awake)) contents
-    has-awake-airport? {:type :fighter :mode :awake}
-    contents contents
-    has-any-airport? {:type :fighter :mode :sentry}
-    :else nil))
-
 (defn- determine-display-unit
   "Determines which unit to display, handling attention blinking."
   [col row cell]
@@ -62,16 +40,16 @@
         has-contained-unit? (or has-awake-airport? has-awake-carrier? has-awake-army?)
         attention-coords @atoms/cells-needing-attention
         is-attention-cell? (and (seq attention-coords) (= [col row] (first attention-coords)))
-        show-contained? (and is-attention-cell? has-contained-unit? (blink? 250))]
+        show-contained? (and is-attention-cell? has-contained-unit? (map-utils/blink? 250))]
     (cond
       show-contained?
-      (blinking-contained-unit cell has-awake-airport? has-awake-carrier? has-awake-army?)
+      (uc/blinking-contained-unit has-awake-airport? has-awake-carrier? has-awake-army?)
 
       (and is-attention-cell? has-awake-airport?)
       nil ;; Hide airport fighter on alternate blink frame
 
       :else
-      (normal-display-unit cell contents has-awake-airport? has-any-airport?))))
+      (uc/normal-display-unit cell contents has-awake-airport? has-any-airport?))))
 
 (defn- draw-unit
   "Draws a unit on the map cell, handling attention blinking for contained units."
@@ -104,8 +82,8 @@
                                     completed? (and (= (:type cell) :city) (not= :free (:city-status cell))
                                                     (let [prod (production [col row])]
                                                       (and (map? prod) (= (:remaining-rounds prod) 0))))
-                                    blink-white? (and completed? (blink? 500))
-                                    blink-black? (and should-flash-black (blink? 125))
+                                    blink-white? (and completed? (map-utils/blink? 500))
+                                    blink-black? (and should-flash-black (map-utils/blink? 125))
                                     final-color (cond blink-black? [0 0 0]
                                                       blink-white? [255 255 255]
                                                       :else color)]
@@ -131,51 +109,6 @@
         (draw-production-indicators row col cell cell-w cell-h)
         (draw-unit col row cell cell-w cell-h)))))
 
-(defn- format-unit-status
-  "Formats status string for a unit."
-  [unit]
-  (let [type-name (name (:type unit))
-        hits (:hits unit)
-        max-hits (config/item-hits (:type unit))
-        fuel (when (= (:type unit) :fighter) (:fuel unit))
-        cargo (case (:type unit)
-                :transport (:army-count unit 0)
-                :carrier (:fighter-count unit 0)
-                nil)
-        orders (cond
-                 (:marching-orders unit) "march"
-                 (:flight-path unit) "flight"
-                 :else nil)]
-    (str type-name
-         " [" hits "/" max-hits "]"
-         (when fuel (str " fuel:" fuel))
-         (when cargo (str " cargo:" cargo))
-         (when orders (str " " orders))
-         " " (name (:mode unit)))))
-
-(defn- format-city-status
-  "Formats status string for a city."
-  [cell coords]
-  (let [status (:city-status cell)
-        production (get @atoms/production coords)
-        fighters (:fighter-count cell 0)
-        sleeping (:sleeping-fighters cell 0)]
-    (str "city:" (name status)
-         (when (and (= status :player) production)
-           (str " producing:" (if (= production :none) "none" (name (:item production)))))
-         (when (pos? fighters) (str " fighters:" fighters))
-         (when (pos? sleeping) (str " sleeping:" sleeping))
-         (when (:marching-orders cell) " march")
-         (when (:flight-path cell) " flight"))))
-
-(defn format-hover-status
-  "Formats a status string for the cell under the mouse."
-  [cell coords]
-  (cond
-    (:contents cell) (format-unit-status (:contents cell))
-    (= (:type cell) :city) (format-city-status cell coords)
-    :else nil))
-
 (defn update-hover-status
   "Updates line2-message based on mouse position, unless a confirmation message is active."
   []
@@ -186,7 +119,8 @@
         (let [[cx cy] (map-utils/determine-cell-coordinates x y)
               coords [cx cy]
               cell (get-in @atoms/player-map coords)
-              status (format-hover-status cell coords)]
+              production (get @atoms/production coords)
+              status (config/format-hover-status cell production)]
           (reset! atoms/line2-message (or status "")))
         (reset! atoms/line2-message "")))))
 
@@ -208,7 +142,7 @@
   (if (>= (System/currentTimeMillis) @atoms/line3-until)
     (reset! atoms/line3-message "")
     (when (and (seq @atoms/line3-message)
-               (blink? 500))
+               (map-utils/blink? 500))
       (q/fill 255 0 0)
       (q/text @atoms/line3-message (+ text-x 10) (+ text-y 50))
       (q/fill 255))))

@@ -12,13 +12,13 @@
 
 (defn handle-unit-click
   "Handles interaction with an attention-needing unit."
-  [cell-x cell-y clicked-coords attention-coords]
+  [clicked-coords attention-coords]
   (let [attn-coords (first attention-coords)
         attn-cell (get-in @atoms/game-map attn-coords)
         active-unit (movement/get-active-unit attn-cell)
         unit-type (:type active-unit)
-        is-airport-fighter? (movement/is-fighter-from-airport? attn-cell active-unit)
-        is-army-aboard? (movement/is-army-aboard-transport? attn-cell active-unit)
+        is-airport-fighter? (movement/is-fighter-from-airport? active-unit)
+        is-army-aboard? (movement/is-army-aboard-transport? active-unit)
         target-cell (get-in @atoms/game-map clicked-coords)
         [ax ay] attn-coords
         [cx cy] clicked-coords
@@ -55,7 +55,7 @@
   (let [attention-coords @atoms/cells-needing-attention
         clicked-coords [cell-x cell-y]]
     (when (attention/is-unit-needing-attention? attention-coords)
-      (handle-unit-click cell-x cell-y clicked-coords attention-coords))))
+      (handle-unit-click clicked-coords attention-coords))))
 
 (defn mouse-down
   "Handles mouse click events."
@@ -187,9 +187,9 @@
       :else nil)))
 
 (defn- handle-sentry-key [coords cell active-unit]
-  (let [is-army-aboard? (movement/is-army-aboard-transport? cell active-unit)
-        is-carrier-fighter? (movement/is-fighter-from-carrier? cell active-unit)
-        is-airport-fighter? (movement/is-fighter-from-airport? cell active-unit)]
+  (let [is-army-aboard? (movement/is-army-aboard-transport? active-unit)
+        is-carrier-fighter? (movement/is-fighter-from-carrier? active-unit)
+        is-airport-fighter? (movement/is-fighter-from-airport? active-unit)]
     (cond
       is-army-aboard?
       (do (movement/sleep-armies-on-transport coords)
@@ -218,7 +218,7 @@
              target))))
 
 (defn- handle-explore-key [coords cell active-unit]
-  (let [is-army-aboard? (movement/is-army-aboard-transport? cell active-unit)]
+  (let [is-army-aboard? (movement/is-army-aboard-transport? active-unit)]
     (cond
       (and (= :army (:type active-unit)) (not is-army-aboard?))
       (do (movement/set-explore-mode coords)

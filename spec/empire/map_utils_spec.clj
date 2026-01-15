@@ -124,3 +124,11 @@
   (it "returns false for sea cells"
     (reset! atoms/game-map [[{:type :sea}]])
     (should-not (map-utils/city? [0 0]))))
+
+(describe "blink?"
+  (it "returns a boolean"
+    (should (boolean? (map-utils/blink? 500))))
+
+  (it "returns true or false based on time period"
+    (let [result (map-utils/blink? 1)]
+      (should (or (true? result) (false? result))))))

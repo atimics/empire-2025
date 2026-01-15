@@ -2,6 +2,7 @@
   (:require [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.map-utils :as map-utils]
+            [empire.rendering-util :as ru]
             [empire.unit-container :as uc]
             [quil.core :as q]))
 
@@ -70,26 +71,9 @@
         cell-h (/ map-h rows)
         attention-coords @atoms/cells-needing-attention
         production @atoms/production
-        ;; First pass: collect cells grouped by color
-        cells-by-color (reduce
-                        (fn [acc [col row]]
-                          (let [cell (get-in the-map [col row])]
-                            (if (= :unexplored (:type cell))
-                              acc
-                              (let [color (config/color-of cell)
-                                    current [col row]
-                                    should-flash-black (and (seq attention-coords) (= current (first attention-coords)))
-                                    completed? (and (= (:type cell) :city) (not= :free (:city-status cell))
-                                                    (let [prod (production [col row])]
-                                                      (and (map? prod) (= (:remaining-rounds prod) 0))))
-                                    blink-white? (and completed? (map-utils/blink? 500))
-                                    blink-black? (and should-flash-black (map-utils/blink? 125))
-                                    final-color (cond blink-black? [0 0 0]
-                                                      blink-white? [255 255 255]
-                                                      :else color)]
-                                (update acc final-color conj {:col col :row row :cell cell})))))
-                        {}
-                        (for [col (range cols) row (range rows)] [col row]))]
+        blink-attention? (map-utils/blink? 125)
+        blink-completed? (map-utils/blink? 500)
+        cells-by-color (ru/group-cells-by-color the-map attention-coords production blink-attention? blink-completed?)]
     (q/no-stroke)
     ;; Draw all rects batched by color
     (doseq [[color cells] cells-by-color]
@@ -120,7 +104,7 @@
               coords [cx cy]
               cell (get-in @atoms/player-map coords)
               production (get @atoms/production coords)
-              status (config/format-hover-status cell production)]
+              status (ru/format-hover-status cell production)]
           (reset! atoms/line2-message (or status "")))
         (reset! atoms/line2-message "")))))
 

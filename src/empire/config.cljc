@@ -159,46 +159,4 @@
     :explore explore-unit-color
     sleeping-unit-color))
 
-(defn format-unit-status
-  "Formats status string for a unit."
-  [unit]
-  (let [type-name (name (:type unit))
-        hits (:hits unit)
-        max-hits (item-hits (:type unit))
-        fuel (when (= (:type unit) :fighter) (:fuel unit))
-        cargo (case (:type unit)
-                :transport (:army-count unit 0)
-                :carrier (:fighter-count unit 0)
-                nil)
-        orders (cond
-                 (:marching-orders unit) "march"
-                 (:flight-path unit) "flight"
-                 :else nil)]
-    (str type-name
-         " [" hits "/" max-hits "]"
-         (when fuel (str " fuel:" fuel))
-         (when cargo (str " cargo:" cargo))
-         (when orders (str " " orders))
-         " " (name (:mode unit)))))
 
-(defn format-city-status
-  "Formats status string for a city. Production is the production entry for this city, or nil."
-  [cell production]
-  (let [status (:city-status cell)
-        fighters (:fighter-count cell 0)
-        sleeping (:sleeping-fighters cell 0)]
-    (str "city:" (name status)
-         (when (and (= status :player) production)
-           (str " producing:" (if (= production :none) "none" (name (:item production)))))
-         (when (pos? fighters) (str " fighters:" fighters))
-         (when (pos? sleeping) (str " sleeping:" sleeping))
-         (when (:marching-orders cell) " march")
-         (when (:flight-path cell) " flight"))))
-
-(defn format-hover-status
-  "Formats a status string for a cell. Production is the production entry for this cell, or nil."
-  [cell production]
-  (cond
-    (:contents cell) (format-unit-status (:contents cell))
-    (= (:type cell) :city) (format-city-status cell production)
-    :else nil))

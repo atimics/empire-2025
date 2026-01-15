@@ -1,84 +1,84 @@
 (ns empire.core-spec
   (:require [empire.atoms :as atoms]
-            [empire.config :as config]
             [empire.core :as core]
+            [empire.rendering-util :as ru]
             [speclj.core :refer :all]))
 
 (describe "format-unit-status"
   (it "formats army status"
     (let [unit {:type :army :hits 1 :mode :awake}]
-      (should= "army [1/1] awake" (config/format-unit-status unit))))
+      (should= "army [1/1] awake" (ru/format-unit-status unit))))
 
   (it "formats fighter with fuel"
     (let [unit {:type :fighter :hits 1 :mode :sentry :fuel 20}]
-      (should= "fighter [1/1] fuel:20 sentry" (config/format-unit-status unit))))
+      (should= "fighter [1/1] fuel:20 sentry" (ru/format-unit-status unit))))
 
   (it "formats transport with cargo"
     (let [unit {:type :transport :hits 1 :mode :awake :army-count 4}]
-      (should= "transport [1/1] cargo:4 awake" (config/format-unit-status unit))))
+      (should= "transport [1/1] cargo:4 awake" (ru/format-unit-status unit))))
 
   (it "formats carrier with cargo"
     (let [unit {:type :carrier :hits 8 :mode :moving :fighter-count 2}]
-      (should= "carrier [8/8] cargo:2 moving" (config/format-unit-status unit))))
+      (should= "carrier [8/8] cargo:2 moving" (ru/format-unit-status unit))))
 
   (it "formats unit with marching orders"
     (let [unit {:type :army :hits 1 :mode :moving :marching-orders [5 5]}]
-      (should= "army [1/1] march moving" (config/format-unit-status unit))))
+      (should= "army [1/1] march moving" (ru/format-unit-status unit))))
 
   (it "formats unit with flight path"
     (let [unit {:type :fighter :hits 1 :mode :moving :fuel 30 :flight-path [10 10]}]
-      (should= "fighter [1/1] fuel:30 flight moving" (config/format-unit-status unit)))))
+      (should= "fighter [1/1] fuel:30 flight moving" (ru/format-unit-status unit)))))
 
 (describe "format-city-status"
   (it "formats player city"
     (let [cell {:type :city :city-status :player}]
-      (should= "city:player" (config/format-city-status cell nil))))
+      (should= "city:player" (ru/format-city-status cell nil))))
 
   (it "formats computer city"
     (let [cell {:type :city :city-status :computer}]
-      (should= "city:computer" (config/format-city-status cell nil))))
+      (should= "city:computer" (ru/format-city-status cell nil))))
 
   (it "formats player city with production"
     (let [cell {:type :city :city-status :player}
           production {:item :army :remaining-rounds 3}]
-      (should= "city:player producing:army" (config/format-city-status cell production))))
+      (should= "city:player producing:army" (ru/format-city-status cell production))))
 
   (it "formats player city with :none production"
     (let [cell {:type :city :city-status :player}]
-      (should= "city:player producing:none" (config/format-city-status cell :none))))
+      (should= "city:player producing:none" (ru/format-city-status cell :none))))
 
   (it "formats city with fighters"
     (let [cell {:type :city :city-status :player :fighter-count 3}]
-      (should= "city:player fighters:3" (config/format-city-status cell nil))))
+      (should= "city:player fighters:3" (ru/format-city-status cell nil))))
 
   (it "formats city with sleeping fighters"
     (let [cell {:type :city :city-status :player :fighter-count 2 :sleeping-fighters 1}]
-      (should= "city:player fighters:2 sleeping:1" (config/format-city-status cell nil))))
+      (should= "city:player fighters:2 sleeping:1" (ru/format-city-status cell nil))))
 
   (it "formats city with marching orders"
     (let [cell {:type :city :city-status :player :marching-orders [5 5]}]
-      (should= "city:player march" (config/format-city-status cell nil))))
+      (should= "city:player march" (ru/format-city-status cell nil))))
 
   (it "formats city with flight path"
     (let [cell {:type :city :city-status :player :flight-path [10 10]}]
-      (should= "city:player flight" (config/format-city-status cell nil)))))
+      (should= "city:player flight" (ru/format-city-status cell nil)))))
 
 (describe "format-hover-status"
   (it "returns nil for empty land"
     (let [cell {:type :land}]
-      (should-be-nil (config/format-hover-status cell nil))))
+      (should-be-nil (ru/format-hover-status cell nil))))
 
   (it "formats unit when present"
     (let [cell {:type :land :contents {:type :army :hits 1 :mode :awake}}]
-      (should= "army [1/1] awake" (config/format-hover-status cell nil))))
+      (should= "army [1/1] awake" (ru/format-hover-status cell nil))))
 
   (it "formats city when no unit"
     (let [cell {:type :city :city-status :player}]
-      (should= "city:player" (config/format-hover-status cell nil))))
+      (should= "city:player" (ru/format-hover-status cell nil))))
 
   (it "prefers unit over city"
     (let [cell {:type :city :city-status :player :contents {:type :army :hits 1 :mode :awake}}]
-      (should= "army [1/1] awake" (config/format-hover-status cell nil)))))
+      (should= "army [1/1] awake" (ru/format-hover-status cell nil)))))
 
 (describe "key-released"
   (it "resets last-key atom to nil"

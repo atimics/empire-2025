@@ -42,50 +42,70 @@
         (q/text-font @atoms/production-char-font)
         (q/text (config/item-chars (:item prod)) (+ (* j cell-w) 2) (+ (* i cell-h) 12))))))
 
+(defn- has-awake-carrier-fighter? [contents]
+  (and (= (:type contents) :carrier)
+       (uc/has-awake? contents :awake-fighters)))
+
+(defn- has-awake-army-aboard? [contents]
+  (and (= (:type contents) :transport)
+       (uc/has-awake? contents :awake-armies)))
+
+(defn- blinking-contained-unit
+  "Returns the contained unit to display during attention blink, or nil."
+  [cell has-awake-airport? has-awake-carrier? has-awake-army?]
+  (cond
+    has-awake-airport? {:type :fighter :mode :awake}
+    has-awake-carrier? {:type :fighter :mode :awake}
+    has-awake-army? {:type :army :mode :awake}
+    :else nil))
+
+(defn- normal-display-unit
+  "Returns the unit to display during normal (non-blink) rendering."
+  [cell contents has-awake-airport? has-any-airport?]
+  (cond
+    (and contents (= (:mode contents) :awake)) contents
+    has-awake-airport? {:type :fighter :mode :awake}
+    contents contents
+    has-any-airport? {:type :fighter :mode :sentry}
+    :else nil))
+
+(defn- determine-display-unit
+  "Determines which unit to display, handling attention blinking."
+  [col row cell]
+  (let [contents (:contents cell)
+        has-awake-airport? (uc/has-awake? cell :awake-fighters)
+        has-any-airport? (pos? (uc/get-count cell :fighter-count))
+        has-awake-carrier? (has-awake-carrier-fighter? contents)
+        has-awake-army? (has-awake-army-aboard? contents)
+        has-contained-unit? (or has-awake-airport? has-awake-carrier? has-awake-army?)
+        attention-coords @atoms/cells-needing-attention
+        is-attention-cell? (and (seq attention-coords) (= [col row] (first attention-coords)))
+        show-contained? (and is-attention-cell? has-contained-unit? (blink? 250))]
+    (cond
+      show-contained?
+      (blinking-contained-unit cell has-awake-airport? has-awake-carrier? has-awake-army?)
+
+      (and is-attention-cell? has-awake-airport?)
+      nil ;; Hide airport fighter on alternate blink frame
+
+      :else
+      (normal-display-unit cell contents has-awake-airport? has-any-airport?))))
+
+(defn- mode->color [mode]
+  (case mode
+    :awake config/awake-unit-color
+    :sentry config/sentry-unit-color
+    :explore config/explore-unit-color
+    config/sleeping-unit-color))
+
 (defn- draw-unit
   "Draws a unit on the map cell, handling attention blinking for contained units."
   [col row cell cell-w cell-h]
-  (let [contents (:contents cell)
-        has-awake-airport-fighter? (uc/has-awake? cell :awake-fighters)
-        has-any-airport-fighter? (pos? (uc/get-count cell :fighter-count))
-        has-awake-carrier-fighter? (and (= (:type contents) :carrier)
-                                        (uc/has-awake? contents :awake-fighters))
-        has-awake-army-aboard? (and (= (:type contents) :transport)
-                                    (uc/has-awake? contents :awake-armies))
-        attention-coords @atoms/cells-needing-attention
-        is-attention-cell? (and (seq attention-coords) (= [col row] (first attention-coords)))
-        show-contained-unit? (and is-attention-cell?
-                                  (or has-awake-airport-fighter?
-                                      has-awake-carrier-fighter?
-                                      has-awake-army-aboard?)
-                                  (blink? 250))
-        display-unit (cond
-                       ;; Alternate: show contained unit (even frames)
-                       (and show-contained-unit? has-awake-airport-fighter?)
-                       {:type :fighter :mode :awake}
-                       (and show-contained-unit? has-awake-carrier-fighter?)
-                       {:type :fighter :mode :awake}
-                       (and show-contained-unit? has-awake-army-aboard?)
-                       {:type :army :mode :awake}
-                       ;; Alternate: show container (odd frames) - airport shows nothing
-                       (and is-attention-cell? has-awake-airport-fighter? (not show-contained-unit?))
-                       nil
-                       ;; Normal display logic
-                       (and contents (= (:mode contents) :awake)) contents
-                       has-awake-airport-fighter? {:type :fighter :mode :awake}
-                       contents contents
-                       has-any-airport-fighter? {:type :fighter :mode :sentry}
-                       :else nil)]
-    (when display-unit
-      (let [item (:type display-unit)
-            [r g b] (case (:mode display-unit)
-                      :awake config/awake-unit-color
-                      :sentry config/sentry-unit-color
-                      :explore config/explore-unit-color
-                      config/sleeping-unit-color)]
-        (q/fill r g b)
-        (q/text-font @atoms/production-char-font)
-        (q/text (config/item-chars item) (+ (* col cell-w) 2) (+ (* row cell-h) 12))))))
+  (when-let [display-unit (determine-display-unit col row cell)]
+    (let [[r g b] (mode->color (:mode display-unit))]
+      (q/fill r g b)
+      (q/text-font @atoms/production-char-font)
+      (q/text (config/item-chars (:type display-unit)) (+ (* col cell-w) 2) (+ (* row cell-h) 12)))))
 
 (defn draw-map
   "Draws the map on the screen."

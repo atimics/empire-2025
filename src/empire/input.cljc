@@ -103,15 +103,59 @@
           (recur nx ny)
           [tx ty])))))
 
+(defn- movement-context [cell active-unit]
+  (cond
+    (movement/is-fighter-from-airport? cell active-unit) :airport-fighter
+    (movement/is-fighter-from-carrier? cell active-unit) :carrier-fighter
+    (movement/is-army-aboard-transport? cell active-unit) :army-aboard
+    :else :standard-unit))
+
+(defn- launch-fighter-and-update [launch-fn coords target]
+  (let [fighter-pos (launch-fn coords target)]
+    (reset! atoms/waiting-for-input false)
+    (reset! atoms/message "")
+    (reset! atoms/cells-needing-attention [])
+    (swap! atoms/player-items #(cons fighter-pos (rest %)))
+    true))
+
+(defn- handle-army-aboard-movement [coords adjacent-target target extended? target-cell]
+  (let [valid-land? (and (= (:type target-cell) :land) (not (:contents target-cell)))]
+    (cond
+      (and (not extended?) valid-land?)
+      (do (movement/disembark-army-from-transport coords adjacent-target)
+          (game-loop/item-processed)
+          true)
+
+      (and extended? valid-land?)
+      (do (movement/disembark-army-with-target coords adjacent-target target)
+          (game-loop/item-processed)
+          true)
+
+      :else true))) ;; Ignore invalid disembark targets
+
+(defn- handle-standard-unit-movement [coords adjacent-target target extended? active-unit]
+  (cond
+    (and (= :army (:type active-unit)) (not extended?) (combat/hostile-city? adjacent-target))
+    (do (combat/attempt-conquest coords adjacent-target)
+        (game-loop/item-processed)
+        true)
+
+    (and (= :fighter (:type active-unit)) (not extended?) (combat/hostile-city? adjacent-target))
+    (do (combat/attempt-fighter-overfly coords adjacent-target)
+        (game-loop/item-processed)
+        true)
+
+    :else
+    (do (movement/set-unit-movement coords target)
+        (game-loop/item-processed)
+        true)))
+
 (defn- handle-unit-movement-key [k coords cell]
   (let [direction (or (config/key->direction k)
                       (config/key->extended-direction k))
-        extended? (config/key->extended-direction k)]
+        extended? (boolean (config/key->extended-direction k))]
     (when direction
-      (let [active-unit (movement/get-active-unit cell)
-            is-airport-fighter? (movement/is-fighter-from-airport? cell active-unit)
-            is-carrier-fighter? (movement/is-fighter-from-carrier? cell active-unit)
-            is-army-aboard? (movement/is-army-aboard-transport? cell active-unit)]
+      (let [active-unit (movement/get-active-unit cell)]
         (when (and active-unit (= (:owner active-unit) :player))
           (let [[x y] coords
                 [dx dy] direction
@@ -119,138 +163,103 @@
                 target-cell (get-in @atoms/game-map adjacent-target)
                 target (if extended?
                          (calculate-extended-target coords direction)
-                         adjacent-target)]
-            (cond
-              is-airport-fighter?
-              (let [fighter-pos (movement/launch-fighter-from-airport coords target)]
-                (reset! atoms/waiting-for-input false)
-                (reset! atoms/message "")
-                (reset! atoms/cells-needing-attention [])
-                (swap! atoms/player-items #(cons fighter-pos (rest %)))
-                true)
+                         adjacent-target)
+                context (movement-context cell active-unit)]
+            (case context
+              :airport-fighter (launch-fighter-and-update movement/launch-fighter-from-airport coords target)
+              :carrier-fighter (launch-fighter-and-update movement/launch-fighter-from-carrier coords target)
+              :army-aboard (handle-army-aboard-movement coords adjacent-target target extended? target-cell)
+              :standard-unit (handle-standard-unit-movement coords adjacent-target target extended? active-unit))))))))
 
-              is-carrier-fighter?
-              (let [fighter-pos (movement/launch-fighter-from-carrier coords target)]
-                (reset! atoms/waiting-for-input false)
-                (reset! atoms/message "")
-                (reset! atoms/cells-needing-attention [])
-                (swap! atoms/player-items #(cons fighter-pos (rest %)))
-                true)
+(defn- transport-at-beach? [contents]
+  (and (= (:type contents) :transport)
+       (= (:reason contents) :transport-at-beach)
+       (pos? (:army-count contents 0))))
 
-              (and is-army-aboard? (not extended?) (= (:type target-cell) :land) (not (:contents target-cell)))
-              (do
-                (movement/disembark-army-from-transport coords adjacent-target)
-                (game-loop/item-processed)
-                true)
+(defn- carrier-with-fighters? [contents]
+  (and (= (:type contents) :carrier)
+       (pos? (uc/get-count contents :fighter-count))))
 
-              (and is-army-aboard? extended? (= (:type target-cell) :land) (not (:contents target-cell)))
-              (do
-                (movement/disembark-army-with-target coords adjacent-target target)
-                (game-loop/item-processed)
-                true)
+(defn- handle-space-key [coords]
+  (swap! atoms/player-items rest)
+  (game-loop/item-processed)
+  true)
 
-              is-army-aboard?
-              true ;; Awake army aboard - ignore invalid disembark targets
+(defn- handle-unload-key [coords cell]
+  (let [contents (:contents cell)]
+    (cond
+      (transport-at-beach? contents)
+      (do (movement/wake-armies-on-transport coords)
+          (game-loop/item-processed)
+          true)
 
-              (and (= :army (:type active-unit))
-                   (not extended?)
-                   (combat/hostile-city? adjacent-target))
-              (do
-                (combat/attempt-conquest coords adjacent-target)
-                (game-loop/item-processed)
-                true)
+      (carrier-with-fighters? contents)
+      (do (movement/wake-fighters-on-carrier coords)
+          (game-loop/item-processed)
+          true)
 
-              (and (= :fighter (:type active-unit))
-                   (not extended?)
-                   (combat/hostile-city? adjacent-target))
-              (do
-                (combat/attempt-fighter-overfly coords adjacent-target)
-                (game-loop/item-processed)
-                true)
+      :else nil)))
 
-              :else
-              (do
-                (movement/set-unit-movement coords target)
-                (game-loop/item-processed)
-                true))))))))
+(defn- handle-sentry-key [coords cell active-unit]
+  (let [is-army-aboard? (movement/is-army-aboard-transport? cell active-unit)
+        is-carrier-fighter? (movement/is-fighter-from-carrier? cell active-unit)
+        is-airport-fighter? (movement/is-fighter-from-airport? cell active-unit)]
+    (cond
+      is-army-aboard?
+      (do (movement/sleep-armies-on-transport coords)
+          (game-loop/item-processed)
+          true)
+
+      is-carrier-fighter?
+      (do (movement/sleep-fighters-on-carrier coords)
+          (game-loop/item-processed)
+          true)
+
+      (and (not= :city (:type cell)) (not is-airport-fighter?) (not is-carrier-fighter?))
+      (do (movement/set-unit-mode coords :sentry)
+          (game-loop/item-processed)
+          true)
+
+      :else nil)))
+
+(defn- find-adjacent-land [coords]
+  (let [[x y] coords]
+    (first (for [dx [-1 0 1] dy [-1 0 1]
+                 :when (not (and (zero? dx) (zero? dy)))
+                 :let [target [(+ x dx) (+ y dy)]
+                       tcell (get-in @atoms/game-map target)]
+                 :when (and tcell (= :land (:type tcell)) (not (:contents tcell)))]
+             target))))
+
+(defn- handle-explore-key [coords cell active-unit]
+  (let [is-army-aboard? (movement/is-army-aboard-transport? cell active-unit)]
+    (cond
+      (and (= :army (:type active-unit)) (not is-army-aboard?))
+      (do (movement/set-explore-mode coords)
+          (game-loop/item-processed)
+          true)
+
+      is-army-aboard?
+      (do (when-let [valid-target (find-adjacent-land coords)]
+            (let [army-pos (movement/disembark-army-to-explore coords valid-target)]
+              (reset! atoms/waiting-for-input false)
+              (reset! atoms/message "")
+              (reset! atoms/cells-needing-attention [])
+              (swap! atoms/player-items #(cons army-pos (rest %)))))
+          true)
+
+      :else nil)))
 
 (defn handle-key [k]
   (when-let [coords (first @atoms/cells-needing-attention)]
     (let [cell (get-in @atoms/game-map coords)
-          active-unit (movement/get-active-unit cell)
-          contents (:contents cell)
-          is-airport-fighter? (movement/is-fighter-from-airport? cell active-unit)
-          is-carrier-fighter? (movement/is-fighter-from-carrier? cell active-unit)
-          is-army-aboard? (movement/is-army-aboard-transport? cell active-unit)
-          transport-at-beach? (and (= (:type contents) :transport)
-                                   (= (:reason contents) :transport-at-beach)
-                                   (pos? (:army-count contents 0)))
-          carrier-with-fighters? (and (= (:type contents) :carrier)
-                                      (pos? (uc/get-count contents :fighter-count)))]
+          active-unit (movement/get-active-unit cell)]
       (if active-unit
-        (cond
-          (= k :space)
-          (do
-            (swap! atoms/player-items rest)
-            (game-loop/item-processed)
-            true)
-
-          (and (= k :u) transport-at-beach?)
-          (do
-            (movement/wake-armies-on-transport coords)
-            (game-loop/item-processed)
-            true)
-
-          (and (= k :u) carrier-with-fighters?)
-          (do
-            (movement/wake-fighters-on-carrier coords)
-            (game-loop/item-processed)
-            true)
-
-          (and (= k :s) is-army-aboard?)
-          (do
-            (movement/sleep-armies-on-transport coords)
-            (game-loop/item-processed)
-            true)
-
-          (and (= k :s) is-carrier-fighter?)
-          (do
-            (movement/sleep-fighters-on-carrier coords)
-            (game-loop/item-processed)
-            true)
-
-          (and (= k :s) (not= :city (:type cell)) (not is-airport-fighter?) (not is-carrier-fighter?))
-          (do
-            (movement/set-unit-mode coords :sentry)
-            (game-loop/item-processed)
-            true)
-
-          (and (= k :l) (= :army (:type active-unit)) (not is-army-aboard?))
-          (do
-            (movement/set-explore-mode coords)
-            (game-loop/item-processed)
-            true)
-
-          (and (= k :l) is-army-aboard?)
-          (let [[x y] coords
-                adjacent-cells (for [dx [-1 0 1] dy [-1 0 1]
-                                     :when (not (and (zero? dx) (zero? dy)))]
-                                 [(+ x dx) (+ y dy)])
-                valid-target (first (filter (fn [target]
-                                              (let [tcell (get-in @atoms/game-map target)]
-                                                (and tcell
-                                                     (= :land (:type tcell))
-                                                     (not (:contents tcell)))))
-                                            adjacent-cells))]
-            (when valid-target
-              (let [army-pos (movement/disembark-army-to-explore coords valid-target)]
-                (reset! atoms/waiting-for-input false)
-                (reset! atoms/message "")
-                (reset! atoms/cells-needing-attention [])
-                (swap! atoms/player-items #(cons army-pos (rest %)))))
-            true)
-
-          :else
+        (case k
+          :space (handle-space-key coords)
+          :u (handle-unload-key coords cell)
+          :s (handle-sentry-key coords cell active-unit)
+          :l (handle-explore-key coords cell active-unit)
           (handle-unit-movement-key k coords cell))
         (handle-city-production-key k coords cell)))))
 

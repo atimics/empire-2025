@@ -118,38 +118,52 @@
                    (= :land (:type (get-in @current-map [nx ny]))))))
           map-utils/neighbor-offsets)))
 
+(defn- wake-army-check [unit final-pos current-map]
+  (when (near-hostile-city? final-pos current-map)
+    {:wake? true :reason :army-found-city}))
+
+(defn- wake-fighter-check [unit final-pos current-map]
+  (let [dest-cell (get-in @current-map final-pos)
+        entering-city? (= (:type dest-cell) :city)
+        friendly-city? (= (:city-status dest-cell) :player)
+        hostile-city? (and entering-city? (not friendly-city?))
+        fuel (:fuel unit config/fighter-fuel)
+        low-fuel? (<= fuel 1)
+        bingo-fuel? (and (<= fuel (quot config/fighter-fuel 4))
+                         (friendly-city-in-range? final-pos fuel current-map))]
+    (cond
+      hostile-city? {:wake? true :reason :fighter-shot-down :shot-down? true}
+      entering-city? {:wake? true :reason :fighter-landed-and-refueled :refuel? true}
+      low-fuel? {:wake? true :reason :fighter-out-of-fuel}
+      bingo-fuel? {:wake? true :reason :fighter-bingo}
+      :else nil)))
+
+(defn- wake-transport-check [unit final-pos current-map]
+  (let [has-armies? (pos? (:army-count unit 0))
+        at-beach? (adjacent-to-land? final-pos current-map)]
+    (when (and has-armies? at-beach?)
+      {:wake? true :reason :transport-at-beach})))
+
+(def ^:private wake-check-handlers
+  {:army wake-army-check
+   :fighter wake-fighter-check
+   :transport wake-transport-check})
+
+(defn- apply-wake-result [unit result]
+  (cond-> (assoc unit :mode :awake)
+    (:reason result) (assoc :reason (:reason result))
+    (:refuel? result) (assoc :fuel config/fighter-fuel)
+    (:shot-down? result) (assoc :hits 0 :steps-remaining 0)))
+
 (defn wake-after-move [unit final-pos current-map]
   (let [is-at-target? (= final-pos (:target unit))
-        dest-cell (get-in @current-map final-pos)
-        [unit-wakes?
-         reason refuel?
-         shot-down?] (case (:type unit)
-                       :army [(near-hostile-city? final-pos current-map) :army-found-city false false]
-                       :fighter (let [entering-city? (= (:type dest-cell) :city)
-                                      friendly-city? (= (:city-status dest-cell) :player)
-                                      hostile-city? (and entering-city? (not friendly-city?))
-                                      fuel (:fuel unit config/fighter-fuel)
-                                      low-fuel? (<= fuel 1)
-                                      bingo-fuel? (and (<= fuel (quot config/fighter-fuel 4))
-                                                       (friendly-city-in-range? final-pos fuel current-map))]
-                                  (cond
-                                    hostile-city? [true :fighter-shot-down false true]
-                                    entering-city? [true :fighter-landed-and-refueled true false]
-                                    low-fuel? [true :fighter-out-of-fuel false false]
-                                    bingo-fuel? [true :fighter-bingo false false]
-                                    :else [false nil false false]))
-                       :transport (let [has-armies? (pos? (:army-count unit 0))
-                                        at-beach? (adjacent-to-land? final-pos current-map)]
-                                    [(and has-armies? at-beach?) :transport-at-beach false false])
-                       [false nil false false])
-        wake-up? (or is-at-target? unit-wakes?)]
-    (when shot-down?
+        handler (wake-check-handlers (:type unit))
+        result (when handler (handler unit final-pos current-map))
+        wake-up? (or is-at-target? (:wake? result))]
+    (when (:shot-down? result)
       (atoms/set-line3-message (:fighter-destroyed-by-city config/messages) 3000))
     (if wake-up?
-      (dissoc (cond-> (assoc unit :mode :awake)
-                      (and unit-wakes? reason) (assoc :reason reason)
-                      refuel? (assoc :fuel config/fighter-fuel)
-                      shot-down? (assoc :hits 0 :steps-remaining 0)) :target)
+      (dissoc (apply-wake-result unit result) :target)
       unit)))
 
 (defn process-consumables [unit to-cell]
@@ -196,33 +210,48 @@
             (swap! atoms/game-map update-in (conj transport-coords :contents)
                    #(assoc % :mode :awake :reason :transport-at-beach))))))))
 
+(defn- fighter-landing-city? [unit to-cell]
+  (and unit
+       (= (:type unit) :fighter)
+       (= (:type to-cell) :city)
+       (= (:city-status to-cell) :player)))
+
+(defn- fighter-landing-carrier? [unit to-cell]
+  (let [to-contents (:contents to-cell)]
+    (and unit
+         (= (:type unit) :fighter)
+         (= (:type to-contents) :carrier)
+         (= (:owner to-contents) (:owner unit))
+         (not (uc/full? to-contents :fighter-count config/carrier-capacity)))))
+
+(defn- classify-move [processed-unit to-cell original-target final-pos]
+  (cond
+    (nil? processed-unit) :unit-destroyed
+    (and (fighter-landing-city? processed-unit to-cell)
+         (= original-target final-pos)) :fighter-sleep-at-target
+    (fighter-landing-city? processed-unit to-cell) :fighter-rest-at-city
+    (fighter-landing-carrier? processed-unit to-cell) :fighter-land-on-carrier
+    :else :normal-move))
+
+(defn- update-destination-cell [move-type to-cell processed-unit]
+  (case move-type
+    :unit-destroyed (dissoc to-cell :contents)
+    :fighter-sleep-at-target (-> to-cell
+                                 (uc/add-unit :fighter-count)
+                                 (update :sleeping-fighters (fnil inc 0)))
+    :fighter-rest-at-city (-> to-cell
+                              (uc/add-unit :fighter-count)
+                              (update :resting-fighters (fnil inc 0)))
+    :fighter-land-on-carrier (update to-cell :contents uc/add-unit :fighter-count)
+    :normal-move (assoc to-cell :contents processed-unit)))
+
 (defn do-move [from-coords final-pos cell final-unit]
   (let [from-cell (dissoc cell :contents)
         to-cell (get-in @atoms/game-map final-pos)
         processed-unit (process-consumables final-unit to-cell)
-        to-contents (:contents to-cell)
         original-target (:target (:contents cell))
-        fighter-landing-city? (and processed-unit
-                                   (= (:type processed-unit) :fighter)
-                                   (= (:type to-cell) :city)
-                                   (= (:city-status to-cell) :player))
-        fighter-at-target? (and fighter-landing-city?
-                                (= original-target final-pos))
-        fighter-landing-carrier? (and processed-unit
-                                      (= (:type processed-unit) :fighter)
-                                      (= (:type to-contents) :carrier)
-                                      (= (:owner to-contents) (:owner processed-unit))
-                                      (not (uc/full? to-contents :fighter-count config/carrier-capacity)))
-        updated-to-cell (cond
-                          (nil? processed-unit) (dissoc to-cell :contents)
-                          fighter-at-target? (-> to-cell
-                                                 (uc/add-unit :fighter-count)
-                                                 (update :sleeping-fighters (fnil inc 0)))
-                          fighter-landing-city? (-> to-cell
-                                                    (uc/add-unit :fighter-count)
-                                                    (update :resting-fighters (fnil inc 0)))
-                          fighter-landing-carrier? (update to-cell :contents uc/add-unit :fighter-count)
-                          :else (assoc to-cell :contents processed-unit))]
+        move-type (classify-move processed-unit to-cell original-target final-pos)
+        updated-to-cell (update-destination-cell move-type to-cell processed-unit)]
     (swap! atoms/game-map assoc-in from-coords from-cell)
     (swap! atoms/game-map assoc-in final-pos updated-to-cell)
     (update-cell-visibility final-pos (:owner (:contents cell)))

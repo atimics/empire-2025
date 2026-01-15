@@ -48,3 +48,28 @@
   "Returns true if the container is at capacity."
   [entity count-key capacity]
   (>= (get entity count-key 0) capacity))
+
+(defn transport-at-beach?
+  "Returns true if the unit is a transport at a beach with armies aboard."
+  [contents]
+  (and (= (:type contents) :transport)
+       (= (:reason contents) :transport-at-beach)
+       (pos? (:army-count contents 0))))
+
+(defn carrier-with-fighters?
+  "Returns true if the unit is a carrier with fighters aboard."
+  [contents]
+  (and (= (:type contents) :carrier)
+       (pos? (get-count contents :fighter-count))))
+
+(defn has-awake-carrier-fighter?
+  "Returns true if the unit is a carrier with awake fighters aboard."
+  [contents]
+  (and (= (:type contents) :carrier)
+       (has-awake? contents :awake-fighters)))
+
+(defn has-awake-army-aboard?
+  "Returns true if the unit is a transport with awake armies aboard."
+  [contents]
+  (and (= (:type contents) :transport)
+       (has-awake? contents :awake-armies)))

@@ -873,3 +873,27 @@
             (should (some #{move} [[2 3] [3 2]]))))))
     )
   )
+
+(describe "movement-context"
+  (it "returns :airport-fighter for fighter from airport"
+    (let [cell {:type :city :awake-fighters 1}
+          unit {:type :fighter :from-airport true}]
+      (should= :airport-fighter (movement-context cell unit))))
+
+  (it "returns :carrier-fighter for fighter from carrier"
+    (let [cell {:contents {:type :carrier}}
+          unit {:type :fighter :from-carrier true}]
+      (should= :carrier-fighter (movement-context cell unit))))
+
+  (it "returns :army-aboard for army aboard transport"
+    (let [cell {:contents {:type :transport}}
+          unit {:type :army :aboard-transport true}]
+      (should= :army-aboard (movement-context cell unit))))
+
+  (it "returns :standard-unit for regular unit"
+    (let [cell {:contents {:type :army}}
+          unit {:type :army :mode :awake}]
+      (should= :standard-unit (movement-context cell unit))))
+
+  (it "returns :standard-unit for nil unit"
+    (should= :standard-unit (movement-context {} nil))))

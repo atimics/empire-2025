@@ -82,3 +82,46 @@
 
   (it "returns false when count is missing"
     (should-not (uc/full? {} :army-count 6))))
+
+(describe "transport-at-beach?"
+  (it "returns true for transport at beach with armies"
+    (should (uc/transport-at-beach? {:type :transport :reason :transport-at-beach :army-count 2})))
+
+  (it "returns false for transport not at beach"
+    (should-not (uc/transport-at-beach? {:type :transport :army-count 2})))
+
+  (it "returns false for transport at beach with no armies"
+    (should-not (uc/transport-at-beach? {:type :transport :reason :transport-at-beach :army-count 0})))
+
+  (it "returns false for non-transport"
+    (should-not (uc/transport-at-beach? {:type :carrier :reason :transport-at-beach :army-count 2}))))
+
+(describe "carrier-with-fighters?"
+  (it "returns true for carrier with fighters"
+    (should (uc/carrier-with-fighters? {:type :carrier :fighter-count 3})))
+
+  (it "returns false for carrier with no fighters"
+    (should-not (uc/carrier-with-fighters? {:type :carrier :fighter-count 0})))
+
+  (it "returns false for non-carrier"
+    (should-not (uc/carrier-with-fighters? {:type :transport :fighter-count 3}))))
+
+(describe "has-awake-carrier-fighter?"
+  (it "returns true for carrier with awake fighters"
+    (should (uc/has-awake-carrier-fighter? {:type :carrier :awake-fighters 1})))
+
+  (it "returns false for carrier with no awake fighters"
+    (should-not (uc/has-awake-carrier-fighter? {:type :carrier :awake-fighters 0})))
+
+  (it "returns false for non-carrier"
+    (should-not (uc/has-awake-carrier-fighter? {:type :transport :awake-fighters 1}))))
+
+(describe "has-awake-army-aboard?"
+  (it "returns true for transport with awake armies"
+    (should (uc/has-awake-army-aboard? {:type :transport :awake-armies 1})))
+
+  (it "returns false for transport with no awake armies"
+    (should-not (uc/has-awake-army-aboard? {:type :transport :awake-armies 0})))
+
+  (it "returns false for non-transport"
+    (should-not (uc/has-awake-army-aboard? {:type :carrier :awake-armies 1}))))

@@ -103,12 +103,6 @@
           (recur nx ny)
           [tx ty])))))
 
-(defn- movement-context [cell active-unit]
-  (cond
-    (movement/is-fighter-from-airport? cell active-unit) :airport-fighter
-    (movement/is-fighter-from-carrier? cell active-unit) :carrier-fighter
-    (movement/is-army-aboard-transport? cell active-unit) :army-aboard
-    :else :standard-unit))
 
 (defn- launch-fighter-and-update [launch-fn coords target]
   (let [fighter-pos (launch-fn coords target)]
@@ -164,21 +158,13 @@
                 target (if extended?
                          (calculate-extended-target coords direction)
                          adjacent-target)
-                context (movement-context cell active-unit)]
+                context (movement/movement-context cell active-unit)]
             (case context
               :airport-fighter (launch-fighter-and-update movement/launch-fighter-from-airport coords target)
               :carrier-fighter (launch-fighter-and-update movement/launch-fighter-from-carrier coords target)
               :army-aboard (handle-army-aboard-movement coords adjacent-target target extended? target-cell)
               :standard-unit (handle-standard-unit-movement coords adjacent-target target extended? active-unit))))))))
 
-(defn- transport-at-beach? [contents]
-  (and (= (:type contents) :transport)
-       (= (:reason contents) :transport-at-beach)
-       (pos? (:army-count contents 0))))
-
-(defn- carrier-with-fighters? [contents]
-  (and (= (:type contents) :carrier)
-       (pos? (uc/get-count contents :fighter-count))))
 
 (defn- handle-space-key [coords]
   (swap! atoms/player-items rest)
@@ -188,12 +174,12 @@
 (defn- handle-unload-key [coords cell]
   (let [contents (:contents cell)]
     (cond
-      (transport-at-beach? contents)
+      (uc/transport-at-beach? contents)
       (do (movement/wake-armies-on-transport coords)
           (game-loop/item-processed)
           true)
 
-      (carrier-with-fighters? contents)
+      (uc/carrier-with-fighters? contents)
       (do (movement/wake-fighters-on-carrier coords)
           (game-loop/item-processed)
           true)

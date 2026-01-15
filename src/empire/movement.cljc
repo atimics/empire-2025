@@ -317,6 +317,16 @@
   (and active-unit
        (:from-carrier active-unit)))
 
+(defn movement-context
+  "Determines the movement context for a cell and active unit.
+   Returns :airport-fighter, :carrier-fighter, :army-aboard, or :standard-unit."
+  [cell active-unit]
+  (cond
+    (is-fighter-from-airport? cell active-unit) :airport-fighter
+    (is-fighter-from-carrier? cell active-unit) :carrier-fighter
+    (is-army-aboard-transport? cell active-unit) :army-aboard
+    :else :standard-unit))
+
 (defn launch-fighter-from-airport
   "Removes first awake fighter from airport and sets it moving to target.
    Returns the coordinates where the fighter was placed."

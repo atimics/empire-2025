@@ -8,17 +8,6 @@
 (defn- blink? [period-ms]
   (even? (quot (System/currentTimeMillis) period-ms)))
 
-(defn color-of [cell]
-  (let
-    [terrain-type (:type cell)
-     cell-color (if (= terrain-type :city)
-                  (case (:city-status cell)
-                    :player :player-city
-                    :computer :computer-city
-                    :free :free-city)
-                  terrain-type)]
-    (config/cell-colors cell-color)))
-
 (defn draw-production-indicators
   "Draws production indicator for a city cell."
   [i j cell cell-w cell-h]
@@ -29,7 +18,7 @@
         (let [total (config/item-cost (:item prod))
               remaining (:remaining-rounds prod)
               progress (/ (- total remaining) (double total))
-              base-color (color-of cell)
+              base-color (config/color-of cell)
               dark-color (mapv #(* % 0.5) base-color)]
           (when (and (> progress 0) (> remaining 0))
             (let [[r g b] dark-color]
@@ -42,13 +31,6 @@
         (q/text-font @atoms/production-char-font)
         (q/text (config/item-chars (:item prod)) (+ (* j cell-w) 2) (+ (* i cell-h) 12))))))
 
-(defn- has-awake-carrier-fighter? [contents]
-  (and (= (:type contents) :carrier)
-       (uc/has-awake? contents :awake-fighters)))
-
-(defn- has-awake-army-aboard? [contents]
-  (and (= (:type contents) :transport)
-       (uc/has-awake? contents :awake-armies)))
 
 (defn- blinking-contained-unit
   "Returns the contained unit to display during attention blink, or nil."
@@ -75,8 +57,8 @@
   (let [contents (:contents cell)
         has-awake-airport? (uc/has-awake? cell :awake-fighters)
         has-any-airport? (pos? (uc/get-count cell :fighter-count))
-        has-awake-carrier? (has-awake-carrier-fighter? contents)
-        has-awake-army? (has-awake-army-aboard? contents)
+        has-awake-carrier? (uc/has-awake-carrier-fighter? contents)
+        has-awake-army? (uc/has-awake-army-aboard? contents)
         has-contained-unit? (or has-awake-airport? has-awake-carrier? has-awake-army?)
         attention-coords @atoms/cells-needing-attention
         is-attention-cell? (and (seq attention-coords) (= [col row] (first attention-coords)))
@@ -91,18 +73,11 @@
       :else
       (normal-display-unit cell contents has-awake-airport? has-any-airport?))))
 
-(defn- mode->color [mode]
-  (case mode
-    :awake config/awake-unit-color
-    :sentry config/sentry-unit-color
-    :explore config/explore-unit-color
-    config/sleeping-unit-color))
-
 (defn- draw-unit
   "Draws a unit on the map cell, handling attention blinking for contained units."
   [col row cell cell-w cell-h]
   (when-let [display-unit (determine-display-unit col row cell)]
-    (let [[r g b] (mode->color (:mode display-unit))]
+    (let [[r g b] (config/mode->color (:mode display-unit))]
       (q/fill r g b)
       (q/text-font @atoms/production-char-font)
       (q/text (config/item-chars (:type display-unit)) (+ (* col cell-w) 2) (+ (* row cell-h) 12)))))
@@ -123,7 +98,7 @@
                           (let [cell (get-in the-map [col row])]
                             (if (= :unexplored (:type cell))
                               acc
-                              (let [color (color-of cell)
+                              (let [color (config/color-of cell)
                                     current [col row]
                                     should-flash-black (and (seq attention-coords) (= current (first attention-coords)))
                                     completed? (and (= (:type cell) :city) (not= :free (:city-status cell))

@@ -137,3 +137,24 @@
    :submarine 2
    :carrier 2
    :battleship 2})
+
+(defn color-of
+  "Returns the RGB color for a cell based on its type and status."
+  [cell]
+  (let [terrain-type (:type cell)
+        cell-color (if (= terrain-type :city)
+                     (case (:city-status cell)
+                       :player :player-city
+                       :computer :computer-city
+                       :free :free-city)
+                     terrain-type)]
+    (cell-colors cell-color)))
+
+(defn mode->color
+  "Returns the RGB color for a unit mode."
+  [mode]
+  (case mode
+    :awake awake-unit-color
+    :sentry sentry-unit-color
+    :explore explore-unit-color
+    sleeping-unit-color))

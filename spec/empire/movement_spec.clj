@@ -658,6 +658,16 @@
             (should= :awake (:mode carrier))
             (should= 0 (:fighter-count carrier)))))
 
+      (it "launch-fighter-from-carrier sets steps-remaining to speed minus one"
+        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
+                              (assoc-in [4 4] {:type :sea :contents {:type :carrier :mode :sentry :owner :player :hits 8 :fighter-count 1 :awake-fighters 1}})
+                              (assoc-in [4 5] {:type :sea}))]
+          (reset! atoms/game-map initial-map)
+          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+          (launch-fighter-from-carrier [4 4] [4 6])
+          (let [fighter (:contents (get-in @atoms/game-map [4 5]))]
+            (should= 7 (:steps-remaining fighter)))))
+
       (it "get-active-unit returns synthetic fighter when carrier has awake fighters"
         (let [cell {:type :sea :contents {:type :carrier :mode :sentry :owner :player :fighter-count 3 :awake-fighters 2}}]
           (let [active (get-active-unit cell)]

@@ -468,7 +468,7 @@
         dy (cond (zero? (- ty cy)) 0 (pos? (- ty cy)) 1 :else -1)
         first-step [(+ cx dx) (+ cy dy)]
         moving-fighter {:type :fighter :mode :moving :owner (:owner carrier) :fuel config/fighter-fuel :target target-coords :hits 1
-                        :steps-remaining (config/unit-speed :fighter)}
+                        :steps-remaining (dec (config/unit-speed :fighter))}
         updated-carrier (cond-> after-remove
                           no-more-awake? (assoc :mode :awake)
                           no-more-awake? (dissoc :reason))

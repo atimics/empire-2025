@@ -28,13 +28,11 @@
   "Formats status string for a city. Production is the production entry for this city, or nil."
   [cell production]
   (let [status (:city-status cell)
-        fighters (:fighter-count cell 0)
-        sleeping (:sleeping-fighters cell 0)]
+        fighters (:fighter-count cell 0)]
     (str "city:" (name status)
          (when (and (= status :player) production)
            (str " producing:" (if (= production :none) "none" (name (:item production)))))
          (when (pos? fighters) (str " fighters:" fighters))
-         (when (pos? sleeping) (str " sleeping:" sleeping))
          (when (:marching-orders cell) " march")
          (when (:flight-path cell) " flight"))))
 

@@ -809,7 +809,7 @@
             (should= 0 (:hits result))))))
 
     (describe "fighter landing at city"
-      (it "fighter lands at target city and becomes sleeping fighter"
+      (it "fighter lands at city and increments fighter-count"
         (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
                               (assoc-in [4 4] {:type :land :contents {:type :fighter :mode :moving :owner :player :target [4 5] :fuel 10 :steps-remaining 1 :hits 1}})
                               (assoc-in [4 5] {:type :city :city-status :player :fighter-count 0}))]
@@ -818,18 +818,7 @@
           (game-loop/move-current-unit [4 4])
           (let [city (get-in @atoms/game-map [4 5])]
             (should= 1 (:fighter-count city))
-            (should= 1 (:sleeping-fighters city 0)))))
-
-      (it "fighter lands at non-target city and becomes resting fighter"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land :contents {:type :fighter :mode :moving :owner :player :target [4 6] :fuel 10 :steps-remaining 1 :hits 1}})
-                              (assoc-in [4 5] {:type :city :city-status :player :fighter-count 0}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (let [city (get-in @atoms/game-map [4 5])]
-            (should= 1 (:fighter-count city))
-            (should= 1 (:resting-fighters city 0))))))
+            (should-be-nil (:contents city))))))
 
     (describe "get-active-unit airport fighter"
       (it "returns synthetic fighter when city has awake airport fighters"
@@ -1011,13 +1000,6 @@
     (reset! atoms/production {[3 4] {:item :army :remaining-rounds 5}})
     (should (wake-at [3 4]))
     (should-not (get @atoms/production [3 4])))
-
-  (it "wakes sleeping fighters in city airport"
-    (swap! atoms/game-map assoc-in [3 4]
-           {:type :city :city-status :player :sleeping-fighters 3 :awake-fighters 1})
-    (should (wake-at [3 4]))
-    (should= 0 (get-in @atoms/game-map [3 4 :sleeping-fighters]))
-    (should= 4 (get-in @atoms/game-map [3 4 :awake-fighters])))
 
   (it "returns nil for empty cell"
     (should-not (wake-at [3 4])))

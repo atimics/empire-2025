@@ -51,10 +51,6 @@
     (let [cell {:type :city :city-status :player :fighter-count 3}]
       (should= "city:player fighters:3" (ru/format-city-status cell nil))))
 
-  (it "formats city with sleeping fighters"
-    (let [cell {:type :city :city-status :player :fighter-count 2 :sleeping-fighters 1}]
-      (should= "city:player fighters:2 sleeping:1" (ru/format-city-status cell nil))))
-
   (it "formats city with marching orders"
     (let [cell {:type :city :city-status :player :marching-orders [5 5]}]
       (should= "city:player march" (ru/format-city-status cell nil))))

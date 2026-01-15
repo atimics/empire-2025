@@ -29,24 +29,24 @@
 
 (describe "format-city-status"
   (it "formats player city with production"
-    (let [cell {:type :city :city-status :player :fighter-count 0 :sleeping-fighters 0}
+    (let [cell {:type :city :city-status :player :fighter-count 0}
           production {:item :army :remaining-rounds 5}]
       (should= "city:player producing:army" (ru/format-city-status cell production))))
 
   (it "formats player city with no production"
-    (let [cell {:type :city :city-status :player :fighter-count 0 :sleeping-fighters 0}]
+    (let [cell {:type :city :city-status :player :fighter-count 0}]
       (should= "city:player" (ru/format-city-status cell nil))))
 
   (it "formats city with fighters"
-    (let [cell {:type :city :city-status :player :fighter-count 3 :sleeping-fighters 1}]
-      (should= "city:player fighters:3 sleeping:1" (ru/format-city-status cell nil))))
+    (let [cell {:type :city :city-status :player :fighter-count 3}]
+      (should= "city:player fighters:3" (ru/format-city-status cell nil))))
 
   (it "formats city with marching orders"
-    (let [cell {:type :city :city-status :player :fighter-count 0 :sleeping-fighters 0 :marching-orders [[1 2]]}]
+    (let [cell {:type :city :city-status :player :fighter-count 0 :marching-orders [[1 2]]}]
       (should= "city:player march" (ru/format-city-status cell nil))))
 
   (it "formats computer city"
-    (let [cell {:type :city :city-status :computer :fighter-count 2 :sleeping-fighters 0}]
+    (let [cell {:type :city :city-status :computer :fighter-count 2}]
       (should= "city:computer fighters:2" (ru/format-city-status cell nil)))))
 
 (describe "format-hover-status"
@@ -55,7 +55,7 @@
       (should= "army [1/1] awake" (ru/format-hover-status cell nil))))
 
   (it "returns city status for city cell"
-    (let [cell {:type :city :city-status :free :fighter-count 0 :sleeping-fighters 0}]
+    (let [cell {:type :city :city-status :free :fighter-count 0}]
       (should= "city:free" (ru/format-hover-status cell nil))))
 
   (it "returns nil for empty non-city cell"

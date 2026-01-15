@@ -248,24 +248,17 @@
          (= (:owner to-contents) (:owner unit))
          (not (uc/full? to-contents :fighter-count config/carrier-capacity)))))
 
-(defn- classify-move [processed-unit to-cell original-target final-pos]
+(defn- classify-move [processed-unit to-cell _original-target _final-pos]
   (cond
     (nil? processed-unit) :unit-destroyed
-    (and (fighter-landing-city? processed-unit to-cell)
-         (= original-target final-pos)) :fighter-sleep-at-target
-    (fighter-landing-city? processed-unit to-cell) :fighter-rest-at-city
+    (fighter-landing-city? processed-unit to-cell) :fighter-land-at-city
     (fighter-landing-carrier? processed-unit to-cell) :fighter-land-on-carrier
     :else :normal-move))
 
 (defn- update-destination-cell [move-type to-cell processed-unit]
   (case move-type
     :unit-destroyed (dissoc to-cell :contents)
-    :fighter-sleep-at-target (-> to-cell
-                                 (uc/add-unit :fighter-count)
-                                 (update :sleeping-fighters (fnil inc 0)))
-    :fighter-rest-at-city (-> to-cell
-                              (uc/add-unit :fighter-count)
-                              (update :resting-fighters (fnil inc 0)))
+    :fighter-land-at-city (uc/add-unit to-cell :fighter-count)
     :fighter-land-on-carrier (update to-cell :contents uc/add-unit :fighter-count)
     :normal-move (assoc to-cell :contents processed-unit)))
 
@@ -662,24 +655,16 @@
 
 (defn wake-at
   "Wakes a city (removes production so it needs attention) or a sleeping unit.
-   Also wakes sleeping fighters in city airports.
    Returns true if something was woken, nil otherwise."
   [[cx cy]]
   (let [cell (get-in @atoms/game-map [cx cy])
         contents (:contents cell)]
     (cond
-      ;; Wake a friendly city - remove production and wake sleeping fighters
-      ;; Does not affect any unit at the city
+      ;; Wake a friendly city - remove production so it needs attention
       (and (= (:type cell) :city)
            (= (:city-status cell) :player))
-      (let [sleeping (get cell :sleeping-fighters 0)
-            awake (get cell :awake-fighters 0)]
-        (swap! atoms/production dissoc [cx cy])
-        (when (pos? sleeping)
-          (swap! atoms/game-map update-in [cx cy] assoc
-                 :sleeping-fighters 0
-                 :awake-fighters (+ awake sleeping)))
-        true)
+      (do (swap! atoms/production dissoc [cx cy])
+          true)
 
       ;; Wake a sleeping/sentry/explore friendly unit (not already awake)
       (and contents

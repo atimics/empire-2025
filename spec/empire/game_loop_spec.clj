@@ -75,26 +75,36 @@
     (should-be-nil (:steps-remaining (:contents (get-in @atoms/game-map [1 0]))))))
 
 (describe "wake-airport-fighters"
-  (it "wakes fighters in player city airports"
+  (it "wakes all fighters in player city airports"
     (reset! atoms/game-map [[{:type :city :city-status :player :fighter-count 3}]])
     (game-loop/wake-airport-fighters)
     (should= 3 (:awake-fighters (get-in @atoms/game-map [0 0]))))
 
-  (it "does not wake resting fighters"
-    (reset! atoms/game-map [[{:type :city :city-status :player :fighter-count 3 :resting-fighters 1}]])
-    (game-loop/wake-airport-fighters)
-    (should= 2 (:awake-fighters (get-in @atoms/game-map [0 0])))
-    (should= 0 (:resting-fighters (get-in @atoms/game-map [0 0]))))
-
-  (it "does not wake sleeping fighters"
-    (reset! atoms/game-map [[{:type :city :city-status :player :fighter-count 3 :sleeping-fighters 2}]])
-    (game-loop/wake-airport-fighters)
-    (should= 1 (:awake-fighters (get-in @atoms/game-map [0 0]))))
-
   (it "ignores computer cities"
     (reset! atoms/game-map [[{:type :city :city-status :computer :fighter-count 3}]])
     (game-loop/wake-airport-fighters)
+    (should-be-nil (:awake-fighters (get-in @atoms/game-map [0 0]))))
+
+  (it "ignores cities with no fighters"
+    (reset! atoms/game-map [[{:type :city :city-status :player :fighter-count 0}]])
+    (game-loop/wake-airport-fighters)
     (should-be-nil (:awake-fighters (get-in @atoms/game-map [0 0])))))
+
+(describe "wake-carrier-fighters"
+  (it "wakes all fighters on player carriers"
+    (reset! atoms/game-map [[{:type :sea :contents {:type :carrier :owner :player :fighter-count 3}}]])
+    (game-loop/wake-carrier-fighters)
+    (should= 3 (:awake-fighters (:contents (get-in @atoms/game-map [0 0])))))
+
+  (it "ignores computer carriers"
+    (reset! atoms/game-map [[{:type :sea :contents {:type :carrier :owner :computer :fighter-count 3}}]])
+    (game-loop/wake-carrier-fighters)
+    (should-be-nil (:awake-fighters (:contents (get-in @atoms/game-map [0 0])))))
+
+  (it "ignores carriers with no fighters"
+    (reset! atoms/game-map [[{:type :sea :contents {:type :carrier :owner :player :fighter-count 0}}]])
+    (game-loop/wake-carrier-fighters)
+    (should-be-nil (:awake-fighters (:contents (get-in @atoms/game-map [0 0]))))))
 
 (describe "consume-sentry-fighter-fuel"
   (it "decrements fuel for sentry fighters"

@@ -111,7 +111,26 @@
     (production/update-production)
     (let [unit (:contents (get-in @atoms/game-map [1 0]))]
       (should= :army (:type unit))
-      (should= :computer (:owner unit)))))
+      (should= :computer (:owner unit))))
+
+  (it "creates army in explore mode when city has lookaround marching orders"
+    (swap! atoms/game-map assoc-in [1 0 :marching-orders] :lookaround)
+    (swap! atoms/production assoc [1 0] {:item :army :remaining-rounds 1})
+    (production/update-production)
+    (let [unit (:contents (get-in @atoms/game-map [1 0]))]
+      (should= :army (:type unit))
+      (should= :explore (:mode unit))
+      (should= 50 (:explore-steps unit))
+      (should-be-nil (:target unit))))
+
+  (it "ignores lookaround marching orders for non-army units"
+    (swap! atoms/game-map assoc-in [1 0 :marching-orders] :lookaround)
+    (swap! atoms/production assoc [1 0] {:item :transport :remaining-rounds 1})
+    (production/update-production)
+    (let [unit (:contents (get-in @atoms/game-map [1 0]))]
+      (should= :transport (:type unit))
+      (should= :awake (:mode unit))
+      (should-be-nil (:explore-steps unit)))))
 
 (describe "set-city-production"
   (before

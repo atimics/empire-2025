@@ -57,7 +57,11 @@
 
   (it "formats city with flight path"
     (let [cell {:type :city :city-status :player :flight-path [10 10]}]
-      (should= "city:player flight" (ru/format-city-status cell nil)))))
+      (should= "city:player flight" (ru/format-city-status cell nil))))
+
+  (it "formats city with lookaround marching orders"
+    (let [cell {:type :city :city-status :player :marching-orders :lookaround}]
+      (should= "city:player lookaround" (ru/format-city-status cell nil)))))
 
 (describe "format-hover-status"
   (it "returns nil for empty land"

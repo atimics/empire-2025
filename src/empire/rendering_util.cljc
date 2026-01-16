@@ -33,7 +33,8 @@
          (when (and (= status :player) production)
            (str " producing:" (if (= production :none) "none" (name (:item production)))))
          (when (pos? fighters) (str " fighters:" fighters))
-         (when (:marching-orders cell) " march")
+         (when (:marching-orders cell)
+           (if (= (:marching-orders cell) :lookaround) " lookaround" " march"))
          (when (:flight-path cell) " flight"))))
 
 (defn format-waypoint-status

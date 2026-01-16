@@ -287,6 +287,23 @@
           (swap! atoms/game-map assoc-in [cx cy :city-status] :player)
           true)))))
 
+(defn set-city-lookaround
+  "Sets marching orders to :lookaround on a player city at the given coordinates."
+  [[cx cy]]
+  (let [cell (get-in @atoms/game-map [cx cy])]
+    (when (and (= (:type cell) :city)
+               (= (:city-status cell) :player))
+      (swap! atoms/game-map assoc-in [cx cy :marching-orders] :lookaround)
+      (atoms/set-confirmation-message "Marching orders set to lookaround" 2000)
+      true)))
+
+(defn set-lookaround-at-mouse []
+  "Sets lookaround marching orders on a player city under the mouse cursor."
+  (let [x (q/mouse-x)
+        y (q/mouse-y)]
+    (when (map-utils/on-map? x y)
+      (set-city-lookaround (map-utils/determine-cell-coordinates x y)))))
+
 (defn set-destination-at-mouse []
   "Sets the destination to the cell under the mouse cursor."
   (let [x (q/mouse-x)
@@ -420,6 +437,7 @@
       (and (= k :m) (set-marching-orders-at-mouse)) nil
       (and (= k :f) @atoms/destination (set-flight-path-at-mouse)) nil
       (and (= k :u) (wake-at-mouse)) nil
+      (and (= k :l) (set-lookaround-at-mouse)) nil
       (set-city-marching-orders-by-direction k) nil
       (handle-key k) nil
       (and (= k (keyword "*")) (set-waypoint-at-mouse)) nil

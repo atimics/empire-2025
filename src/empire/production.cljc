@@ -30,6 +30,8 @@
                              (assoc unit :turns-remaining config/satellite-turns)
                              unit)
                       unit (cond
+                             (and (= item :army) (= marching-orders :lookaround))
+                             (assoc unit :mode :explore :explore-steps 50)
                              (and (= item :army) marching-orders)
                              (assoc unit :mode :moving :target marching-orders)
                              (and (= item :fighter) flight-path)

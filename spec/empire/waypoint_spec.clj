@@ -63,7 +63,14 @@
                             (assoc-in [4 4] {:type :land :contents nil}))]
         (reset! atoms/game-map initial-map)
         (reset! atoms/destination [6 6])
-        (should-be-nil (waypoint/set-waypoint-orders [4 4])))))
+        (should-be-nil (waypoint/set-waypoint-orders [4 4]))))
+
+    (it "sets marching orders on waypoint by direction to map edge"
+      (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
+                            (assoc-in [4 4] {:type :land :contents nil :waypoint {}}))]
+        (reset! atoms/game-map initial-map)
+        (waypoint/set-waypoint-orders-by-direction [4 4] [0 1])  ; south
+        (should= [4 8] (:marching-orders (:waypoint (get-in @atoms/game-map [4 4])))))))
 
   (context "waypoint display"
     (it "has waypoint-color defined in config as green"

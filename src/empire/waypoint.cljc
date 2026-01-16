@@ -32,3 +32,21 @@
         (reset! atoms/destination nil)
         (atoms/set-confirmation-message (str "Waypoint orders set to " (first dest) "," (second dest)) 2000)
         true))))
+
+(defn set-waypoint-orders-by-direction
+  "Sets marching orders on a waypoint to the map edge in the given direction.
+   Returns true if orders were set, nil otherwise."
+  [[cx cy] [dx dy]]
+  (let [cell (get-in @atoms/game-map [cx cy])]
+    (when (:waypoint cell)
+      (let [cols (count @atoms/game-map)
+            rows (count (first @atoms/game-map))
+            target (loop [tx cx ty cy]
+                     (let [nx (+ tx dx)
+                           ny (+ ty dy)]
+                       (if (and (>= nx 0) (< nx cols) (>= ny 0) (< ny rows))
+                         (recur nx ny)
+                         [tx ty])))]
+        (swap! atoms/game-map assoc-in [cx cy :waypoint :marching-orders] target)
+        (atoms/set-confirmation-message (str "Waypoint orders set to " (first target) "," (second target)) 2000)
+        true))))

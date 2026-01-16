@@ -366,15 +366,16 @@
           true)))))
 
 (defn set-city-marching-orders-by-direction [k]
-  "Sets marching orders on a player city under the mouse to the map edge in the given direction."
+  "Sets marching orders on a player city or waypoint under the mouse to the map edge in the given direction."
   (when-let [direction (config/key->direction k)]
     (let [x (q/mouse-x)
           y (q/mouse-y)]
       (when (map-utils/on-map? x y)
         (let [[cx cy] (map-utils/determine-cell-coordinates x y)
               cell (get-in @atoms/game-map [cx cy])]
-          (when (and (= (:type cell) :city)
-                     (= (:city-status cell) :player))
+          (cond
+            (and (= (:type cell) :city)
+                 (= (:city-status cell) :player))
             (let [[dx dy] direction
                   cols (count @atoms/game-map)
                   rows (count (first @atoms/game-map))
@@ -386,7 +387,10 @@
                                [tx ty])))]
               (swap! atoms/game-map assoc-in [cx cy :marching-orders] target)
               (atoms/set-confirmation-message (str "Marching orders set to " (first target) "," (second target)) 2000)
-              true)))))))
+              true)
+
+            (:waypoint cell)
+            (waypoint/set-waypoint-orders-by-direction [cx cy] direction)))))))
 
 (defn key-down [k]
   ;; Handle key down events

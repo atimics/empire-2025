@@ -243,8 +243,9 @@
     (reset! atoms/player-items [[0 0]])
     (reset! atoms/waiting-for-input false)
     (game-loop/advance-game)
-    ;; Should have processed the carrier
-    (should (seq @atoms/player-items))))
+    ;; Fighter should have been launched from carrier (awake-fighters decremented)
+    (let [carrier (:contents (get-in @atoms/game-map [0 0]))]
+      (should= 0 (:awake-fighters carrier 0)))))
 
 (describe "auto-disembark-army"
   (it "disembarks army when transport has marching-orders and awake armies"

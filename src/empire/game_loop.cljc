@@ -6,6 +6,43 @@
             [empire.production :as production]
             [empire.unit-container :as uc]))
 
+(defn profile [label f]
+  "Times execution of f and accumulates stats under label."
+  (if @atoms/profile-enabled
+    (let [start (System/nanoTime)
+          result (f)
+          elapsed (/ (- (System/nanoTime) start) 1000000.0)]
+      (swap! atoms/profile-data update label
+             (fn [stats]
+               (let [stats (or stats {:count 0 :total 0.0 :max 0.0})]
+                 (-> stats
+                     (update :count inc)
+                     (update :total + elapsed)
+                     (update :max max elapsed)))))
+      result)
+    (f)))
+
+(defn print-profile-report []
+  "Prints accumulated profile data and resets it."
+  (when (seq @atoms/profile-data)
+    (println "\n=== Profile Report ===")
+    (doseq [[label {:keys [count total max]}] (sort-by (comp - :total val) @atoms/profile-data)]
+      (println (format "%-30s calls: %5d  total: %8.2fms  avg: %6.3fms  max: %6.3fms"
+                       label count total (/ total count) max)))
+    (println "======================\n")
+    (reset! atoms/profile-data {})))
+
+(defn toggle-profiling []
+  "Toggles profiling on/off. When turning off, prints report."
+  (if @atoms/profile-enabled
+    (do
+      (print-profile-report)
+      (reset! atoms/profile-enabled false)
+      (println "Profiling OFF"))
+    (do
+      (reset! atoms/profile-enabled true)
+      (println "Profiling ON - press '=' again to see report"))))
+
 (defn update-player-map
   "Reveals cells near player-owned units on the visible map."
   []
@@ -210,14 +247,14 @@
   "Starts a new round by building player items list and updating game state."
   []
   (swap! atoms/round-number inc)
-  (move-satellites)
-  (consume-sentry-fighter-fuel)
-  (remove-dead-units)
-  (production/update-production)
-  (reset-steps-remaining)
-  (wake-airport-fighters)
-  (wake-carrier-fighters)
-  (reset! atoms/player-items (vec (build-player-items)))
+  (profile "move-satellites" move-satellites)
+  (profile "consume-sentry-fighter-fuel" consume-sentry-fighter-fuel)
+  (profile "remove-dead-units" remove-dead-units)
+  (profile "update-production" production/update-production)
+  (profile "reset-steps-remaining" reset-steps-remaining)
+  (profile "wake-airport-fighters" wake-airport-fighters)
+  (profile "wake-carrier-fighters" wake-carrier-fighters)
+  (profile "build-player-items" #(reset! atoms/player-items (vec (build-player-items))))
   (reset! atoms/waiting-for-input false)
   (reset! atoms/message "")
   (reset! atoms/cells-needing-attention []))
@@ -271,50 +308,57 @@
         (when valid-target
           (movement/disembark-army-with-target coords valid-target marching-orders))))))
 
+(defn- process-one-item
+  "Processes a single player item. Returns :done if item was processed and removed,
+   :continue if item needs more processing (e.g., movement), or :waiting if item needs user input."
+  []
+  (let [coords (first @atoms/player-items)
+        cell (get-in @atoms/game-map coords)
+        unit (:contents cell)
+        satellite-with-target? (and (= (:type unit) :satellite) (:target unit))]
+    (if satellite-with-target?
+      (do (swap! atoms/player-items rest) :done)
+      (if-let [auto-coords (or (auto-launch-fighter coords cell)
+                               (auto-disembark-army coords cell))]
+        (do (swap! atoms/player-items #(cons auto-coords (rest %))) :continue)
+        (if (attention/item-needs-attention? coords)
+          (do
+            (reset! atoms/cells-needing-attention [coords])
+            (attention/set-attention-message coords)
+            (reset! atoms/waiting-for-input true)
+            :waiting)
+          (let [new-coords (case (:mode unit)
+                             :explore (move-explore-unit coords)
+                             :coastline-follow (move-coastline-unit coords)
+                             :moving (move-current-unit coords)
+                             nil)]
+            (if new-coords
+              (do (swap! atoms/player-items #(cons new-coords (rest %))) :continue)
+              (do (swap! atoms/player-items rest) :done))))))))
+
 (defn advance-game
-  "Advances the game by processing the current item or starting new round."
+  "Advances the game by processing player items until one needs attention or round ends.
+   Processes multiple non-attention items per frame for faster rounds."
   []
   (cond
-    ;; Already paused - do nothing
-    @atoms/paused
-    nil
-
-    ;; End of round - check for pause request
+    @atoms/paused nil
     (empty? @atoms/player-items)
     (if @atoms/pause-requested
-      (do
-        (reset! atoms/paused true)
-        (reset! atoms/pause-requested false))
+      (do (reset! atoms/paused true) (reset! atoms/pause-requested false))
       (start-new-round))
-
-    ;; Normal processing
-    @atoms/waiting-for-input
-    nil
-
+    @atoms/waiting-for-input nil
     :else
-    (let [coords (first @atoms/player-items)
-          cell (get-in @atoms/game-map coords)
-          unit (:contents cell)
-          ;; Satellites with targets are moved by move-satellites, skip them here
-          satellite-with-target? (and (= (:type unit) :satellite) (:target unit))]
-      (if satellite-with-target?
-        (swap! atoms/player-items rest)
-        (if-let [auto-coords (or (auto-launch-fighter coords cell)
-                                 (auto-disembark-army coords cell))]
-          (swap! atoms/player-items #(cons auto-coords (rest %)))
-          (if (attention/item-needs-attention? coords)
-            (do
-              (reset! atoms/cells-needing-attention [coords])
-              (attention/set-attention-message coords)
-              (reset! atoms/waiting-for-input true))
-            (let [new-coords (case (:mode unit)
-                               :explore (move-explore-unit coords)
-                               :coastline-follow (move-coastline-unit coords)
-                               :moving (move-current-unit coords)
-                               nil)]
-              (if new-coords
-                (swap! atoms/player-items #(cons new-coords (rest %)))
-                (swap! atoms/player-items rest)))))))))
+    (loop [processed 0]
+      (cond
+        (empty? @atoms/player-items) nil  ;; Round ended
+        @atoms/waiting-for-input nil      ;; Hit item needing attention
+        (>= processed 100) nil            ;; Safety limit per frame
+        :else
+        (let [result (process-one-item)]
+          (case result
+            :waiting nil                  ;; Stop - needs user input
+            :continue (recur (inc processed))  ;; Item still active, continue
+            :done (recur (inc processed))))))))
 
 (defn toggle-pause
   "Toggles pause state. If running, requests pause at end of round.
@@ -329,6 +373,6 @@
 (defn update-map
   "Updates the game map state."
   []
-  (update-player-map)
-  (update-computer-map)
-  (advance-game))
+  (profile "update-player-map" update-player-map)
+  (profile "update-computer-map" update-computer-map)
+  (profile "advance-game" advance-game))

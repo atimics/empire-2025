@@ -1601,3 +1601,85 @@
       (should (get-in @atoms/player-map [9 9]))
       ;; Center cell (the satellite's position) should also be visible
       (should (get-in @atoms/player-map [7 7])))))
+
+(describe "update-combatant-map"
+  (it "reveals all 9 cells around a player unit in center of map"
+    (let [game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                       (assoc-in [2 2] {:type :land :contents {:type :army :owner :player}}))]
+      (reset! atoms/game-map game-map)
+      (reset! atoms/player-map (vec (repeat 5 (vec (repeat 5 nil)))))
+      (update-combatant-map atoms/player-map :player)
+      ;; All 9 cells around [2 2] should be revealed
+      (should= {:type :sea} (get-in @atoms/player-map [1 1]))
+      (should= {:type :sea} (get-in @atoms/player-map [1 2]))
+      (should= {:type :sea} (get-in @atoms/player-map [1 3]))
+      (should= {:type :sea} (get-in @atoms/player-map [2 1]))
+      (should= {:type :land :contents {:type :army :owner :player}} (get-in @atoms/player-map [2 2]))
+      (should= {:type :sea} (get-in @atoms/player-map [2 3]))
+      (should= {:type :sea} (get-in @atoms/player-map [3 1]))
+      (should= {:type :sea} (get-in @atoms/player-map [3 2]))
+      (should= {:type :sea} (get-in @atoms/player-map [3 3]))
+      ;; Corners should not be revealed
+      (should= nil (get-in @atoms/player-map [0 0]))
+      (should= nil (get-in @atoms/player-map [0 4]))
+      (should= nil (get-in @atoms/player-map [4 0]))
+      (should= nil (get-in @atoms/player-map [4 4]))))
+
+  (it "clamps visibility at map edges for unit in corner"
+    (let [game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                       (assoc-in [0 0] {:type :land :contents {:type :army :owner :player}}))]
+      (reset! atoms/game-map game-map)
+      (reset! atoms/player-map (vec (repeat 5 (vec (repeat 5 nil)))))
+      (update-combatant-map atoms/player-map :player)
+      ;; Cells at and adjacent to [0 0] should be revealed (clamped)
+      (should= {:type :land :contents {:type :army :owner :player}} (get-in @atoms/player-map [0 0]))
+      (should= {:type :sea} (get-in @atoms/player-map [0 1]))
+      (should= {:type :sea} (get-in @atoms/player-map [1 0]))
+      (should= {:type :sea} (get-in @atoms/player-map [1 1]))
+      ;; Far cells should not be revealed
+      (should= nil (get-in @atoms/player-map [2 2]))))
+
+  (it "reveals cells around player city"
+    (let [game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                       (assoc-in [2 2] {:type :city :city-status :player}))]
+      (reset! atoms/game-map game-map)
+      (reset! atoms/player-map (vec (repeat 5 (vec (repeat 5 nil)))))
+      (update-combatant-map atoms/player-map :player)
+      ;; All 9 cells around [2 2] should be revealed
+      (should= {:type :city :city-status :player} (get-in @atoms/player-map [2 2]))
+      (should= {:type :sea} (get-in @atoms/player-map [1 1]))
+      (should= {:type :sea} (get-in @atoms/player-map [3 3]))))
+
+  (it "does nothing when visible-map-atom is nil"
+    (let [game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                       (assoc-in [2 2] {:type :land :contents {:type :army :owner :player}}))]
+      (reset! atoms/game-map game-map)
+      (reset! atoms/player-map nil)
+      (update-combatant-map atoms/player-map :player)
+      (should= nil @atoms/player-map)))
+
+  (it "works for computer owner"
+    (let [game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                       (assoc-in [2 2] {:type :land :contents {:type :army :owner :computer}}))]
+      (reset! atoms/game-map game-map)
+      (reset! atoms/computer-map (vec (repeat 5 (vec (repeat 5 nil)))))
+      (update-combatant-map atoms/computer-map :computer)
+      ;; All 9 cells around [2 2] should be revealed in computer map
+      (should= {:type :land :contents {:type :army :owner :computer}} (get-in @atoms/computer-map [2 2]))
+      (should= {:type :sea} (get-in @atoms/computer-map [1 1]))
+      (should= {:type :sea} (get-in @atoms/computer-map [3 3]))))
+
+  (it "handles multiple units revealing overlapping areas"
+    (let [game-map (-> (vec (repeat 7 (vec (repeat 7 {:type :sea}))))
+                       (assoc-in [2 2] {:type :land :contents {:type :army :owner :player}})
+                       (assoc-in [4 4] {:type :land :contents {:type :army :owner :player}}))]
+      (reset! atoms/game-map game-map)
+      (reset! atoms/player-map (vec (repeat 7 (vec (repeat 7 nil)))))
+      (update-combatant-map atoms/player-map :player)
+      ;; Both units and their surroundings should be visible
+      (should= {:type :land :contents {:type :army :owner :player}} (get-in @atoms/player-map [2 2]))
+      (should= {:type :land :contents {:type :army :owner :player}} (get-in @atoms/player-map [4 4]))
+      ;; Overlapping cell [3 3] should be revealed by both
+      (should= {:type :sea} (get-in @atoms/player-map [3 3]))
+      ;; Far corner should not be revealed
+      (should= nil (get-in @atoms/player-map [6 6])))))

@@ -1,12 +1,13 @@
 (ns empire.rendering
   (:require [empire.atoms :as atoms]
             [empire.config :as config]
+            [empire.game-loop :as game-loop]
             [empire.map-utils :as map-utils]
             [empire.rendering-util :as ru]
             [quil.core :as q]))
 
 (defn draw-production-indicators
-  "Draws production indicator for a city cell."
+  "Draws production indicator for a city cell. Assumes font is already set."
   [i j cell cell-w cell-h]
   (when (= :city (:type cell))
     (when-let [prod (@atoms/production [j i])]
@@ -19,32 +20,31 @@
               dark-color (mapv #(* % 0.5) base-color)]
           (when (and (> progress 0) (> remaining 0))
             (let [[r g b] dark-color]
-              (q/fill r g b 128))                           ; semi-transparent darker version
+              (q/fill r g b 128))
             (let [bar-height (* cell-h progress)]
               (q/rect (* j cell-w) (+ (* i cell-h) (- cell-h bar-height)) cell-w bar-height))))
         ;; Draw production character
         (let [[r g b] config/production-color]
           (q/fill r g b))
-        (q/text-font @atoms/production-char-font)
         (q/text (config/item-chars (:item prod)) (+ (* j cell-w) 2) (+ (* i cell-h) 12))))))
 
 
 (defn- draw-unit
-  "Draws a unit on the map cell, handling attention blinking for contained units."
+  "Draws a unit on the map cell, handling attention blinking for contained units.
+   Assumes font is already set."
   [col row cell cell-w cell-h attention-coords blink-unit?]
   (when-let [display-unit (ru/determine-display-unit col row cell attention-coords blink-unit?)]
     (let [[r g b] (config/mode->color (:mode display-unit))]
       (q/fill r g b)
-      (q/text-font @atoms/production-char-font)
       (q/text (config/item-chars (:type display-unit)) (+ (* col cell-w) 2) (+ (* row cell-h) 12)))))
 
 (defn- draw-waypoint
-  "Draws a waypoint marker on the map cell if it has a waypoint and no contents."
+  "Draws a waypoint marker on the map cell if it has a waypoint and no contents.
+   Assumes font is already set."
   [col row cell cell-w cell-h]
   (when (and (:waypoint cell) (nil? (:contents cell)))
     (let [[r g b] config/waypoint-color]
       (q/fill r g b)
-      (q/text-font @atoms/production-char-font)
       (q/text "*" (+ (* col cell-w) 2) (+ (* row cell-h) 12)))))
 
 (defn draw-map
@@ -60,26 +60,31 @@
         blink-attention? (map-utils/blink? 125)
         blink-completed? (map-utils/blink? 500)
         blink-unit? (map-utils/blink? 250)
-        cells-by-color (ru/group-cells-by-color the-map attention-coords production blink-attention? blink-completed?)]
+        cells-by-color (game-loop/profile "group-cells-by-color"
+                         #(ru/group-cells-by-color the-map attention-coords production blink-attention? blink-completed?))]
     (q/no-stroke)
     ;; Draw all rects batched by color
-    (doseq [[color cells] cells-by-color]
-      (let [[r g b] color]
-        (q/fill r g b)
-        (doseq [{:keys [col row]} cells]
-          (q/rect (* col cell-w) (* row cell-h) cell-w cell-h))))
-    ;; Draw grid lines
-    (q/stroke 0)
-    (doseq [col (range (inc cols))]
-      (q/line (* col cell-w) 0 (* col cell-w) map-h))
-    (doseq [row (range (inc rows))]
-      (q/line 0 (* row cell-h) map-w (* row cell-h)))
-    ;; Draw production indicators, units, and waypoints
-    (doseq [[_ cells] cells-by-color]
-      (doseq [{:keys [col row cell]} cells]
-        (draw-production-indicators row col cell cell-w cell-h)
-        (draw-unit col row cell cell-w cell-h attention-coords blink-unit?)
-        (draw-waypoint col row cell cell-w cell-h)))))
+    (game-loop/profile "draw-rects"
+      #(doseq [[color cells] cells-by-color]
+         (let [[r g b] color]
+           (q/fill r g b)
+           (doseq [{:keys [col row]} cells]
+             (q/rect (* col cell-w) (* row cell-h) cell-w cell-h)))))
+    (game-loop/profile "draw-grid"
+      #(do
+         (q/stroke 0)
+         (doseq [col (range (inc cols))]
+           (q/line (* col cell-w) 0 (* col cell-w) map-h))
+         (doseq [row (range (inc rows))]
+           (q/line 0 (* row cell-h) map-w (* row cell-h)))))
+    ;; Draw production indicators, units, and waypoints (set font once)
+    (q/text-font @atoms/production-char-font)
+    (game-loop/profile "draw-units-etc"
+      #(doseq [[_ cells] cells-by-color]
+         (doseq [{:keys [col row cell]} cells]
+           (draw-production-indicators row col cell cell-w cell-h)
+           (draw-unit col row cell cell-w cell-h attention-coords blink-unit?)
+           (draw-waypoint col row cell cell-w cell-h))))))
 
 (defn update-hover-status
   "Updates line2-message based on mouse position, unless a confirmation message is active."

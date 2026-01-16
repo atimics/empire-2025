@@ -53,7 +53,7 @@
   "Returns true if the unit is a transport at a beach with armies aboard."
   [contents]
   (and (= (:type contents) :transport)
-       (= (:reason contents) :transport-at-beach)
+       (#{:transport-at-beach :found-a-bay} (:reason contents))
        (pos? (:army-count contents 0))))
 
 (defn carrier-with-fighters?

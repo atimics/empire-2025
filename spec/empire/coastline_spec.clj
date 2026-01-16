@@ -212,8 +212,42 @@
           (should= :awake (:mode unit))
           (should= :blocked (:reason unit)))))
 
-    (it "wakes unit when hitting map edge"
-      (let [;; Unit at [0 4] - at the top edge of map, surrounded by land
+    (it "does NOT wake unit immediately when starting at map edge"
+      (let [;; Unit at [0 4] - at the top edge, with valid moves along the edge
+            initial-map (-> (vec (repeat 9 (vec (repeat 9 {:type :land}))))
+                            (assoc-in [0 4] {:type :sea :contents {:type :transport :mode :coastline-follow
+                                                                   :owner :player :hits 1
+                                                                   :start-pos [0 4]
+                                                                   :coastline-steps 100
+                                                                   :visited #{[0 4]}}})
+                            (assoc-in [0 5] {:type :sea})
+                            (assoc-in [0 6] {:type :sea}))]
+        (reset! atoms/game-map initial-map)
+        (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+        (movement/move-coastline-unit [0 4])
+        ;; Unit should move along the edge, not wake immediately
+        ;; With speed 2, should be at [0 6]
+        (let [unit (get-in @atoms/game-map [0 6 :contents])]
+          (should= :coastline-follow (:mode unit)))))
+
+    (it "wakes unit when moving TO map edge"
+      (let [;; Unit at [1 4] - NOT at edge, will move to edge at [0 4]
+            initial-map (-> (vec (repeat 9 (vec (repeat 9 {:type :land}))))
+                            (assoc-in [1 4] {:type :sea :contents {:type :transport :mode :coastline-follow
+                                                                   :owner :player :hits 1
+                                                                   :start-pos [1 4]
+                                                                   :coastline-steps 100
+                                                                   :visited #{[1 4]}}})
+                            (assoc-in [0 4] {:type :sea}))]  ; only valid move is to edge
+        (reset! atoms/game-map initial-map)
+        (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+        (movement/move-coastline-unit [1 4])
+        (let [unit (get-in @atoms/game-map [0 4 :contents])]
+          (should= :awake (:mode unit))
+          (should= :hit-edge (:reason unit)))))
+
+    (it "wakes unit at edge when blocked with no valid moves"
+      (let [;; Unit at [0 4] - at the top edge of map, surrounded by land (no valid moves)
             initial-map (-> (vec (repeat 9 (vec (repeat 9 {:type :land}))))
                             (assoc-in [0 4] {:type :sea :contents {:type :transport :mode :coastline-follow
                                                                    :owner :player :hits 1
@@ -225,7 +259,7 @@
         (movement/move-coastline-unit [0 4])
         (let [unit (get-in @atoms/game-map [0 4 :contents])]
           (should= :awake (:mode unit))
-          (should= :hit-edge (:reason unit))))))
+          (should= :blocked (:reason unit))))))
 
   (describe "coastline-follow eligibility"
     (it "transport near coast is eligible"
@@ -384,4 +418,127 @@
 
     (it "returns nil for non-ship units"
       (let [unit {:type :destroyer :mode :awake}]
-        (should-be-nil (movement/coastline-follow-rejection-reason unit false))))))
+        (should-be-nil (movement/coastline-follow-rejection-reason unit false)))))
+
+  (describe "in-bay?"
+    (it "returns true when surrounded by land on 3 orthogonal sides"
+      (let [;; Bay: land N, S, W - open to E
+            game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                         (assoc-in [1 2] {:type :land})   ; N
+                         (assoc-in [3 2] {:type :land})   ; S
+                         (assoc-in [2 1] {:type :land}))] ; W
+        (reset! atoms/game-map game-map)
+        (should (movement/in-bay? [2 2] atoms/game-map))))
+
+    (it "returns true when surrounded by land on N, E, W"
+      (let [;; Bay: land N, E, W - open to S
+            game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                         (assoc-in [1 2] {:type :land})   ; N
+                         (assoc-in [2 3] {:type :land})   ; E
+                         (assoc-in [2 1] {:type :land}))] ; W
+        (reset! atoms/game-map game-map)
+        (should (movement/in-bay? [2 2] atoms/game-map))))
+
+    (it "returns false when surrounded by land on only 2 orthogonal sides"
+      (let [;; Only 2 sides: land N, S
+            game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                         (assoc-in [1 2] {:type :land})   ; N
+                         (assoc-in [3 2] {:type :land}))] ; S
+        (reset! atoms/game-map game-map)
+        (should-not (movement/in-bay? [2 2] atoms/game-map))))
+
+    (it "returns false when surrounded by land on all 4 orthogonal sides"
+      (let [;; All 4 sides - this is enclosed, not a bay
+            game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                         (assoc-in [1 2] {:type :land})   ; N
+                         (assoc-in [3 2] {:type :land})   ; S
+                         (assoc-in [2 1] {:type :land})   ; W
+                         (assoc-in [2 3] {:type :land}))] ; E
+        (reset! atoms/game-map game-map)
+        (should-not (movement/in-bay? [2 2] atoms/game-map))))
+
+    (it "returns false when no orthogonal land neighbors"
+      (let [game-map (vec (repeat 5 (vec (repeat 5 {:type :sea}))))]
+        (reset! atoms/game-map game-map)
+        (should-not (movement/in-bay? [2 2] atoms/game-map))))
+
+    (it "counts only orthogonal neighbors, not diagonal"
+      (let [;; Only diagonal land, no orthogonal
+            game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                         (assoc-in [1 1] {:type :land})   ; NW
+                         (assoc-in [1 3] {:type :land})   ; NE
+                         (assoc-in [3 1] {:type :land}))] ; SW
+        (reset! atoms/game-map game-map)
+        (should-not (movement/in-bay? [2 2] atoms/game-map)))))
+
+  (describe "transport wakes up when finding a bay"
+    (before
+      (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil))))))
+
+    (it "transport with armies wakes up in bay with reason :found-a-bay"
+      ;; Create a constrained map: transport at [4 3], only valid move is [4 4] (a bay)
+      ;; Surround [4 3] with land except for [4 4]
+      (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 {:type :land}))))
+                            ;; Transport starts at [4 3]
+                            (assoc-in [4 3] {:type :sea :contents {:type :transport :mode :coastline-follow
+                                                                   :owner :player :hits 1
+                                                                   :army-count 2
+                                                                   :awake-armies 0
+                                                                   :start-pos [0 0]
+                                                                   :coastline-steps 100
+                                                                   :visited #{[4 3]}}})
+                            ;; Bay at [4 4]: surrounded by land on N[3 4], S[5 4], E[4 5] - open to W[4 3]
+                            (assoc-in [4 4] {:type :sea}))]  ; only valid move, and it's a bay (3 orthogonal land)
+        (reset! atoms/game-map initial-map)
+        (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+        (movement/move-coastline-unit [4 3])
+        ;; Transport should be at [4 4] and awake with :found-a-bay
+        (let [unit (get-in @atoms/game-map [4 4 :contents])]
+          (should= :awake (:mode unit))
+          (should= :found-a-bay (:reason unit)))))
+
+    (it "transport without armies does NOT wake up in bay"
+      ;; Same constrained map but transport has no armies
+      (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 {:type :land}))))
+                            ;; Transport starts at [4 3] with NO armies
+                            (assoc-in [4 3] {:type :sea :contents {:type :transport :mode :coastline-follow
+                                                                   :owner :player :hits 1
+                                                                   :army-count 0
+                                                                   :awake-armies 0
+                                                                   :start-pos [0 0]
+                                                                   :coastline-steps 100
+                                                                   :visited #{[4 3]}}})
+                            ;; Bay at [4 4]
+                            (assoc-in [4 4] {:type :sea}))]
+        (reset! atoms/game-map initial-map)
+        (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+        (movement/move-coastline-unit [4 3])
+        ;; Transport moved to [4 4] but should NOT wake up (no armies)
+        ;; It will be blocked (no further moves) so wakes with :blocked
+        (let [unit (get-in @atoms/game-map [4 4 :contents])]
+          (should= :awake (:mode unit))
+          (should= :blocked (:reason unit)))))
+
+    (it "transport with armies does NOT wake up with only 2 orthogonal land neighbors"
+      ;; Create a channel: transport moves through [4 4] which has only 2 orthogonal land (N, S)
+      (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 {:type :land}))))
+                            ;; Transport starts at [4 3]
+                            (assoc-in [4 3] {:type :sea :contents {:type :transport :mode :coastline-follow
+                                                                   :owner :player :hits 1
+                                                                   :army-count 2
+                                                                   :awake-armies 0
+                                                                   :start-pos [0 0]
+                                                                   :coastline-steps 100
+                                                                   :visited #{[4 3]}}})
+                            ;; Channel: [4 4] and [4 5] are sea - only 2 orthogonal land (N, S)
+                            (assoc-in [4 4] {:type :sea})
+                            (assoc-in [4 5] {:type :sea})
+                            (assoc-in [4 6] {:type :sea}))]
+        (reset! atoms/game-map initial-map)
+        (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
+        (movement/move-coastline-unit [4 3])
+        ;; Transport moves through channel (not a bay - only 2 orthogonal land neighbors)
+        ;; With speed 2, it should move to [4 5] (through [4 4])
+        (let [unit (get-in @atoms/game-map [4 5 :contents])]
+          (should= :coastline-follow (:mode unit))
+          (should-be-nil (:reason unit)))))))

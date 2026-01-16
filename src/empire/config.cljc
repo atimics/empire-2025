@@ -67,6 +67,7 @@
    :ships-cant-drive-on-land "Ships don't drive on land."
    :transport-at-beach "At beach."
    :transport-found-land "Found land!"
+   :found-a-bay "Found a bay!"
    :somethings-in-the-way "Something's in the way."
    :city-needs-attention "City needs attention"
    :unit-needs-attention " needs attention"

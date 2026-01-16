@@ -87,6 +87,9 @@
   (it "returns true for transport at beach with armies"
     (should (uc/transport-at-beach? {:type :transport :reason :transport-at-beach :army-count 2})))
 
+  (it "returns true for transport that found a bay with armies"
+    (should (uc/transport-at-beach? {:type :transport :reason :found-a-bay :army-count 2})))
+
   (it "returns false for transport not at beach"
     (should-not (uc/transport-at-beach? {:type :transport :army-count 2})))
 

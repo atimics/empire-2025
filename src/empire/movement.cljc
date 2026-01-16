@@ -244,6 +244,21 @@
                    (= :land (:type (get-in @current-map [nx ny]))))))
           map-utils/orthogonal-offsets)))
 
+(defn in-bay?
+  "Returns true if the position is in a bay - surrounded by land on exactly 3 orthogonal sides."
+  [pos current-map]
+  (let [[x y] pos
+        height (count @current-map)
+        width (count (first @current-map))
+        land-count (count (filter (fn [[dx dy]]
+                                    (let [nx (+ x dx)
+                                          ny (+ y dy)]
+                                      (and (>= nx 0) (< nx height)
+                                           (>= ny 0) (< ny width)
+                                           (= :land (:type (get-in @current-map [nx ny]))))))
+                                  map-utils/orthogonal-offsets))]
+    (= 3 land-count)))
+
 (defn- wake-army-check [_unit _from-pos final-pos current-map]
   (when (near-hostile-city? final-pos current-map)
     {:wake? true :reason :army-found-city}))
@@ -1005,6 +1020,48 @@
                                      (assoc :mode :awake :reason reason)
                                      (dissoc :coastline-steps :visited :start-pos :target :prev-pos))))))
 
+(defn- transport-with-armies-in-bay?
+  "Returns true if the unit is a transport with armies aboard and is in a bay."
+  [unit pos current-map]
+  (and (= :transport (:type unit))
+       (pos? (:army-count unit 0))
+       (in-bay? pos current-map)))
+
+(defn- pre-move-wake-reason
+  "Returns wake reason if unit should wake before moving, or nil to continue."
+  [coords visited start-pos]
+  (let [traveled-enough? (> (count visited) 5)
+        start-adjacent? (and traveled-enough?
+                             (some #{start-pos} (adjacent-positions coords)))]
+    (when start-adjacent?
+      :returned-to-start)))
+
+(defn- post-move-wake-reason
+  "Returns wake reason after moving, or nil if unit should continue."
+  [unit next-pos remaining-steps start-pos]
+  (let [started-at-edge? (at-map-edge? start-pos)
+        now-at-edge? (at-map-edge? next-pos)]
+    (cond
+      (and now-at-edge? (not started-at-edge?)) :hit-edge
+      (transport-with-armies-in-bay? unit next-pos atoms/game-map) :found-a-bay
+      (<= remaining-steps 0) :steps-exhausted
+      :else nil)))
+
+(defn- make-woken-unit
+  "Creates a woken unit with the given reason."
+  [unit reason]
+  (-> unit
+      (assoc :mode :awake :reason reason)
+      (dissoc :coastline-steps :visited :start-pos :target :prev-pos)))
+
+(defn- make-continuing-unit
+  "Creates a unit that continues coastline following."
+  [unit remaining-steps visited next-pos from-pos]
+  (-> unit
+      (assoc :coastline-steps remaining-steps
+             :visited (conj visited next-pos)
+             :prev-pos from-pos)))
+
 (defn- move-coastline-step
   "Moves a coastline-following unit one step. Returns new coords or nil if done."
   [coords]
@@ -1013,33 +1070,19 @@
         remaining-steps (dec (:coastline-steps unit config/coastline-steps))
         visited (or (:visited unit) #{})
         start-pos (:start-pos unit)
-        prev-pos (:prev-pos unit)
-        traveled-enough? (> (count visited) 5)
-        start-adjacent? (and traveled-enough?
-                             (some #{start-pos} (adjacent-positions coords)))]
-    (cond
-      (at-map-edge? coords)
-      (do (wake-coastline-unit coords :hit-edge) nil)
-
-      start-adjacent?
-      (do (wake-coastline-unit coords :returned-to-start) nil)
-
-      :else
+        prev-pos (:prev-pos unit)]
+    (if-let [pre-wake (pre-move-wake-reason coords visited start-pos)]
+      (do (wake-coastline-unit coords pre-wake) nil)
       (if-let [next-pos (pick-coastline-move coords atoms/game-map visited prev-pos)]
         (let [next-cell (get-in @atoms/game-map next-pos)
-              steps-exhausted? (<= remaining-steps 0)
-              moved-unit (if steps-exhausted?
-                           (-> unit
-                               (assoc :mode :awake :reason :steps-exhausted)
-                               (dissoc :coastline-steps :visited :start-pos :target :prev-pos))
-                           (-> unit
-                               (assoc :coastline-steps remaining-steps
-                                      :visited (conj visited next-pos)
-                                      :prev-pos coords)))]
+              post-wake (post-move-wake-reason unit next-pos remaining-steps start-pos)
+              moved-unit (if post-wake
+                           (make-woken-unit unit post-wake)
+                           (make-continuing-unit unit remaining-steps visited next-pos coords))]
           (swap! atoms/game-map assoc-in coords (dissoc cell :contents))
           (swap! atoms/game-map assoc-in next-pos (assoc next-cell :contents moved-unit))
           (update-cell-visibility next-pos (:owner unit))
-          (when-not steps-exhausted? next-pos))
+          (when-not post-wake next-pos))
         (do (wake-coastline-unit coords :blocked) nil)))))
 
 (defn move-coastline-unit

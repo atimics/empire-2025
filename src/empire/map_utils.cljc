@@ -5,6 +5,10 @@
   "Offsets for the 8 adjacent cells (excludes center)."
   [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]])
 
+(def orthogonal-offsets
+  "Offsets for the 4 orthogonally adjacent cells (N, S, E, W)."
+  [[-1 0] [1 0] [0 -1] [0 1]])
+
 (defn get-cell
   "Returns the cell from atoms/game-map at the given coordinates."
   ([x y]

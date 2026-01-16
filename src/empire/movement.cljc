@@ -193,6 +193,20 @@
                    (= :land (:type (get-in @current-map [nx ny]))))))
           map-utils/neighbor-offsets)))
 
+(defn orthogonally-adjacent-to-land?
+  "Returns true if the position is orthogonally adjacent to a land cell (N/S/E/W only)."
+  [pos current-map]
+  (let [[x y] pos
+        height (count @current-map)
+        width (count (first @current-map))]
+    (some (fn [[dx dy]]
+            (let [nx (+ x dx)
+                  ny (+ y dy)]
+              (and (>= nx 0) (< nx height)
+                   (>= ny 0) (< ny width)
+                   (= :land (:type (get-in @current-map [nx ny]))))))
+          map-utils/orthogonal-offsets)))
+
 (defn- wake-army-check [_unit final-pos current-map]
   (when (near-hostile-city? final-pos current-map)
     {:wake? true :reason :army-found-city}))
@@ -819,20 +833,32 @@
       [nx ny])))
 
 (defn pick-coastline-move
-  "Picks the next coastline move - prefers cells adjacent to land, avoids visited.
-   Randomizes choice, avoids backsteps. Returns nil if no valid moves."
+  "Picks the next coastline move - prefers cells orthogonally adjacent to land (shore hugging),
+   then diagonally adjacent, avoids visited. Randomizes choice, avoids backsteps.
+   Returns nil if no valid moves."
   [pos current-map visited prev-pos]
   (let [all-moves (remove #{prev-pos} (get-valid-coastline-moves pos current-map))
         unvisited-moves (vec (remove visited all-moves))
-        ;; Prefer moves that stay adjacent to land (follow the coast)
+        ;; Prefer moves orthogonally adjacent to land (true shore hugging)
+        orthogonal-coastal (vec (filter #(orthogonally-adjacent-to-land? % current-map) all-moves))
+        unvisited-orthogonal (vec (filter #(orthogonally-adjacent-to-land? % current-map) unvisited-moves))
+        ;; Fallback to any coastal moves (diagonal adjacency)
         coastal-moves (vec (filter #(adjacent-to-land? % current-map) all-moves))
         unvisited-coastal (vec (filter #(adjacent-to-land? % current-map) unvisited-moves))]
     (cond
-      ;; Prefer unvisited coastal moves
+      ;; Prefer unvisited orthogonally coastal moves (best shore hugging)
+      (seq unvisited-orthogonal)
+      (rand-nth unvisited-orthogonal)
+
+      ;; Unvisited diagonally coastal moves
       (seq unvisited-coastal)
       (rand-nth unvisited-coastal)
 
-      ;; Any coastal move (even visited)
+      ;; Visited orthogonally coastal moves
+      (seq orthogonal-coastal)
+      (rand-nth orthogonal-coastal)
+
+      ;; Any coastal move (even visited, diagonal)
       (seq coastal-moves)
       (rand-nth coastal-moves)
 

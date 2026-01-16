@@ -250,4 +250,84 @@
 
   (describe "mode->color for coastline-follow"
     (it "returns green color"
-      (should= config/explore-unit-color (config/mode->color :coastline-follow)))))
+      (should= config/explore-unit-color (config/mode->color :coastline-follow))))
+
+  (describe "orthogonally-adjacent-to-land?"
+    (it "returns true when land is directly north"
+      (let [game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                          (assoc-in [1 2] {:type :land}))]  ; land north of [2 2]
+        (reset! atoms/game-map game-map)
+        (should (movement/orthogonally-adjacent-to-land? [2 2] atoms/game-map))))
+
+    (it "returns true when land is directly south"
+      (let [game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                          (assoc-in [3 2] {:type :land}))]  ; land south of [2 2]
+        (reset! atoms/game-map game-map)
+        (should (movement/orthogonally-adjacent-to-land? [2 2] atoms/game-map))))
+
+    (it "returns true when land is directly east"
+      (let [game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                          (assoc-in [2 3] {:type :land}))]  ; land east of [2 2]
+        (reset! atoms/game-map game-map)
+        (should (movement/orthogonally-adjacent-to-land? [2 2] atoms/game-map))))
+
+    (it "returns true when land is directly west"
+      (let [game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                          (assoc-in [2 1] {:type :land}))]  ; land west of [2 2]
+        (reset! atoms/game-map game-map)
+        (should (movement/orthogonally-adjacent-to-land? [2 2] atoms/game-map))))
+
+    (it "returns false when land is only diagonally adjacent"
+      (let [game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
+                          (assoc-in [1 1] {:type :land}))]  ; land NW of [2 2]
+        (reset! atoms/game-map game-map)
+        (should-not (movement/orthogonally-adjacent-to-land? [2 2] atoms/game-map))))
+
+    (it "returns false when no land is adjacent"
+      (let [game-map (vec (repeat 5 (vec (repeat 5 {:type :sea}))))]
+        (reset! atoms/game-map game-map)
+        (should-not (movement/orthogonally-adjacent-to-land? [2 2] atoms/game-map)))))
+
+  (describe "pick-coastline-move prefers orthogonal shore hugging"
+    (it "prefers move orthogonally adjacent to land over diagonally adjacent"
+      (let [;; Create a sea map with specific land placement:
+            ;; Current: [3 3], two valid moves: [3 4] and [4 4]
+            ;; [3 4] has land orthogonally at [3 5]
+            ;; [4 4] has land only diagonally at [5 5]
+            game-map (-> (vec (repeat 7 (vec (repeat 7 {:type :sea}))))
+                          (assoc-in [3 5] {:type :land})   ; orthogonal to [3 4]
+                          (assoc-in [5 5] {:type :land}))]  ; diagonal to [4 4]
+        (reset! atoms/game-map game-map)
+        ;; From [3 3], both [3 4] and [4 4] are valid sea moves
+        ;; [3 4] is orthogonally adjacent to land at [3 5]
+        ;; [4 4] is only diagonally adjacent to land at [5 5]
+        ;; Should prefer [3 4]
+        (let [moves (set (repeatedly 20 #(movement/pick-coastline-move [3 3] atoms/game-map #{} nil)))]
+          ;; All picked moves should be orthogonally adjacent to land
+          (should (every? #(movement/orthogonally-adjacent-to-land? % atoms/game-map) moves)))))
+
+    (it "randomizes among equally good orthogonal moves"
+      (let [;; Create constrained area with exactly two valid moves from [2 2]:
+            ;; Both [2 1] and [2 3] are orthogonally adjacent to land
+            game-map (-> (vec (repeat 6 (vec (repeat 6 {:type :land}))))
+                          (assoc-in [2 2] {:type :sea})   ; current position
+                          (assoc-in [2 1] {:type :sea})   ; move option 1
+                          (assoc-in [2 3] {:type :sea}))]  ; move option 2
+        ;; Both [2 1] and [2 3] have land orthogonally adjacent (from the land base map)
+        (reset! atoms/game-map game-map)
+        ;; Should pick from both since both are orthogonally adjacent
+        (let [moves (set (repeatedly 20 #(movement/pick-coastline-move [2 2] atoms/game-map #{} nil)))]
+          (should (= #{[2 1] [2 3]} moves)))))
+
+    (it "falls back to diagonal coastal when no orthogonal coastal moves"
+      (let [;; Create a scenario where only diagonal coastal is available
+            ;; [2 2] -> [3 3] with land only at [4 4] (diagonal to [3 3])
+            ;; Surround with land except for a diagonal channel
+            game-map (-> (vec (repeat 7 (vec (repeat 7 {:type :land}))))
+                          (assoc-in [2 2] {:type :sea})   ; current position
+                          (assoc-in [3 3] {:type :sea})   ; only valid move (diagonal)
+                          (assoc-in [4 4] {:type :sea}))]  ; extends channel so [3 3] has diagonal adj land
+        (reset! atoms/game-map game-map)
+        ;; [3 3] is diagonally adjacent to land (at [2 2] borders, [2 3], [3 2], [4 2], [2 4], etc)
+        ;; but not orthogonally adjacent since [2 3], [3 2], [4 3], [3 4] need to be land
+        (should= [3 3] (movement/pick-coastline-move [2 2] atoms/game-map #{} nil))))))

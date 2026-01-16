@@ -217,14 +217,17 @@
                  :when (and tcell (= :land (:type tcell)) (not (:contents tcell)))]
              target))))
 
-(defn- handle-explore-key [coords cell active-unit]
-  (let [is-army-aboard? (movement/is-army-aboard-transport? active-unit)]
+(defn- handle-look-around-key [coords cell active-unit]
+  (let [is-army-aboard? (movement/is-army-aboard-transport? active-unit)
+        near-coast? (movement/adjacent-to-land? coords atoms/game-map)]
     (cond
+      ;; Army (not aboard) - explore mode
       (and (= :army (:type active-unit)) (not is-army-aboard?))
       (do (movement/set-explore-mode coords)
           (game-loop/item-processed)
           true)
 
+      ;; Army aboard transport - disembark to explore
       is-army-aboard?
       (do (when-let [valid-target (find-adjacent-land coords)]
             (let [army-pos (movement/disembark-army-to-explore coords valid-target)]
@@ -232,6 +235,12 @@
               (reset! atoms/message "")
               (reset! atoms/cells-needing-attention [])
               (swap! atoms/player-items #(cons army-pos (rest %)))))
+          true)
+
+      ;; Transport or patrol-boat near coast - coastline follow
+      (movement/coastline-follow-eligible? active-unit near-coast?)
+      (do (movement/set-coastline-follow-mode coords)
+          (game-loop/item-processed)
           true)
 
       :else nil)))
@@ -245,7 +254,7 @@
           :space (handle-space-key coords)
           :u (handle-unload-key coords cell)
           :s (handle-sentry-key coords cell active-unit)
-          :l (handle-explore-key coords cell active-unit)
+          :l (handle-look-around-key coords cell active-unit)
           (handle-unit-movement-key k coords cell))
         (handle-city-production-key k coords cell)))))
 

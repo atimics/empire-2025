@@ -81,7 +81,7 @@
           :let [cell (get-in @atoms/game-map [i j])
                 unit (:contents cell)]
           :when (and unit (= (:owner unit) :player))]
-    (let [steps (get config/unit-speed (:type unit) 1)]
+    (let [steps (or (config/unit-speed (:type unit)) 1)]
       (swap! atoms/game-map assoc-in [i j :contents :steps-remaining] steps))))
 
 (defn wake-airport-fighters
@@ -227,6 +227,11 @@
   [coords]
   (movement/move-explore-unit coords))
 
+(defn move-coastline-unit
+  "Moves a coastline-following unit. Returns nil when done."
+  [coords]
+  (movement/move-coastline-unit coords))
+
 (defn- auto-launch-fighter [coords cell]
   "Auto-launches a fighter from city airport or carrier if flight-path is set.
    Returns new coords if launched, nil otherwise."
@@ -289,6 +294,7 @@
                 (reset! atoms/waiting-for-input true))
               (let [new-coords (case (:mode unit)
                                  :explore (move-explore-unit coords)
+                                 :coastline-follow (move-coastline-unit coords)
                                  :moving (move-current-unit coords)
                                  nil)]
                 (if new-coords

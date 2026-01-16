@@ -2,7 +2,8 @@
   (:require [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.map-utils :as map-utils]
-            [empire.unit-container :as uc]))
+            [empire.unit-container :as uc]
+            [empire.units.dispatcher :as dispatcher]))
 
 (defn is-players?
   "Returns true if the cell is owned by the player."
@@ -33,16 +34,12 @@
   (max (abs (- x2 x1)) (abs (- y2 y1))))
 
 (defn- can-move-to?
-  "Returns true if the unit type can move to the given cell."
+  "Returns true if the unit type can move to the given cell.
+   Delegates terrain validation to unit-specific modules via dispatcher."
   [unit-type cell]
   (and cell
        (nil? (:contents cell))
-       (case unit-type
-         :army (and (= (:type cell) :land)
-                    (not (and (= (:type cell) :city)
-                              (= (:city-status cell) :player))))
-         :fighter true
-         (not= (:type cell) :land)))) ; naval units can't go on land
+       (dispatcher/can-move-to? unit-type cell)))
 
 (defn- get-sidestep-directions
   "Returns candidate sidestep directions given the blocked direction.
@@ -775,6 +772,155 @@
                  (assoc cell :contents (-> unit
                                            (assoc :mode :awake)
                                            (dissoc :explore-steps :visited))))
+          nil)))))
+
+;; Coastline following functions for transports and patrol boats
+
+(defn coastline-follow-eligible?
+  "Returns true if unit can use coastline-follow mode (transport or patrol-boat near coast)."
+  [unit near-coast?]
+  (and near-coast?
+       (#{:transport :patrol-boat} (:type unit))))
+
+(defn set-coastline-follow-mode
+  "Sets a unit to coastline-follow mode with initial state."
+  [coords]
+  (let [cell (get-in @atoms/game-map coords)
+        unit (:contents cell)
+        updated-unit (-> unit
+                         (assoc :mode :coastline-follow
+                                :coastline-steps config/coastline-steps
+                                :start-pos coords
+                                :visited #{coords}
+                                :prev-pos nil)
+                         (dissoc :reason :target))]
+    (swap! atoms/game-map assoc-in coords (assoc cell :contents updated-unit))))
+
+(defn valid-coastline-cell?
+  "Returns true if a cell is valid for coastline movement (sea, no unit)."
+  [cell]
+  (and cell
+       (= :sea (:type cell))
+       (nil? (:contents cell))))
+
+(defn get-valid-coastline-moves
+  "Returns list of valid adjacent sea positions for coastline following."
+  [pos current-map]
+  (let [[x y] pos
+        height (count @current-map)
+        width (count (first @current-map))]
+    (for [[dx dy] map-utils/neighbor-offsets
+          :let [nx (+ x dx)
+                ny (+ y dy)
+                cell (when (and (>= nx 0) (< nx height)
+                                (>= ny 0) (< ny width))
+                       (get-in @current-map [nx ny]))]
+          :when (valid-coastline-cell? cell)]
+      [nx ny])))
+
+(defn pick-coastline-move
+  "Picks the next coastline move - prefers cells adjacent to land, avoids visited.
+   Randomizes choice, avoids backsteps. Returns nil if no valid moves."
+  [pos current-map visited prev-pos]
+  (let [all-moves (remove #{prev-pos} (get-valid-coastline-moves pos current-map))
+        unvisited-moves (vec (remove visited all-moves))
+        ;; Prefer moves that stay adjacent to land (follow the coast)
+        coastal-moves (vec (filter #(adjacent-to-land? % current-map) all-moves))
+        unvisited-coastal (vec (filter #(adjacent-to-land? % current-map) unvisited-moves))]
+    (cond
+      ;; Prefer unvisited coastal moves
+      (seq unvisited-coastal)
+      (rand-nth unvisited-coastal)
+
+      ;; Any coastal move (even visited)
+      (seq coastal-moves)
+      (rand-nth coastal-moves)
+
+      ;; Any unvisited move
+      (seq unvisited-moves)
+      (rand-nth unvisited-moves)
+
+      ;; All visited - allow revisiting (but not backstep)
+      (seq all-moves)
+      (rand-nth (vec all-moves))
+
+      ;; No valid moves - stuck
+      :else nil)))
+
+(defn at-map-edge?
+  "Returns true if position is at the edge of the map."
+  [pos]
+  (let [[x y] pos
+        height (count @atoms/game-map)
+        width (count (first @atoms/game-map))]
+    (or (zero? x) (zero? y)
+        (= x (dec height))
+        (= y (dec width)))))
+
+(defn- adjacent-positions
+  "Returns all adjacent positions to coords."
+  [[x y]]
+  (for [[dx dy] map-utils/neighbor-offsets]
+    [(+ x dx) (+ y dy)]))
+
+(defn- wake-coastline-unit
+  "Wakes a coastline unit with the given reason."
+  [coords reason]
+  (let [cell (get-in @atoms/game-map coords)
+        unit (:contents cell)]
+    (swap! atoms/game-map assoc-in coords
+           (assoc cell :contents (-> unit
+                                     (assoc :mode :awake :reason reason)
+                                     (dissoc :coastline-steps :visited :start-pos :target :prev-pos))))))
+
+(defn- move-coastline-step
+  "Moves a coastline-following unit one step. Returns new coords or nil if done."
+  [coords]
+  (let [cell (get-in @atoms/game-map coords)
+        unit (:contents cell)
+        remaining-steps (dec (:coastline-steps unit config/coastline-steps))
+        visited (or (:visited unit) #{})
+        start-pos (:start-pos unit)
+        prev-pos (:prev-pos unit)
+        traveled-enough? (> (count visited) 5)
+        start-adjacent? (and traveled-enough?
+                             (some #{start-pos} (adjacent-positions coords)))]
+    (cond
+      (at-map-edge? coords)
+      (do (wake-coastline-unit coords :hit-edge) nil)
+
+      start-adjacent?
+      (do (wake-coastline-unit coords :returned-to-start) nil)
+
+      :else
+      (if-let [next-pos (pick-coastline-move coords atoms/game-map visited prev-pos)]
+        (let [next-cell (get-in @atoms/game-map next-pos)
+              steps-exhausted? (<= remaining-steps 0)
+              moved-unit (if steps-exhausted?
+                           (-> unit
+                               (assoc :mode :awake :reason :steps-exhausted)
+                               (dissoc :coastline-steps :visited :start-pos :target :prev-pos))
+                           (-> unit
+                               (assoc :coastline-steps remaining-steps
+                                      :visited (conj visited next-pos)
+                                      :prev-pos coords)))]
+          (swap! atoms/game-map assoc-in coords (dissoc cell :contents))
+          (swap! atoms/game-map assoc-in next-pos (assoc next-cell :contents moved-unit))
+          (update-cell-visibility next-pos (:owner unit))
+          (when-not steps-exhausted? next-pos))
+        (do (wake-coastline-unit coords :blocked) nil)))))
+
+(defn move-coastline-unit
+  "Moves a coastline-following unit based on its speed. Returns nil when done."
+  [coords]
+  (let [unit (:contents (get-in @atoms/game-map coords))
+        speed (config/unit-speed (:type unit))]
+    (loop [current-coords coords
+           steps-left speed]
+      (if (zero? steps-left)
+        nil
+        (if-let [new-coords (move-coastline-step current-coords)]
+          (recur new-coords (dec steps-left))
           nil)))))
 
 (defn add-unit-at

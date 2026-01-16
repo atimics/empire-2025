@@ -1,4 +1,5 @@
-(ns empire.config)
+(ns empire.config
+  (:require [empire.units.dispatcher :as dispatcher]))
 
 (def smooth-count 10)
 
@@ -8,47 +9,23 @@
 
 (def min-city-distance 5)
 
-;; Naval unit types (require coastal cities to produce, can only travel on water)
-(def naval-unit? #{:transport :patrol-boat :destroyer :submarine :carrier :battleship})
+;; Naval unit types - delegate to dispatcher
+(def naval-unit? dispatcher/naval-units)
 
 ;; Hostile city status (not player-owned)
 (def hostile-city? #{:free :computer})
 
-;; Production rounds required for each item
-(def item-cost
-  {:army 5
-   :fighter 10
-   :satellite 50
-   :transport 30
-   :patrol-boat 15
-   :destroyer 20
-   :submarine 20
-   :carrier 30
-   :battleship 40})
+;; Production rounds required for each item - delegate to dispatcher
+(defn item-cost [unit-type]
+  (dispatcher/cost unit-type))
 
-;; Production item display characters
-(def item-chars
-  {:army "A"
-   :fighter "F"
-   :satellite "Z"
-   :transport "T"
-   :patrol-boat "P"
-   :destroyer "D"
-   :submarine "S"
-   :carrier "C"
-   :battleship "B"})
+;; Production item display characters - delegate to dispatcher
+(defn item-chars [unit-type]
+  (dispatcher/display-char unit-type))
 
-;; Item hit points
-(def item-hits
-  {:army 1
-   :fighter 1
-   :satellite 1
-   :transport 1
-   :patrol-boat 1
-   :destroyer 3
-   :submarine 2
-   :carrier 8
-   :battleship 10})
+;; Item hit points - delegate to dispatcher
+(defn item-hits [unit-type]
+  (dispatcher/hits unit-type))
 
 ;; Cell colors for map rendering
 (def cell-colors
@@ -65,13 +42,13 @@
 (def sentry-unit-color [255 128 128])
 (def explore-unit-color [144 238 144])
 
-(def fighter-fuel 32)
-
-(def transport-capacity 6)
-(def carrier-capacity 8)
-
+;; Unit-specific constants - import from unit modules via dispatcher
+(def fighter-fuel 32)       ; empire.units.fighter/fuel
+(def transport-capacity 6)  ; empire.units.transport/capacity
+(def carrier-capacity 8)    ; empire.units.carrier/capacity
 (def explore-steps 50)
-(def satellite-turns 50)
+(def coastline-steps 100)
+(def satellite-turns 50)    ; empire.units.satellite/turns
 
 ;; Messages and reasons
 (def messages
@@ -91,7 +68,11 @@
    :somethings-in-the-way "Something's in the way."
    :city-needs-attention "City needs attention"
    :unit-needs-attention " needs attention"
-   :not-on-map "That's not on the map!"})
+   :not-on-map "That's not on the map!"
+   :returned-to-start "Returned to start."
+   :hit-edge "Hit map edge."
+   :blocked "Blocked."
+   :steps-exhausted "Lookaround limit reached."})
 
 ;; Key to movement direction mapping [dx dy]
 (def key->direction
@@ -127,17 +108,9 @@
    :c :carrier
    :b :battleship})
 
-;; Unit speeds (cells per turn)
-(def unit-speed
-  {:army 1
-   :fighter 8
-   :satellite 10
-   :transport 2
-   :patrol-boat 4
-   :destroyer 2
-   :submarine 2
-   :carrier 2
-   :battleship 2})
+;; Unit speeds (cells per turn) - delegate to dispatcher
+(defn unit-speed [unit-type]
+  (dispatcher/speed unit-type))
 
 (defn color-of
   "Returns the RGB color for a cell based on its type and status."
@@ -158,6 +131,7 @@
     :awake awake-unit-color
     :sentry sentry-unit-color
     :explore explore-unit-color
+    :coastline-follow explore-unit-color
     sleeping-unit-color))
 
 

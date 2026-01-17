@@ -3,7 +3,7 @@
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.movement.explore :refer :all]
-            [empire.test-utils :refer [build-test-map]]))
+            [empire.test-utils :refer [build-test-map set-test-unit]]))
 
 (describe "valid-explore-cell?"
   (it "returns true for land cell without unit"
@@ -51,7 +51,7 @@
 
 (describe "adjacent-to-unexplored?"
   (it "returns true when adjacent to unexplored cell"
-    (reset! atoms/player-map @(build-test-map ["#."
+    (reset! atoms/player-map @(build-test-map ["#-"
                                                "##"]))
     (should (adjacent-to-unexplored? [0 0])))
 
@@ -66,9 +66,9 @@
     (let [game-map (build-test-map ["###"
                                     "###"
                                     "###"])]
-      (reset! atoms/player-map @(build-test-map ["##."
-                                                 "##."
-                                                 "##."]))
+      (reset! atoms/player-map @(build-test-map ["##-"
+                                                 "##-"
+                                                 "##-"]))
       ;; From [1 1], moves to column 2 should be adjacent to unexplored
       (let [moves (get-unexplored-explore-moves [1 1] game-map)]
         (should (some #{[0 2]} moves))
@@ -80,7 +80,7 @@
     (let [game-map (build-test-map ["###"
                                     "###"
                                     "###"])]
-      (reset! atoms/player-map @(build-test-map ["##."
+      (reset! atoms/player-map @(build-test-map ["##-"
                                                  "###"
                                                  "###"]))
       (let [move (pick-explore-move [1 1] game-map #{})]
@@ -115,8 +115,8 @@
       (should= #{[0 0]} (:visited unit))))
 
   (it "removes reason and target when setting explore mode"
-    (reset! atoms/game-map (assoc-in @(build-test-map ["A"]) [0 0 :contents]
-                                     {:type :army :owner :player :reason :some-reason :target [5 5]}))
+    (reset! atoms/game-map @(build-test-map ["A"]))
+    (set-test-unit atoms/game-map "A" :reason :some-reason :target [5 5])
     (set-explore-mode [0 0])
     (let [unit (get-in @atoms/game-map [0 0 :contents])]
       (should= :explore (:mode unit))
@@ -125,8 +125,8 @@
 
 (describe "move-explore-unit"
   (it "wakes up after explore-steps exhausted"
-    (reset! atoms/game-map (assoc-in @(build-test-map ["##"]) [0 0 :contents]
-                                     {:type :army :mode :explore :owner :player :explore-steps 1 :visited #{}}))
+    (reset! atoms/game-map @(build-test-map ["A#"]))
+    (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 1 :visited #{})
     (reset! atoms/player-map @(build-test-map ["##"]))
     (move-explore-unit [0 0])
     (let [unit (get-in @atoms/game-map [0 0 :contents])]
@@ -135,11 +135,10 @@
       (should-be-nil (:visited unit))))
 
   (it "wakes up when stuck with no valid moves"
-    (reset! atoms/game-map (assoc-in @(build-test-map ["~~~"
-                                                       "~#~"
-                                                       "~~~"])
-                                     [1 1 :contents]
-                                     {:type :army :mode :explore :owner :player :explore-steps 10 :visited #{}}))
+    (reset! atoms/game-map @(build-test-map ["~~~"
+                                             "~A~"
+                                             "~~~"]))
+    (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 10 :visited #{})
     (reset! atoms/player-map @(build-test-map ["~~~"
                                                "~#~"
                                                "~~~"]))
@@ -148,8 +147,8 @@
       (should= :awake (:mode unit))))
 
   (it "wakes up when finding hostile city"
-    (reset! atoms/game-map (assoc-in @(build-test-map ["##X"]) [0 0 :contents]
-                                     {:type :army :mode :explore :owner :player :explore-steps 10 :visited #{}}))
+    (reset! atoms/game-map @(build-test-map ["A#X"]))
+    (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 10 :visited #{})
     (reset! atoms/player-map @(build-test-map ["##X"]))
     (move-explore-unit [0 0])
     ;; After moving to [0 1] which is adjacent to hostile city at [0 2], unit should wake

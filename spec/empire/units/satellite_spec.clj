@@ -1,7 +1,8 @@
 (ns empire.units.satellite-spec
   (:require [speclj.core :refer :all]
             [empire.units.satellite :as satellite]
-            [empire.atoms :as atoms]))
+            [empire.atoms :as atoms]
+            [empire.test-utils :refer [build-test-map]]))
 
 (describe "satellite unit module"
   (describe "configuration"
@@ -68,7 +69,16 @@
 
   (describe "move-one-step"
     (before
-      (reset! atoms/game-map (vec (repeat 10 (vec (repeat 10 {:type :land})))))
+      (reset! atoms/game-map @(build-test-map ["##########"
+                                               "##########"
+                                               "##########"
+                                               "##########"
+                                               "##########"
+                                               "##########"
+                                               "##########"
+                                               "##########"
+                                               "##########"
+                                               "##########"]))
       (reset! atoms/player-map (vec (repeat 10 (vec (repeat 10 nil))))))
 
     (it "does not move without target"

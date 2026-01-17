@@ -97,7 +97,7 @@
                                     "#~~"
                                     "#~~"])]
       ;; player-map with nil at [0 0] means unexplored
-      (reset! atoms/player-map @(build-test-map [".~~"
+      (reset! atoms/player-map @(build-test-map ["-~~"
                                                  "#~~"
                                                  "#~~"]))
       (dotimes [_ 10]
@@ -117,7 +117,7 @@
       ;; No cells are orthogonally adjacent to land from [1 1]
       (reset! atoms/player-map @(build-test-map ["~~~"
                                                  "~~~"
-                                                 ".~#"]))
+                                                 "-~#"]))
       (dotimes [_ 10]
         (let [move (pick-coastline-move [1 1] game-map #{} nil)]
           ;; Should pick [2 1] - diagonal coastal and adjacent to unexplored [2 0]
@@ -211,7 +211,7 @@
       ;; But [1 1], [1 3], [3 1], [3 3] (diagonals of [2 2]) are sea and diagonally adjacent to corners
       ;; Actually [1 1] is diagonally adjacent to [0 0] (land), so [1 1] is coastal (diagonal)
       ;; We need unexplored cells: make [0 0] unexplored in player-map
-      (reset! atoms/player-map @(build-test-map [".~~~#"
+      (reset! atoms/player-map @(build-test-map ["-~~~#"
                                                  "~~~~~"
                                                  "~~~~~"
                                                  "~~~~~"

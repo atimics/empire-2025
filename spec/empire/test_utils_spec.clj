@@ -24,8 +24,8 @@
   (it "converts * to land with waypoint marker"
     (should= [[{:type :land :waypoint true}]] @(build-test-map ["*"])))
 
-  (it "converts . to unexplored (nil)"
-    (should= [[nil]] @(build-test-map ["."])))
+  (it "converts - to unexplored (nil)"
+    (should= [[nil]] @(build-test-map ["-"])))
 
   (it "converts A to army on land"
     (should= [[{:type :land :contents {:type :army :owner :player}}]]
@@ -62,6 +62,10 @@
   (it "converts J to fighter over sea"
     (should= [[{:type :sea :contents {:type :fighter :owner :player}}]]
              @(build-test-map ["J"])))
+
+  (it "converts V to satellite over land"
+    (should= [[{:type :land :contents {:type :satellite :owner :player}}]]
+             @(build-test-map ["V"])))
 
   (it "builds multi-cell rows"
     (should= [[{:type :land} {:type :land} {:type :sea} {:type :sea}]]

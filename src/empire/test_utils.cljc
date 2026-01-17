@@ -4,7 +4,7 @@
   (case c
     \~ {:type :sea}
     \# {:type :land}
-    \. nil
+    (\. \-) nil
     \+ {:type :city :city-status :free}
     \O {:type :city :city-status :player}
     \X {:type :city :city-status :computer}
@@ -18,6 +18,7 @@
     \S {:type :sea :contents {:type :submarine :owner :player}}
     \F {:type :land :contents {:type :fighter :owner :player}}
     \J {:type :sea :contents {:type :fighter :owner :player}}
+    \V {:type :land :contents {:type :satellite :owner :player}}
     (throw (ex-info (str "Unknown map char: " c) {:char c}))))
 
 (defn build-test-map [strings]
@@ -34,7 +35,8 @@
    \B :battleship
    \S :submarine
    \F :fighter
-   \J :fighter})
+   \J :fighter
+   \V :satellite})
 
 (defn- parse-unit-spec [unit-spec]
   (let [c (first unit-spec)

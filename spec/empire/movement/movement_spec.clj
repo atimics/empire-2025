@@ -4,6 +4,7 @@
     [empire.config :as config]
     [empire.game-loop :as game-loop]
     [empire.movement.movement :refer :all]
+    [empire.test-utils :refer [build-test-map set-test-unit]]
     [speclj.core :refer :all]))
 
 (defn move-until-done
@@ -16,306 +17,582 @@
 (describe "movement"
   (context "move-current-unit"
     (it "does nothing if no unit"
-      (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                            (assoc-in [4 4] {:type :land :contents nil})
-                            (assoc-in [4 5] {:type :land}))]
-        (reset! atoms/game-map initial-map)
-        (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-        (game-loop/move-current-unit [4 4])
-        (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+      (reset! atoms/game-map @(build-test-map ["---------"
+                                               "---------"
+                                               "---------"
+                                               "---------"
+                                               "----##---"
+                                               "---------"
+                                               "---------"
+                                               "---------"
+                                               "---------"]))
+      (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+      (game-loop/move-current-unit [4 4])
+      (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
     (context "single moves that awaken the unit"
       (it "moves a unit to its target and sets mode to awake"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [4 5] :steps-remaining 1}})
-                              (assoc-in [4 5] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
-          (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----A#---"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [4 5] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
+        (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit up and sets mode to awake"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [4 3] :steps-remaining 1}})
-                              (assoc-in [4 3] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [4 3]))
-          (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---#A----"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [4 3] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [4 3]))
+        (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit left and sets mode to awake"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [3 4] :steps-remaining 1}})
-                              (assoc-in [3 4] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [3 4]))
-          (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----#----"
+                                                 "----A----"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [3 4] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [3 4]))
+        (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit right and sets mode to awake"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [5 4] :steps-remaining 1}})
-                              (assoc-in [5 4] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [5 4]))
-          (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----A----"
+                                                 "----#----"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [5 4] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [5 4]))
+        (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit up-left and sets mode to awake"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [3 3] :steps-remaining 1}})
-                              (assoc-in [3 3] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [3 3]))
-          (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---#-----"
+                                                 "----A----"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [3 3] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [3 3]))
+        (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit up-right and sets mode to awake"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [5 3] :steps-remaining 1}})
-                              (assoc-in [5 3] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [5 3]))
-          (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----A----"
+                                                 "---#-----"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [5 3] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [5 3]))
+        (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit down-left and sets mode to awake"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [3 5] :steps-remaining 1}})
-                              (assoc-in [3 5] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [3 5]))
-          (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "-----#---"
+                                                 "----A----"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [3 5] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [3 5]))
+        (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit down-right and sets mode to awake"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [5 5] :steps-remaining 1}})
-                              (assoc-in [5 5] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [5 5]))
-          (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----A----"
+                                                 "-----#---"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [5 5] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [5 5]))
+        (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "wakes up a unit if the next move would be into sea"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [4 5] :steps-remaining 1}})
-                              (assoc-in [4 5] {:type :sea}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player :reason :cant-move-into-water :steps-remaining 1}} (get-in @atoms/game-map [4 4]))
-          (should= {:type :sea} (get-in @atoms/game-map [4 5]))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----A~---"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [4 5] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land :contents {:type :army :mode :awake :owner :player :reason :cant-move-into-water :steps-remaining 1}} (get-in @atoms/game-map [4 4]))
+        (should= {:type :sea} (get-in @atoms/game-map [4 5])))
 
       (it "wakes up a unit if the next move would be into a friendly city"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [4 5] :steps-remaining 1}})
-                              (assoc-in [4 5] {:type :city :city-status :player}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player :reason :cant-move-into-city :steps-remaining 1}} (get-in @atoms/game-map [4 4]))
-          (should= {:type :city :city-status :player} (get-in @atoms/game-map [4 5]))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----AO---"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [4 5] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land :contents {:type :army :mode :awake :owner :player :reason :cant-move-into-city :steps-remaining 1}} (get-in @atoms/game-map [4 4]))
+        (should= {:type :city :city-status :player} (get-in @atoms/game-map [4 5])))
 
       (it "wakes up a unit when moving near an enemy city"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [4 6] :steps-remaining 1}})
-                              (assoc-in [4 5] {:type :land})
-                              (assoc-in [4 6] {:type :city :city-status :computer :contents nil}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player :reason :army-found-city :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
-          (should= {:type :city :city-status :computer :contents nil} (get-in @atoms/game-map [4 6]))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----A#X--"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [4 6] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :awake :owner :player :reason :army-found-city :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
+        (should= {:type :city :city-status :computer} (get-in @atoms/game-map [4 6])))
       )
 
     (context "visibility updates"
       (it "reveals cells near player-owned units"
-        (let [game-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                           (assoc-in [4 4] {:type :land :contents {:type :army :mode :awake :owner :player}})
-                           (assoc-in [4 5] {:type :land})
-                           (assoc-in [5 4] {:type :land}))]
-          (reset! atoms/game-map game-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (update-combatant-map atoms/player-map :player)
-          ;; Check that the unit's cell and neighbors are revealed
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player}} (get-in @atoms/player-map [4 4]))
-          (should= {:type :land} (get-in @atoms/player-map [4 5]))
-          (should= {:type :land} (get-in @atoms/player-map [5 4]))
-          (should= nil (get-in @atoms/player-map [3 4]))
-          (should= nil (get-in @atoms/player-map [4 3]))
-          (should= nil (get-in @atoms/player-map [5 5]))
-          (should= nil (get-in @atoms/player-map [3 3]))
-          (should= nil (get-in @atoms/player-map [5 3]))
-          (should= nil (get-in @atoms/player-map [3 5]))
-          ;; Check that distant cells are not revealed
-          (should= nil (get-in @atoms/player-map [0 0]))
-          (should= nil (get-in @atoms/player-map [8 8]))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----A#---"
+                                                 "----#----"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :awake)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (update-combatant-map atoms/player-map :player)
+        ;; Check that the unit's cell and neighbors are revealed
+        (should= {:type :land :contents {:type :army :mode :awake :owner :player}} (get-in @atoms/player-map [4 4]))
+        (should= {:type :land} (get-in @atoms/player-map [4 5]))
+        (should= {:type :land} (get-in @atoms/player-map [5 4]))
+        (should= nil (get-in @atoms/player-map [3 4]))
+        (should= nil (get-in @atoms/player-map [4 3]))
+        (should= nil (get-in @atoms/player-map [5 5]))
+        (should= nil (get-in @atoms/player-map [3 3]))
+        (should= nil (get-in @atoms/player-map [5 3]))
+        (should= nil (get-in @atoms/player-map [3 5]))
+        ;; Check that distant cells are not revealed
+        (should= nil (get-in @atoms/player-map [0 0]))
+        (should= nil (get-in @atoms/player-map [8 8])))
       )
 
     (context "multi-step moves take one step towards the target, keeping mode as moving"
       (it "moves a unit one step right towards target at radius 4"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [8 4] :steps-remaining 1}})
-                              (assoc-in [5 4] {:type :land})
-                              (assoc-in [8 4] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [8 4] :steps-remaining 0}} (get-in @atoms/game-map [5 4]))
-          (should= {:type :land} (get-in @atoms/game-map [8 4]))
-          (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----A----"
+                                                 "----#----"
+                                                 "---------"
+                                                 "---------"
+                                                 "----#----"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [8 4] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [8 4] :steps-remaining 0}} (get-in @atoms/game-map [5 4]))
+        (should= {:type :land} (get-in @atoms/game-map [8 4]))
+        (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit one step left towards target at radius 4"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [0 4] :steps-remaining 1}})
-                              (assoc-in [3 4] {:type :land})
-                              (assoc-in [0 4] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [0 4] :steps-remaining 0}} (get-in @atoms/game-map [3 4]))
-          (should= {:type :land} (get-in @atoms/game-map [0 4]))
-          (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["----#----"
+                                                 "---------"
+                                                 "---------"
+                                                 "----#----"
+                                                 "----A----"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [0 4] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [0 4] :steps-remaining 0}} (get-in @atoms/game-map [3 4]))
+        (should= {:type :land} (get-in @atoms/game-map [0 4]))
+        (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit one step up towards target at radius 4"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [4 0] :steps-remaining 1}})
-                              (assoc-in [4 3] {:type :land})
-                              (assoc-in [4 0] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [4 0] :steps-remaining 0}} (get-in @atoms/game-map [4 3]))
-          (should= {:type :land} (get-in @atoms/game-map [4 0]))
-          (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "#--#A----"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [4 0] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [4 0] :steps-remaining 0}} (get-in @atoms/game-map [4 3]))
+        (should= {:type :land} (get-in @atoms/game-map [4 0]))
+        (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit one step down towards target at radius 4"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [4 8] :steps-remaining 1}})
-                              (assoc-in [4 5] {:type :land})
-                              (assoc-in [4 8] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [4 8] :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
-          (should= {:type :land} (get-in @atoms/game-map [4 8]))
-          (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----A#--#"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [4 8] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [4 8] :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
+        (should= {:type :land} (get-in @atoms/game-map [4 8]))
+        (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit one step up-right towards target at radius 4"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [8 0] :steps-remaining 1}})
-                              (assoc-in [5 3] {:type :land})
-                              (assoc-in [8 0] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [8 0] :steps-remaining 0}} (get-in @atoms/game-map [5 3]))
-          (should= {:type :land} (get-in @atoms/game-map [8 0]))
-          (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----A----"
+                                                 "---#-----"
+                                                 "---------"
+                                                 "---------"
+                                                 "#--------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [8 0] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [8 0] :steps-remaining 0}} (get-in @atoms/game-map [5 3]))
+        (should= {:type :land} (get-in @atoms/game-map [8 0]))
+        (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit one step up-left towards target at radius 4"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [0 0] :steps-remaining 1}})
-                              (assoc-in [3 3] {:type :land})
-                              (assoc-in [0 0] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [0 0] :steps-remaining 0}} (get-in @atoms/game-map [3 3]))
-          (should= {:type :land} (get-in @atoms/game-map [0 0]))
-          (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["#--------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---#-----"
+                                                 "----A----"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [0 0] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [0 0] :steps-remaining 0}} (get-in @atoms/game-map [3 3]))
+        (should= {:type :land} (get-in @atoms/game-map [0 0]))
+        (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit one step down-right towards target at radius 4"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [8 8] :steps-remaining 1}})
-                              (assoc-in [5 5] {:type :land})
-                              (assoc-in [8 8] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [8 8] :steps-remaining 0}} (get-in @atoms/game-map [5 5]))
-          (should= {:type :land} (get-in @atoms/game-map [8 8]))
-          (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----A----"
+                                                 "-----#---"
+                                                 "---------"
+                                                 "---------"
+                                                 "--------#"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [8 8] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [8 8] :steps-remaining 0}} (get-in @atoms/game-map [5 5]))
+        (should= {:type :land} (get-in @atoms/game-map [8 8]))
+        (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit one step down-left towards target at radius 4"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [0 8] :steps-remaining 1}})
-                              (assoc-in [3 5] {:type :land})
-                              (assoc-in [0 8] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [0 8] :steps-remaining 0}} (get-in @atoms/game-map [3 5]))
-          (should= {:type :land} (get-in @atoms/game-map [0 8]))
-          (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map))))))
+        (reset! atoms/game-map @(build-test-map ["--------#"
+                                                 "---------"
+                                                 "---------"
+                                                 "-----#---"
+                                                 "----A----"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [0 8] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [0 8] :steps-remaining 0}} (get-in @atoms/game-map [3 5]))
+        (should= {:type :land} (get-in @atoms/game-map [0 8]))
+        (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
       )
 
     (context "multiple steps"
       (it "moves a unit two steps towards target over two calls"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :land
-                                               :contents {:type :army :mode :moving :owner :player :target [4 6] :steps-remaining 1}})
-                              (assoc-in [4 5] {:type :land})
-                              (assoc-in [4 6] {:type :land}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          (game-loop/move-current-unit [4 4])
-          ;; After first move, unit at [4 5], still moving
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [4 6] :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
-          (should= {:type :land} (get-in @atoms/game-map [4 6]))
-          ;; Give the unit another step and call again
-          (swap! atoms/game-map assoc-in [4 5 :contents :steps-remaining] 1)
-          (game-loop/move-current-unit [4 5])
-          ;; After second move, unit at [4 6], awake
-          (should= {:type :land} (get-in @atoms/game-map [4 4]))
-          (should= {:type :land} (get-in @atoms/game-map [4 5]))
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [4 6]))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----A##--"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [4 6] :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (game-loop/move-current-unit [4 4])
+        ;; After first move, unit at [4 5], still moving
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [4 6] :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
+        (should= {:type :land} (get-in @atoms/game-map [4 6]))
+        ;; Give the unit another step and call again
+        (swap! atoms/game-map assoc-in [4 5 :contents :steps-remaining] 1)
+        (game-loop/move-current-unit [4 5])
+        ;; After second move, unit at [4 6], awake
+        (should= {:type :land} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land} (get-in @atoms/game-map [4 5]))
+        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [4 6])))
       )
 
     (describe "is-computers?"
@@ -358,48 +635,63 @@
 
     (describe "wake-after-move default case"
       (it "returns default values for naval units like destroyer"
-        (let [initial-map (-> (vec (repeat 9 (vec (repeat 9 nil))))
-                              (assoc-in [4 4] {:type :sea :contents {:type :destroyer :mode :moving :owner :player :target [4 5] :hits 3 :steps-remaining 1}})
-                              (assoc-in [4 5] {:type :sea}))]
-          (reset! atoms/game-map initial-map)
-          (reset! atoms/player-map (vec (repeat 9 (vec (repeat 9 nil)))))
-          ;; Destroyer moving to its target should wake normally
-          (game-loop/move-current-unit [4 4])
-          (let [destroyer (:contents (get-in @atoms/game-map [4 5]))]
-            (should= :destroyer (:type destroyer))
-            (should= :awake (:mode destroyer))))))
+        (reset! atoms/game-map @(build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----D~---"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "D" :mode :moving :target [4 5] :hits 3 :steps-remaining 1)
+        (reset! atoms/player-map @(build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        ;; Destroyer moving to its target should wake normally
+        (game-loop/move-current-unit [4 4])
+        (let [destroyer (:contents (get-in @atoms/game-map [4 5]))]
+          (should= :destroyer (:type destroyer))
+          (should= :awake (:mode destroyer)))))
 
     (describe "explore movement helpers"
       (it "get-unexplored-explore-moves returns moves adjacent to unexplored"
-        (let [game-map (-> (vec (repeat 5 (vec (repeat 5 nil))))
-                           (assoc-in [2 2] {:type :land})
-                           (assoc-in [2 3] {:type :land})
-                           (assoc-in [3 2] {:type :land}))
-              player-map (-> (vec (repeat 5 (vec (repeat 5 nil))))
-                             (assoc-in [2 2] {:type :land})
-                             (assoc-in [2 3] {:type :land}))]
-          (reset! atoms/game-map game-map)
-          (reset! atoms/player-map player-map)
-          ;; [3 2] is unexplored in player-map, so moves from [2 2] that are adjacent to unexplored
-          (let [moves (get-unexplored-explore-moves [2 2] atoms/game-map)]
-            (should (some #{[3 2]} moves)))))
+        (reset! atoms/game-map @(build-test-map ["-----"
+                                                 "-----"
+                                                 "--##-"
+                                                 "--#--"
+                                                 "-----"]))
+        (reset! atoms/player-map @(build-test-map ["-----"
+                                                   "-----"
+                                                   "--##-"
+                                                   "-----"
+                                                   "-----"]))
+        ;; [3 2] is unexplored in player-map, so moves from [2 2] that are adjacent to unexplored
+        (let [moves (get-unexplored-explore-moves [2 2] atoms/game-map)]
+          (should (some #{[3 2]} moves))))
 
       (it "pick-explore-move returns visited cell when all cells visited"
-        (let [game-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
-                           (assoc-in [2 2] {:type :land})
-                           (assoc-in [2 3] {:type :land})
-                           (assoc-in [3 2] {:type :land}))
-              player-map (-> (vec (repeat 5 (vec (repeat 5 {:type :sea}))))
-                             (assoc-in [2 2] {:type :land})
-                             (assoc-in [2 3] {:type :land})
-                             (assoc-in [3 2] {:type :land}))]
-          (reset! atoms/game-map game-map)
-          (reset! atoms/player-map player-map)
-          ;; All valid moves are visited
-          (let [visited #{[2 3] [3 2]}
-                move (pick-explore-move [2 2] atoms/game-map visited)]
-            ;; Should still return a move even though all are visited
-            (should (some #{move} [[2 3] [3 2]]))))))
+        (reset! atoms/game-map @(build-test-map ["~~~~~"
+                                                 "~~~~~"
+                                                 "~~##~"
+                                                 "~~#~~"
+                                                 "~~~~~"]))
+        (reset! atoms/player-map @(build-test-map ["~~~~~"
+                                                   "~~~~~"
+                                                   "~~##~"
+                                                   "~~#~~"
+                                                   "~~~~~"]))
+        ;; All valid moves are visited
+        (let [visited #{[2 3] [3 2]}
+              move (pick-explore-move [2 2] atoms/game-map visited)]
+          ;; Should still return a move even though all are visited
+          (should (some #{move} [[2 3] [3 2]])))))
     )
   )
 
@@ -429,7 +721,15 @@
 
 (describe "add-unit-at"
   (before
-    (reset! atoms/game-map (vec (repeat 9 (vec (repeat 9 {:type :land}))))))
+    (reset! atoms/game-map @(build-test-map ["#########"
+                                             "#########"
+                                             "#########"
+                                             "#########"
+                                             "#########"
+                                             "#########"
+                                             "#########"
+                                             "#########"
+                                             "#########"])))
 
   (it "adds army unit at empty cell"
     (add-unit-at [3 4] :army)
@@ -452,7 +752,15 @@
 
 (describe "wake-at"
   (before
-    (reset! atoms/game-map (vec (repeat 9 (vec (repeat 9 {:type :land})))))
+    (reset! atoms/game-map @(build-test-map ["#########"
+                                             "#########"
+                                             "#########"
+                                             "#########"
+                                             "#########"
+                                             "#########"
+                                             "#########"
+                                             "#########"
+                                             "#########"]))
     (reset! atoms/production {}))
 
   (it "wakes a sleeping unit"

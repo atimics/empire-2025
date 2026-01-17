@@ -3,7 +3,7 @@
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.movement.coastline :refer :all]
-            [empire.test-utils :refer [build-test-map]]))
+            [empire.test-utils :refer [build-test-map set-test-unit]]))
 
 (describe "coastline-follow-eligible?"
   (it "returns true for transport near coast"
@@ -287,8 +287,8 @@
       (should-be-nil (:prev-pos unit))))
 
   (it "removes reason and target"
-    (reset! atoms/game-map (assoc-in @(build-test-map ["T"]) [0 0 :contents]
-                                     {:type :transport :owner :player :reason :some-reason :target [5 5]}))
+    (reset! atoms/game-map @(build-test-map ["T"]))
+    (set-test-unit atoms/game-map "T" :reason :some-reason :target [5 5])
     (set-coastline-follow-mode [0 0])
     (let [unit (get-in @atoms/game-map [0 0 :contents])]
       (should-be-nil (:reason unit))
@@ -296,51 +296,54 @@
 
 (describe "move-coastline-unit"
   (it "moves transport along coastline"
-    (let [game-map (assoc-in @(build-test-map ["Lssss"
-                                               "Lssss"
-                                               "Lssss"
+    (reset! atoms/game-map @(build-test-map ["Lssss"
+                                             "Lssss"
+                                             "LTsss"
+                                             "sssss"
+                                             "sssss"]))
+    (set-test-unit atoms/game-map "T"
+                   :mode :coastline-follow
+                   :coastline-steps 50
+                   :start-pos [2 1]
+                   :visited #{[2 1]}
+                   :prev-pos nil)
+    (reset! atoms/player-map @(build-test-map ["sssss"
                                                "sssss"
-                                               "sssss"])
-                             [2 1 :contents]
-                             {:type :transport :mode :coastline-follow :owner :player
-                              :coastline-steps 50 :start-pos [2 1] :visited #{[2 1]} :prev-pos nil})]
-      (reset! atoms/game-map game-map)
-      (reset! atoms/player-map @(build-test-map ["sssss"
-                                                 "sssss"
-                                                 "sssss"
-                                                 "sssss"
-                                                 "sssss"]))
-      (move-coastline-unit [2 1])
-      (should-be-nil (:contents (get-in @atoms/game-map [2 1])))))
+                                               "sssss"
+                                               "sssss"
+                                               "sssss"]))
+    (move-coastline-unit [2 1])
+    (should-be-nil (:contents (get-in @atoms/game-map [2 1]))))
 
   (it "wakes up when blocked"
-    (let [game-map (assoc-in @(build-test-map ["LLL"
-                                               "LsL"
-                                               "LLL"])
-                             [1 1 :contents]
-                             {:type :transport :mode :coastline-follow :owner :player
-                              :coastline-steps 50 :start-pos [1 1] :visited #{[1 1]} :prev-pos nil})]
-      (reset! atoms/game-map game-map)
-      (reset! atoms/player-map game-map)
-      (move-coastline-unit [1 1])
-      (let [unit (get-in @atoms/game-map [1 1 :contents])]
-        (should= :awake (:mode unit))
-        (should= :blocked (:reason unit)))))
+    (reset! atoms/game-map @(build-test-map ["LLL"
+                                             "LTL"
+                                             "LLL"]))
+    (set-test-unit atoms/game-map "T"
+                   :mode :coastline-follow
+                   :coastline-steps 50
+                   :start-pos [1 1]
+                   :visited #{[1 1]}
+                   :prev-pos nil)
+    (reset! atoms/player-map @atoms/game-map)
+    (move-coastline-unit [1 1])
+    (let [unit (get-in @atoms/game-map [1 1 :contents])]
+      (should= :awake (:mode unit))
+      (should= :blocked (:reason unit))))
 
   (it "wakes up when returning to start position after traveling"
     ;; Create a small loop where unit can return to start after 5+ moves
-    (reset! atoms/game-map
-            (assoc-in @(build-test-map ["Lsss"
-                                        "LsLs"
-                                        "Lsss"
-                                        "LLLL"])
-                      [1 1]
-                      {:type :sea :contents {:type :transport :mode :coastline-follow :owner :player
-                                             :coastline-steps 50
-                                             :start-pos [0 1]
-                                             ;; Simulating having traveled 6+ cells, now adjacent to start
-                                             :visited #{[0 1] [0 2] [0 3] [1 3] [2 3] [2 2] [2 1]}
-                                             :prev-pos [2 1]}}))
+    (reset! atoms/game-map @(build-test-map ["Lsss"
+                                             "LTLs"
+                                             "Lsss"
+                                             "LLLL"]))
+    (set-test-unit atoms/game-map "T"
+                   :mode :coastline-follow
+                   :coastline-steps 50
+                   :start-pos [0 1]
+                   ;; Simulating having traveled 6+ cells, now adjacent to start
+                   :visited #{[0 1] [0 2] [0 3] [1 3] [2 3] [2 2] [2 1]}
+                   :prev-pos [2 1])
     (reset! atoms/player-map @atoms/game-map)
     (move-coastline-unit [1 1])
     ;; Unit should wake because it's adjacent to start-pos [0 1] and visited > 5
@@ -350,16 +353,15 @@
 
   (it "wakes up when hitting map edge (started away from edge)"
     ;; Unit starts away from edge, moves to edge
-    (reset! atoms/game-map
-            (assoc-in @(build-test-map ["sss"
-                                        "Lss"
-                                        "Lss"])
-                      [1 1]
-                      {:type :sea :contents {:type :transport :mode :coastline-follow :owner :player
-                                             :coastline-steps 50
-                                             :start-pos [1 1]  ;; Started at [1 1], not at edge
-                                             :visited #{[1 1]}
-                                             :prev-pos nil}}))
+    (reset! atoms/game-map @(build-test-map ["sss"
+                                             "LTs"
+                                             "Lss"]))
+    (set-test-unit atoms/game-map "T"
+                   :mode :coastline-follow
+                   :coastline-steps 50
+                   :start-pos [1 1]  ;; Started at [1 1], not at edge
+                   :visited #{[1 1]}
+                   :prev-pos nil)
     (reset! atoms/player-map @atoms/game-map)
     (move-coastline-unit [1 1])
     ;; Unit should move to edge (row 0) and wake
@@ -372,23 +374,22 @@
 
   (it "wakes up when steps exhausted"
     ;; Large map so unit doesn't hit edge - unit starts in middle, not at edge
-    (reset! atoms/game-map
-            (assoc-in @(build-test-map ["Lsssssssss"
-                                        "Lsssssssss"
-                                        "Lsssssssss"
-                                        "Lsssssssss"
-                                        "Lsssssssss"
-                                        "Lsssssssss"
-                                        "Lsssssssss"
-                                        "Lsssssssss"
-                                        "Lsssssssss"
-                                        "Lsssssssss"])
-                      [5 1]
-                      {:type :sea :contents {:type :transport :mode :coastline-follow :owner :player
-                                             :coastline-steps 1  ;; Only 1 step left
-                                             :start-pos [5 1]    ;; Started in middle, not at edge
-                                             :visited #{[5 1]}
-                                             :prev-pos nil}}))
+    (reset! atoms/game-map @(build-test-map ["Lsssssssss"
+                                             "Lsssssssss"
+                                             "Lsssssssss"
+                                             "Lsssssssss"
+                                             "Lsssssssss"
+                                             "LTssssssss"
+                                             "Lsssssssss"
+                                             "Lsssssssss"
+                                             "Lsssssssss"
+                                             "Lsssssssss"]))
+    (set-test-unit atoms/game-map "T"
+                   :mode :coastline-follow
+                   :coastline-steps 1  ;; Only 1 step left
+                   :start-pos [5 1]    ;; Started in middle, not at edge
+                   :visited #{[5 1]}
+                   :prev-pos nil)
     (reset! atoms/player-map @atoms/game-map)
     (move-coastline-unit [5 1])
     ;; Find where the unit ended up
@@ -408,33 +409,32 @@
     ;; Large map where unit won't hit any wake conditions
     ;; Use a 20x20 map with land on left, unit starts in middle at [10 1]
     ;; Transport has speed 2, and with 50 coastline-steps, it should continue
-    (reset! atoms/game-map
-            (assoc-in @(build-test-map ["Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"
-                                        "Lsssssssssssssssssss"])
-                      [10 1]
-                      {:type :sea :contents {:type :transport :mode :coastline-follow :owner :player
-                                             :coastline-steps 50  ;; Plenty of steps
-                                             :start-pos [10 1]   ;; Started in middle, not at edge
-                                             :visited #{[10 1]}
-                                             :prev-pos nil}}))
+    (reset! atoms/game-map @(build-test-map ["Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "LTssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"
+                                             "Lsssssssssssssssssss"]))
+    (set-test-unit atoms/game-map "T"
+                   :mode :coastline-follow
+                   :coastline-steps 50  ;; Plenty of steps
+                   :start-pos [10 1]   ;; Started in middle, not at edge
+                   :visited #{[10 1]}
+                   :prev-pos nil)
     (reset! atoms/player-map @atoms/game-map)
     ;; transport has speed 2, so it should take 2 steps and not wake
     (move-coastline-unit [10 1])
@@ -459,20 +459,19 @@
     ;; Bay at [2 3]: up=[1 3] land, down=[3 3] land, left=[2 2] sea, right=[2 4] land = 3 land sides
     (reset! atoms/game-map @(build-test-map ["LLLLL"
                                              "LLsLL"
-                                             "LLssL"
+                                             "LLTsL"
                                              "LLsLL"
                                              "LLLLL"]))
     ;; [2 3] has: up=[1 3] land, down=[3 3] land, left=[2 2] sea, right=[2 4] land -> 3 land = bay!
     ;; Put transport at [2 2] with armies. Only valid move is [2 3] (bay) or [1 2] or [3 2]
     ;; Set prev-pos to [1 2] so it doesn't backstep, leaving only [2 3] or [3 2]
-    (reset! atoms/game-map
-            (assoc-in @atoms/game-map [2 2]
-                      {:type :sea :contents {:type :transport :mode :coastline-follow :owner :player
-                                             :army-count 2
-                                             :coastline-steps 50
-                                             :start-pos [1 2]  ;; Started elsewhere
-                                             :visited #{[1 2] [2 2]}
-                                             :prev-pos [1 2]}}))  ;; Came from [1 2]
+    (set-test-unit atoms/game-map "T"
+                   :mode :coastline-follow
+                   :army-count 2
+                   :coastline-steps 50
+                   :start-pos [1 2]
+                   :visited #{[1 2] [2 2]}
+                   :prev-pos [1 2])
     (reset! atoms/player-map @atoms/game-map)
     (move-coastline-unit [2 2])
     ;; Find the awake transport - it should be at [2 3] (bay) or [3 2]

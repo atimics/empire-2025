@@ -74,3 +74,38 @@
 
   (it "throws on unknown character"
     (should-throw (build-test-map ["x"]))))
+
+(describe "set-test-unit"
+  (it "sets a single key-value on the first unit"
+    (let [gm (build-test-map ["T"])]
+      (set-test-unit gm "T" :mode :sentry)
+      (should= :sentry (get-in @gm [0 0 :contents :mode]))))
+
+  (it "sets multiple key-values on a unit"
+    (let [gm (build-test-map ["T"])]
+      (set-test-unit gm "T" :mode :coastline-follow :army-count 2 :fuel 50)
+      (should= :coastline-follow (get-in @gm [0 0 :contents :mode]))
+      (should= 2 (get-in @gm [0 0 :contents :army-count]))
+      (should= 50 (get-in @gm [0 0 :contents :fuel]))))
+
+  (it "finds unit in multi-row map"
+    (let [gm (build-test-map ["LL"
+                              "LT"])]
+      (set-test-unit gm "T" :mode :awake)
+      (should= :awake (get-in @gm [1 1 :contents :mode]))))
+
+  (it "finds second unit with T2 notation"
+    (let [gm (build-test-map ["TsT"])]
+      (set-test-unit gm "T2" :mode :sentry)
+      (should= nil (get-in @gm [0 0 :contents :mode]))
+      (should= :sentry (get-in @gm [0 2 :contents :mode]))))
+
+  (it "finds army with A notation"
+    (let [gm (build-test-map ["A"])]
+      (set-test-unit gm "A" :mode :moving :hits 1)
+      (should= :moving (get-in @gm [0 0 :contents :mode]))
+      (should= 1 (get-in @gm [0 0 :contents :hits]))))
+
+  (it "throws when unit not found"
+    (let [gm (build-test-map ["ss"])]
+      (should-throw (set-test-unit gm "T" :mode :awake)))))

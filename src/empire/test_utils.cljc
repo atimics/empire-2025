@@ -62,3 +62,20 @@
     (when (nil? pos)
       (throw (ex-info (str "Unit not found: " unit-spec) {:unit-spec unit-spec})))
     (swap! game-map-atom update-in (conj pos :contents) merge (apply hash-map kvs))))
+
+(defn- matches-filters? [unit filters]
+  (every? (fn [[k v]] (= v (get unit k))) filters))
+
+(defn get-test-unit [game-map-atom unit-spec & {:as filters}]
+  (let [[unit-type n] (parse-unit-spec unit-spec)
+        game-map @game-map-atom
+        matches (for [row-idx (range (count game-map))
+                      col-idx (range (count (nth game-map row-idx)))
+                      :let [cell (get-in game-map [row-idx col-idx])
+                            contents (:contents cell)]
+                      :when (and contents
+                                 (= unit-type (:type contents))
+                                 (= :player (:owner contents))
+                                 (matches-filters? contents filters))]
+                  {:pos [row-idx col-idx] :unit contents})]
+    (nth matches (dec n) nil)))

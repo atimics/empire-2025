@@ -7,7 +7,7 @@
             [empire.game-loop :as game-loop]
             [empire.input :as input]
             [empire.movement.movement :as movement]
-            [empire.test-utils :refer [build-test-map set-test-unit]]))
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit]]))
 
 (describe "build-player-items"
   (it "returns coordinates of player cities"
@@ -353,11 +353,9 @@
         (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50)
         (movement/move-explore-unit [0 1])
         ;; Find where the unit moved
-        (let [new-pos (first (for [i (range 3) j (range 3)
-                                   :when (:contents (get-in @atoms/game-map [i j]))]
-                               [i j]))]
+        (let [{:keys [pos]} (get-test-unit atoms/game-map "A")]
           ;; Should move to a coastal cell (adjacent to sea)
-          (should (movement/adjacent-to-sea? new-pos atoms/game-map))))))
+          (should (movement/adjacent-to-sea? pos atoms/game-map))))))
 
   (it "explore army prefers moves towards unexplored cells"
     (let [initial-map @(build-test-map ["#A#"
@@ -374,11 +372,9 @@
         (reset! atoms/player-map player-map)
         (movement/move-explore-unit [0 1])
         ;; Find where the unit moved
-        (let [new-pos (first (for [i (range 3) j (range 3)
-                                   :when (:contents (get-in @atoms/game-map [i j]))]
-                               [i j]))]
+        (let [{:keys [pos]} (get-test-unit atoms/game-map "A")]
           ;; Should move to row 1 (adjacent to unexplored row 2)
-          (should= 1 (first new-pos))))))
+          (should= 1 (first pos))))))
 
   (it "explore army does not retrace steps"
     (let [initial-map @(build-test-map ["#A#"])]

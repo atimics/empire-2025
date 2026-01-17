@@ -3,7 +3,7 @@
             [empire.game-loop :as game-loop]
             [empire.atoms :as atoms]
             [empire.config :as config]
-            [empire.test-utils :refer [build-test-map set-test-unit]]))
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit]]))
 
 (describe "item-processed"
   (it "resets waiting-for-input to false"
@@ -255,16 +255,10 @@
     (reset! atoms/player-map @(build-test-map ["##"]))
     (game-loop/move-satellites)
     ;; Satellite should be removed after its turn expires
-    (let [found-satellite (some (fn [[i row]]
-                                  (some (fn [[j cell]]
-                                          (when (= :satellite (:type (:contents cell)))
-                                            [i j]))
-                                        (map-indexed vector row)))
-                                (map-indexed vector @atoms/game-map))]
+    (let [result (get-test-unit atoms/game-map "V")]
       ;; Either satellite is gone or has decremented turns
-      (when found-satellite
-        (let [sat (:contents (get-in @atoms/game-map found-satellite))]
-          (should (or (nil? sat) (<= (:turns-remaining sat 0) 0)))))))
+      (when result
+        (should (or (nil? (:unit result)) (<= (:turns-remaining (:unit result) 0) 0)))))))
 
   (it "removes satellite immediately when turns-remaining is already zero"
     ;; Satellite with turns-remaining 0 should be removed at start of move
@@ -281,16 +275,9 @@
     (reset! atoms/player-map @(build-test-map ["###"]))
     (game-loop/move-satellites)
     ;; Find where satellite ended up
-    (let [find-sat (fn []
-                     (some (fn [[i row]]
-                             (some (fn [[j cell]]
-                                     (when (= :satellite (:type (:contents cell)))
-                                       (:contents cell)))
-                                   (map-indexed vector row)))
-                           (map-indexed vector @atoms/game-map)))
-          sat (find-sat)]
-      (when sat
-        (should (< (:turns-remaining sat) 5))))))
+    (let [{:keys [unit]} (get-test-unit atoms/game-map "V")]
+      (when unit
+        (should (< (:turns-remaining unit) 5)))))
 
 (describe "move-explore-unit"
   (it "delegates to movement/move-explore-unit"

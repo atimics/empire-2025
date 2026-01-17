@@ -4,7 +4,7 @@
     [empire.game-loop :as game-loop]
     [empire.movement.movement :refer [move-satellite set-unit-movement]]
     [empire.movement.visibility :refer [update-cell-visibility]]
-    [empire.test-utils :refer [build-test-map set-test-unit]]
+    [empire.test-utils :refer [build-test-map set-test-unit get-test-unit]]
     [speclj.core :refer :all]))
 
 (describe "satellite movement"
@@ -196,12 +196,8 @@
     (reset! atoms/player-map (vec (repeat 10 (vec (repeat 10 nil)))))
     (game-loop/move-satellites)
     ;; After one round of movement (10 steps), turns-remaining should only decrement by 1
-    (let [sat-coords (first (for [i (range 10) j (range 10)
-                                  :let [cell (get-in @atoms/game-map [i j])]
-                                  :when (= :satellite (:type (:contents cell)))]
-                              [i j]))
-          sat (:contents (get-in @atoms/game-map sat-coords))]
-      (should= 49 (:turns-remaining sat))))
+    (let [{:keys [unit]} (get-test-unit atoms/game-map "V")]
+      (should= 49 (:turns-remaining unit))))
 
   (it "is removed when turns-remaining reaches zero"
     (reset! atoms/game-map @(build-test-map ["##########"
@@ -345,17 +341,9 @@
     (should= :satellite (:type (:contents (get-in @atoms/player-map [5 5]))))
     ;; Run one round - satellite should die and be removed from both maps
     (game-loop/move-satellites)
-    ;; Find where satellite ended up (it moved before dying)
-    (let [sat-in-game (first (for [i (range 10) j (range 10)
-                                   :let [cell (get-in @atoms/game-map [i j])]
-                                   :when (= :satellite (:type (:contents cell)))]
-                               [i j]))
-          sat-in-player (first (for [i (range 10) j (range 10)
-                                     :let [cell (get-in @atoms/player-map [i j])]
-                                     :when (= :satellite (:type (:contents cell)))]
-                                 [i j]))]
-      (should-be-nil sat-in-game)
-      (should-be-nil sat-in-player)))
+    ;; Verify satellite is gone from both maps
+    (should-be-nil (get-test-unit atoms/game-map "V"))
+    (should-be-nil (get-test-unit atoms/player-map "V")))
 
   (it "reveals two rectangular rings around its position"
     (reset! atoms/game-map @(build-test-map ["###############"

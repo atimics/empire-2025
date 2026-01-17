@@ -3,7 +3,7 @@
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.movement.coastline :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit]]))
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit]]))
 
 (describe "coastline-follow-eligible?"
   (it "returns true for transport near coast"
@@ -392,16 +392,7 @@
                    :prev-pos nil)
     (reset! atoms/player-map @atoms/game-map)
     (move-coastline-unit [5 1])
-    ;; Find where the unit ended up
-    (let [find-unit (fn [gm]
-                      (some (fn [[row-idx row]]
-                              (some (fn [[col-idx cell]]
-                                      (when (and (:contents cell)
-                                                 (= :awake (get-in cell [:contents :mode])))
-                                        [row-idx col-idx (:contents cell)]))
-                                    (map-indexed vector row)))
-                            (map-indexed vector gm)))
-          [_ _ unit] (find-unit @atoms/game-map)]
+    (let [{:keys [unit]} (get-test-unit atoms/game-map "T" :mode :awake)]
       (should= :awake (:mode unit))
       (should= :steps-exhausted (:reason unit))))
 
@@ -439,17 +430,7 @@
     ;; transport has speed 2, so it should take 2 steps and not wake
     (move-coastline-unit [10 1])
     ;; Unit should have moved but still be in coastline-follow mode (not woken)
-    ;; Find where the unit ended up
-    (let [find-unit (fn [gm mode]
-                      (some (fn [[row-idx row]]
-                              (some (fn [[col-idx cell]]
-                                      (when (and (:contents cell)
-                                                 (= mode (get-in cell [:contents :mode])))
-                                        [row-idx col-idx (:contents cell)]))
-                                    (map-indexed vector row)))
-                            (map-indexed vector gm)))
-          [_ _ unit] (find-unit @atoms/game-map :coastline-follow)]
-      ;; Unit should still be in coastline-follow mode, having moved
+    (let [{:keys [unit]} (get-test-unit atoms/game-map "T" :mode :coastline-follow)]
       (should= :coastline-follow (:mode unit))
       (should (> (count (:visited unit)) 1))))
 

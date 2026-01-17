@@ -113,3 +113,61 @@
   (it "throws when unit not found"
     (let [gm (build-test-map ["~~"])]
       (should-throw (set-test-unit gm "T" :mode :awake)))))
+
+(describe "get-test-unit"
+  (it "returns nil when unit not found"
+    (let [gm (build-test-map ["~~"])]
+      (should= nil (get-test-unit gm "T"))))
+
+  (it "returns position and unit for first matching unit"
+    (let [gm (build-test-map ["T"])]
+      (set-test-unit gm "T" :mode :awake)
+      (let [result (get-test-unit gm "T")]
+        (should= [0 0] (:pos result))
+        (should= :transport (:type (:unit result)))
+        (should= :awake (:mode (:unit result))))))
+
+  (it "finds unit in multi-row map"
+    (let [gm (build-test-map ["##"
+                              "#T"])]
+      (let [result (get-test-unit gm "T")]
+        (should= [1 1] (:pos result))
+        (should= :transport (:type (:unit result))))))
+
+  (it "finds second unit with T2 notation"
+    (let [gm (build-test-map ["T~T"])]
+      (set-test-unit gm "T1" :mode :sentry)
+      (set-test-unit gm "T2" :mode :awake)
+      (let [result (get-test-unit gm "T2")]
+        (should= [0 2] (:pos result))
+        (should= :awake (:mode (:unit result))))))
+
+  (it "filters by mode when specified"
+    (let [gm (build-test-map ["TT"])]
+      (set-test-unit gm "T1" :mode :sentry)
+      (set-test-unit gm "T2" :mode :awake)
+      (let [result (get-test-unit gm "T" :mode :awake)]
+        (should= [0 1] (:pos result))
+        (should= :awake (:mode (:unit result))))))
+
+  (it "returns nil when no unit matches filter"
+    (let [gm (build-test-map ["T"])]
+      (set-test-unit gm "T" :mode :sentry)
+      (should= nil (get-test-unit gm "T" :mode :awake))))
+
+  (it "filters by multiple criteria"
+    (let [gm (build-test-map ["TTT"])]
+      (set-test-unit gm "T1" :mode :sentry :hits 1)
+      (set-test-unit gm "T2" :mode :awake :hits 1)
+      (set-test-unit gm "T3" :mode :awake :hits 3)
+      (let [result (get-test-unit gm "T" :mode :awake :hits 3)]
+        (should= [0 2] (:pos result))
+        (should= 3 (:hits (:unit result))))))
+
+  (it "works with different unit types"
+    (let [gm (build-test-map ["V"])]
+      (set-test-unit gm "V" :target [5 5])
+      (let [result (get-test-unit gm "V")]
+        (should= [0 0] (:pos result))
+        (should= :satellite (:type (:unit result)))
+        (should= [5 5] (:target (:unit result)))))))

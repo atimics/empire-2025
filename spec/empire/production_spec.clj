@@ -8,8 +8,8 @@
 (describe "update-production"
   (around [it]
     (reset! atoms/production {})
-    (reset! atoms/game-map @(build-test-map ["sO"
-                                             "OL"]))
+    (reset! atoms/game-map @(build-test-map ["~O"
+                                             "O#"]))
     (it))
 
   (it "decrements remaining-rounds when not complete"

@@ -21,11 +21,11 @@
 
   (it "returns both cities and units"
     (reset! atoms/game-map @(build-test-map ["OA"
-                                             "LX"]))
+                                             "#X"]))
     (should= [[0 0] [0 1]] (vec (game-loop/build-player-items))))
 
   (it "returns empty list when no player items"
-    (reset! atoms/game-map @(build-test-map ["sL"]))
+    (reset! atoms/game-map @(build-test-map ["~#"]))
     (should= [] (vec (game-loop/build-player-items)))))
 
 (describe "item-processed"
@@ -66,32 +66,32 @@
 
 (describe "cells-needing-attention"
   (it "returns empty list when no player cells"
-    (reset! atoms/player-map @(build-test-map ["sL"
-                                               "XL"]))
+    (reset! atoms/player-map @(build-test-map ["~#"
+                                               "X#"]))
     (reset! atoms/production {})
     (should= [] (attention/cells-needing-attention)))
 
   (it "returns coordinates of awake units"
-    (reset! atoms/player-map (assoc-in @(build-test-map ["AL"
-                                                         "LL"])
+    (reset! atoms/player-map (assoc-in @(build-test-map ["A#"
+                                                         "##"])
                                        [0 0 :contents :mode] :awake))
     (reset! atoms/production {})
     (should= [[0 0]] (attention/cells-needing-attention)))
 
   (it "returns coordinates of cities with no production"
-    (reset! atoms/player-map @(build-test-map ["LO"
-                                               "LL"]))
+    (reset! atoms/player-map @(build-test-map ["#O"
+                                               "##"]))
     (reset! atoms/production {})
     (should= [[0 1]] (attention/cells-needing-attention)))
 
   (it "excludes cities with production"
-    (reset! atoms/player-map @(build-test-map ["OL"]))
+    (reset! atoms/player-map @(build-test-map ["O#"]))
     (reset! atoms/production {[0 0] {:item :army :remaining-rounds 5}})
     (should= [] (attention/cells-needing-attention)))
 
   (it "returns multiple coordinates"
     (reset! atoms/player-map (assoc-in @(build-test-map ["AO"
-                                                         "LL"])
+                                                         "##"])
                                        [0 0 :contents :mode] :awake))
     (reset! atoms/production {})
     (should= [[0 0] [0 1]] (attention/cells-needing-attention))))
@@ -99,7 +99,7 @@
 (describe "remove-dead-units"
   (it "removes units with hits at or below zero"
     (let [initial-map (-> @(build-test-map ["AFA"
-                                            "LLL"])
+                                            "###"])
                           (assoc-in [0 0 :contents :hits] 0)
                           (assoc-in [0 1 :contents :hits] 1)
                           (assoc-in [0 2 :contents :hits] -1))]
@@ -112,7 +112,7 @@
 (describe "reset-steps-remaining"
   (it "initializes steps-remaining for player units based on unit speed"
     (let [initial-map (assoc-in @(build-test-map ["AF"
-                                                  "AL"])
+                                                  "A#"])
                                 [1 0 :contents :owner] :computer)]
       (reset! atoms/game-map initial-map)
       (game-loop/reset-steps-remaining)
@@ -128,7 +128,7 @@
 
 (describe "set-unit-movement"
   (it "preserves existing steps-remaining when setting movement"
-    (let [initial-map (assoc-in @(build-test-map ["FL"])
+    (let [initial-map (assoc-in @(build-test-map ["F#"])
                                 [0 0 :contents]
                                 {:type :fighter :owner :player :mode :awake :steps-remaining 3})]
       (reset! atoms/game-map initial-map)
@@ -143,7 +143,7 @@
     (reset! atoms/player-map {}))
 
   (it "decrements steps-remaining after each move"
-    (let [initial-map (assoc-in @(build-test-map ["LLL"])
+    (let [initial-map (assoc-in @(build-test-map ["###"])
                                 [0 0 :contents]
                                 {:type :fighter :owner :player :mode :moving :target [0 2] :steps-remaining 3})]
       (reset! atoms/game-map initial-map)
@@ -151,21 +151,21 @@
       (should= 2 (:steps-remaining (:contents (get-in @atoms/game-map [0 1]))))))
 
   (it "returns new coords when steps remain"
-    (let [initial-map (assoc-in @(build-test-map ["LLL"])
+    (let [initial-map (assoc-in @(build-test-map ["###"])
                                 [0 0 :contents]
                                 {:type :fighter :owner :player :mode :moving :target [0 2] :steps-remaining 3})]
       (reset! atoms/game-map initial-map)
       (should= [0 1] (game-loop/move-current-unit [0 0]))))
 
   (it "returns nil when steps-remaining reaches zero"
-    (let [initial-map (assoc-in @(build-test-map ["LLL"])
+    (let [initial-map (assoc-in @(build-test-map ["###"])
                                 [0 0 :contents]
                                 {:type :army :owner :player :mode :moving :target [0 2] :steps-remaining 1})]
       (reset! atoms/game-map initial-map)
       (should= nil (game-loop/move-current-unit [0 0]))))
 
   (it "returns new coords when unit wakes up with steps remaining"
-    (let [initial-map (assoc-in @(build-test-map ["LL"])
+    (let [initial-map (assoc-in @(build-test-map ["##"])
                                 [0 0 :contents]
                                 {:type :army :owner :player :mode :moving :target [0 1] :steps-remaining 3})]
       (reset! atoms/game-map initial-map)
@@ -174,14 +174,14 @@
         (should= :awake (:mode (:contents (get-in @atoms/game-map [0 1])))))))
 
   (it "returns nil when unit wakes up with no steps remaining"
-    (let [initial-map (assoc-in @(build-test-map ["LL"])
+    (let [initial-map (assoc-in @(build-test-map ["##"])
                                 [0 0 :contents]
                                 {:type :army :owner :player :mode :moving :target [0 1] :steps-remaining 1})]
       (reset! atoms/game-map initial-map)
       (should= nil (game-loop/move-current-unit [0 0]))))
 
   (it "limits unit to its rate per round even with new orders"
-    (let [initial-map (assoc-in @(build-test-map ["LLL"])
+    (let [initial-map (assoc-in @(build-test-map ["###"])
                                 [0 0 :contents]
                                 {:type :army :owner :player :mode :moving :target [0 1] :steps-remaining 1})]
       (reset! atoms/game-map initial-map)
@@ -248,7 +248,7 @@
       (should= :awake (:mode (:contents (get-in @atoms/game-map [0 0]))))))
 
   (it "sentry units do not move"
-    (let [initial-map (assoc-in @(build-test-map ["AL"]) [0 0 :contents :mode] :sentry)]
+    (let [initial-map (assoc-in @(build-test-map ["A#"]) [0 0 :contents :mode] :sentry)]
       (reset! atoms/game-map initial-map)
       (should= nil (game-loop/move-current-unit [0 0]))
       (should= :sentry (:mode (:contents (get-in @atoms/game-map [0 0]))))))

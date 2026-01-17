@@ -50,7 +50,7 @@
     (should-not (attention/is-unit-needing-attention? [])))
 
   (it "returns false when cell has no contents and no airport fighters"
-    (reset! atoms/game-map @(build-test-map ["L"]))
+    (reset! atoms/game-map @(build-test-map ["#"]))
     (should-not (attention/is-unit-needing-attention? [[0 0]])))
 
   (it "returns true when city has awake airport fighters"
@@ -103,14 +103,14 @@
     (should (attention/needs-attention? 0 0)))
 
   (it "returns true for satellite without target"
-    (reset! atoms/player-map (assoc-in @(build-test-map ["L"])
+    (reset! atoms/player-map (assoc-in @(build-test-map ["#"])
                                        [0 0 :contents]
                                        {:type :satellite :mode :awake :owner :player :turns-remaining 50}))
     (reset! atoms/production {})
     (should (attention/needs-attention? 0 0)))
 
   (it "returns false for satellite with target"
-    (reset! atoms/player-map (assoc-in @(build-test-map ["L"])
+    (reset! atoms/player-map (assoc-in @(build-test-map ["#"])
                                        [0 0 :contents]
                                        {:type :satellite :mode :awake :owner :player :target [5 5] :turns-remaining 50}))
     (reset! atoms/production {})
@@ -152,13 +152,13 @@
     (should (attention/item-needs-attention? [0 0])))
 
   (it "returns true for satellite without target"
-    (reset! atoms/game-map (assoc-in @(build-test-map ["L"])
+    (reset! atoms/game-map (assoc-in @(build-test-map ["#"])
                                      [0 0 :contents]
                                      {:type :satellite :mode :awake :turns-remaining 50}))
     (should (attention/item-needs-attention? [0 0])))
 
   (it "returns false for satellite with target"
-    (reset! atoms/game-map (assoc-in @(build-test-map ["L"])
+    (reset! atoms/game-map (assoc-in @(build-test-map ["#"])
                                      [0 0 :contents]
                                      {:type :satellite :mode :awake :target [5 5] :turns-remaining 50}))
     (should-not (attention/item-needs-attention? [0 0]))))
@@ -166,7 +166,7 @@
 (describe "cells-needing-attention"
   (it "returns coordinates of cells needing attention"
     (reset! atoms/player-map (assoc-in @(build-test-map ["AO"
-                                                         "LX"])
+                                                         "#X"])
                                        [0 0 :contents :mode] :awake))
     (reset! atoms/production {})
     (let [cells (attention/cells-needing-attention)]

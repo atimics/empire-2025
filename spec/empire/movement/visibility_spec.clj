@@ -58,11 +58,11 @@
 
 (describe "update-combatant-map"
   (it "reveals all 9 cells around a player unit in center of map"
-    (let [game-map (assoc-in @(build-test-map ["sssss"
-                                               "sssss"
-                                               "ssAss"
-                                               "sssss"
-                                               "sssss"])
+    (let [game-map (assoc-in @(build-test-map ["~~~~~"
+                                               "~~~~~"
+                                               "~~A~~"
+                                               "~~~~~"
+                                               "~~~~~"])
                              [2 2] {:type :land :contents {:type :army :owner :player}})]
       (reset! atoms/game-map game-map)
       (reset! atoms/player-map @(build-test-map ["....."
@@ -88,11 +88,11 @@
       (should= nil (get-in @atoms/player-map [4 4]))))
 
   (it "clamps visibility at map edges for unit in corner"
-    (let [game-map (assoc-in @(build-test-map ["sssss"
-                                               "sssss"
-                                               "sssss"
-                                               "sssss"
-                                               "sssss"])
+    (let [game-map (assoc-in @(build-test-map ["~~~~~"
+                                               "~~~~~"
+                                               "~~~~~"
+                                               "~~~~~"
+                                               "~~~~~"])
                              [0 0] {:type :land :contents {:type :army :owner :player}})]
       (reset! atoms/game-map game-map)
       (reset! atoms/player-map @(build-test-map ["....."
@@ -110,11 +110,11 @@
       (should= nil (get-in @atoms/player-map [2 2]))))
 
   (it "reveals cells around player city"
-    (let [game-map (assoc-in @(build-test-map ["sssss"
-                                               "sssss"
-                                               "sssss"
-                                               "sssss"
-                                               "sssss"])
+    (let [game-map (assoc-in @(build-test-map ["~~~~~"
+                                               "~~~~~"
+                                               "~~~~~"
+                                               "~~~~~"
+                                               "~~~~~"])
                              [2 2] {:type :city :city-status :player})]
       (reset! atoms/game-map game-map)
       (reset! atoms/player-map @(build-test-map ["....."
@@ -129,11 +129,11 @@
       (should= {:type :sea} (get-in @atoms/player-map [3 3]))))
 
   (it "does nothing when visible-map-atom is nil"
-    (let [game-map (assoc-in @(build-test-map ["sssss"
-                                               "sssss"
-                                               "ssAss"
-                                               "sssss"
-                                               "sssss"])
+    (let [game-map (assoc-in @(build-test-map ["~~~~~"
+                                               "~~~~~"
+                                               "~~A~~"
+                                               "~~~~~"
+                                               "~~~~~"])
                              [2 2] {:type :land :contents {:type :army :owner :player}})]
       (reset! atoms/game-map game-map)
       (reset! atoms/player-map nil)
@@ -141,11 +141,11 @@
       (should= nil @atoms/player-map)))
 
   (it "works for computer owner"
-    (let [game-map (assoc-in @(build-test-map ["sssss"
-                                               "sssss"
-                                               "sssss"
-                                               "sssss"
-                                               "sssss"])
+    (let [game-map (assoc-in @(build-test-map ["~~~~~"
+                                               "~~~~~"
+                                               "~~~~~"
+                                               "~~~~~"
+                                               "~~~~~"])
                              [2 2] {:type :land :contents {:type :army :owner :computer}})]
       (reset! atoms/game-map game-map)
       (reset! atoms/computer-map @(build-test-map ["....."
@@ -160,13 +160,13 @@
       (should= {:type :sea} (get-in @atoms/computer-map [3 3]))))
 
   (it "handles multiple units revealing overlapping areas"
-    (let [game-map (-> @(build-test-map ["sssssss"
-                                         "sssssss"
-                                         "sssssss"
-                                         "sssssss"
-                                         "sssssss"
-                                         "sssssss"
-                                         "sssssss"])
+    (let [game-map (-> @(build-test-map ["~~~~~~~"
+                                         "~~~~~~~"
+                                         "~~~~~~~"
+                                         "~~~~~~~"
+                                         "~~~~~~~"
+                                         "~~~~~~~"
+                                         "~~~~~~~"])
                        (assoc-in [2 2] {:type :land :contents {:type :army :owner :player}})
                        (assoc-in [4 4] {:type :land :contents {:type :army :owner :player}}))]
       (reset! atoms/game-map game-map)

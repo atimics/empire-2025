@@ -2,8 +2,8 @@
 
 (defn- char->cell [c]
   (case c
-    \s {:type :sea}
-    \L {:type :land}
+    \~ {:type :sea}
+    \# {:type :land}
     \. nil
     \+ {:type :city :city-status :free}
     \O {:type :city :city-status :player}

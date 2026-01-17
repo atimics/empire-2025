@@ -19,11 +19,11 @@
     (should-not (combat/hostile-city? [0 0])))
 
   (it "returns false for non-city cells"
-    (reset! atoms/game-map @(build-test-map ["L"]))
+    (reset! atoms/game-map @(build-test-map ["#"]))
     (should-not (combat/hostile-city? [0 0])))
 
   (it "returns false for sea cells"
-    (reset! atoms/game-map @(build-test-map ["s"]))
+    (reset! atoms/game-map @(build-test-map ["~"]))
     (should-not (combat/hostile-city? [0 0]))))
 
 (describe "attempt-conquest"

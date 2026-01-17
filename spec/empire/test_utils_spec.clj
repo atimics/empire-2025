@@ -4,13 +4,13 @@
 
 (describe "build-test-map"
   (it "returns an atom"
-    (should (instance? clojure.lang.Atom (build-test-map ["s"]))))
+    (should (instance? clojure.lang.Atom (build-test-map ["~"]))))
 
-  (it "converts s to sea cell"
-    (should= [[{:type :sea}]] @(build-test-map ["s"])))
+  (it "converts ~ to sea cell"
+    (should= [[{:type :sea}]] @(build-test-map ["~"])))
 
-  (it "converts L to land cell"
-    (should= [[{:type :land}]] @(build-test-map ["L"])))
+  (it "converts # to land cell"
+    (should= [[{:type :land}]] @(build-test-map ["#"])))
 
   (it "converts + to free city"
     (should= [[{:type :city :city-status :free}]] @(build-test-map ["+"])))
@@ -65,12 +65,12 @@
 
   (it "builds multi-cell rows"
     (should= [[{:type :land} {:type :land} {:type :sea} {:type :sea}]]
-             @(build-test-map ["LLss"])))
+             @(build-test-map ["##~~"])))
 
   (it "builds multi-row maps"
     (should= [[{:type :land} {:type :sea}]
               [{:type :sea} {:type :land}]]
-             @(build-test-map ["Ls" "sL"])))
+             @(build-test-map ["#~" "~#"])))
 
   (it "throws on unknown character"
     (should-throw (build-test-map ["x"]))))
@@ -89,13 +89,13 @@
       (should= 50 (get-in @gm [0 0 :contents :fuel]))))
 
   (it "finds unit in multi-row map"
-    (let [gm (build-test-map ["LL"
-                              "LT"])]
+    (let [gm (build-test-map ["##"
+                              "#T"])]
       (set-test-unit gm "T" :mode :awake)
       (should= :awake (get-in @gm [1 1 :contents :mode]))))
 
   (it "finds second unit with T2 notation"
-    (let [gm (build-test-map ["TsT"])]
+    (let [gm (build-test-map ["T~T"])]
       (set-test-unit gm "T2" :mode :sentry)
       (should= nil (get-in @gm [0 0 :contents :mode]))
       (should= :sentry (get-in @gm [0 2 :contents :mode]))))
@@ -107,5 +107,5 @@
       (should= 1 (get-in @gm [0 0 :contents :hits]))))
 
   (it "throws when unit not found"
-    (let [gm (build-test-map ["ss"])]
+    (let [gm (build-test-map ["~~"])]
       (should-throw (set-test-unit gm "T" :mode :awake)))))

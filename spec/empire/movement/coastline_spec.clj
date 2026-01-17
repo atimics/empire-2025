@@ -46,46 +46,46 @@
 
 (describe "get-valid-coastline-moves"
   (it "returns adjacent sea cells without units"
-    (let [game-map (build-test-map ["sss"
-                                    "sss"
-                                    "sss"])]
+    (let [game-map (build-test-map ["~~~"
+                                    "~~~"
+                                    "~~~"])]
       (let [moves (get-valid-coastline-moves [1 1] game-map)]
         (should= 8 (count moves)))))
 
   (it "excludes land cells"
-    (let [game-map (build-test-map ["LLL"
-                                    "LsL"
-                                    "LLL"])]
+    (let [game-map (build-test-map ["###"
+                                    "#~#"
+                                    "###"])]
       (let [moves (get-valid-coastline-moves [1 1] game-map)]
         (should= 0 (count moves)))))
 
   (it "excludes cells with units"
-    (let [game-map (build-test-map ["sDs"
-                                    "sss"
-                                    "sss"])]
+    (let [game-map (build-test-map ["~D~"
+                                    "~~~"
+                                    "~~~"])]
       (let [moves (get-valid-coastline-moves [1 1] game-map)]
         (should= 7 (count moves))))))
 
 (describe "pick-coastline-move"
   (it "prefers orthogonally adjacent to land moves"
-    (let [game-map (build-test-map ["Lss"
-                                    "Lss"
-                                    "Lss"])]
+    (let [game-map (build-test-map ["#~~"
+                                    "#~~"
+                                    "#~~"])]
       (reset! atoms/player-map @game-map)
       (let [move (pick-coastline-move [1 1] game-map #{} nil)]
         (should (some #{move} [[0 1] [2 1] [0 2] [1 2] [2 2]])))))
 
   (it "returns nil when no valid moves"
-    (let [game-map (build-test-map ["LLL"
-                                    "LsL"
-                                    "LLL"])]
+    (let [game-map (build-test-map ["###"
+                                    "#~#"
+                                    "###"])]
       (reset! atoms/player-map @game-map)
       (should-be-nil (pick-coastline-move [1 1] game-map #{} nil))))
 
   (it "avoids previous position"
-    (let [game-map (build-test-map ["LsL"
-                                    "LsL"
-                                    "LsL"])]
+    (let [game-map (build-test-map ["#~#"
+                                    "#~#"
+                                    "#~#"])]
       (reset! atoms/player-map @game-map)
       (dotimes [_ 10]
         (let [move (pick-coastline-move [1 1] game-map #{} [0 1])]
@@ -93,13 +93,13 @@
 
   (it "prefers unvisited orthogonal coastal cells that expose unexplored"
     ;; Set up: [1 1] is the unit, [0 1] is orthogonally coastal and adjacent to unexplored [0 0]
-    (let [game-map (build-test-map ["Lss"
-                                    "Lss"
-                                    "Lss"])]
+    (let [game-map (build-test-map ["#~~"
+                                    "#~~"
+                                    "#~~"])]
       ;; player-map with nil at [0 0] means unexplored
-      (reset! atoms/player-map @(build-test-map [".ss"
-                                                 "Lss"
-                                                 "Lss"]))
+      (reset! atoms/player-map @(build-test-map [".~~"
+                                                 "#~~"
+                                                 "#~~"]))
       (dotimes [_ 10]
         (let [move (pick-coastline-move [1 1] game-map #{} nil)]
           ;; Should prefer [0 1] because it's orthogonally adjacent to land and adjacent to unexplored [0 0]
@@ -109,15 +109,15 @@
     ;; Set up: no orthogonal coastal moves, but diagonal coastal move adjacent to unexplored
     ;; The key is: no unvisited-orthogonal (neither orthogonal to land nor unexplored)
     ;; but there IS unvisited diagonal coastal that is adjacent to unexplored
-    (let [game-map (build-test-map ["sss"
-                                    "sss"
-                                    "ssL"])]
+    (let [game-map (build-test-map ["~~~"
+                                    "~~~"
+                                    "~~#"])]
       ;; Player map: [2 0] is unexplored (nil), so [2 1] is adjacent to unexplored
       ;; [2 1] is diagonally adjacent to land at [2 2]
       ;; No cells are orthogonally adjacent to land from [1 1]
-      (reset! atoms/player-map @(build-test-map ["sss"
-                                                 "sss"
-                                                 ".sL"]))
+      (reset! atoms/player-map @(build-test-map ["~~~"
+                                                 "~~~"
+                                                 ".~#"]))
       (dotimes [_ 10]
         (let [move (pick-coastline-move [1 1] game-map #{} nil)]
           ;; Should pick [2 1] - diagonal coastal and adjacent to unexplored [2 0]
@@ -125,9 +125,9 @@
 
   (it "falls back to unvisited coastal cells when no unexplored adjacent"
     ;; All explored, but there's a coastal move
-    (let [game-map (build-test-map ["sss"
-                                    "sss"
-                                    "ssL"])]
+    (let [game-map (build-test-map ["~~~"
+                                    "~~~"
+                                    "~~#"])]
       ;; All explored (no nil cells)
       (reset! atoms/player-map @game-map)
       (let [move (pick-coastline-move [1 1] game-map #{} nil)]
@@ -136,9 +136,9 @@
 
   (it "falls back to visited orthogonal coastal when all unvisited are non-coastal"
     ;; All unvisited non-coastal, but there's a visited orthogonal coastal cell
-    (let [game-map (build-test-map ["sss"
-                                    "Lss"
-                                    "sss"])]
+    (let [game-map (build-test-map ["~~~"
+                                    "#~~"
+                                    "~~~"])]
       (reset! atoms/player-map @game-map)
       ;; Mark all cells except [1 0] (land) and [0 1] (visited coastal) as visited
       (let [visited #{[0 0] [0 2] [2 0] [1 2] [2 1] [2 2]}]
@@ -149,9 +149,9 @@
 
   (it "falls back to any coastal move when orthogonal coastal visited"
     ;; Visited orthogonal coastal, but there's a diagonal coastal move
-    (let [game-map (build-test-map ["Lss"
-                                    "sss"
-                                    "sss"])]
+    (let [game-map (build-test-map ["#~~"
+                                    "~~~"
+                                    "~~~"])]
       (reset! atoms/player-map @game-map)
       ;; All cells visited except we allow backstepping to coastal
       (let [visited #{[0 1] [1 0] [0 2] [1 2] [2 0] [2 1] [2 2]}]
@@ -162,9 +162,9 @@
 
     ;; Additional test: specifically hit the diagonal-only coastal branch
     ;; This requires: no orthogonal-coastal moves exist at all, only diagonal coastal
-    (let [game-map (build-test-map ["LLs"
-                                    "Lss"
-                                    "sss"])]
+    (let [game-map (build-test-map ["##~"
+                                    "#~~"
+                                    "~~~"])]
       ;; From [1 1]: orthogonal neighbors are [0 1] land, [2 1] sea, [1 0] land, [1 2] sea
       ;; Orthogonally adjacent to land: none of the sea cells [2 1], [1 2] are orthogonally adjacent to land
       ;; Diagonally adjacent to land: [0 2] is diagonal to [0 1] and [1 2]? No, [0 2] neighbors are [0 1] land (orthogonal!), [1 1], [1 2]
@@ -187,9 +187,9 @@
     ;; Need: land only at diagonal positions from center, no orthogonal land neighbors
     ;; And some cells adjacent to unexplored (nil in player-map)
     ;; Map layout: land at corners only, sea elsewhere
-    (let [game-map (build-test-map ["LsL"
-                                    "sss"
-                                    "LsL"])]
+    (let [game-map (build-test-map ["#~#"
+                                    "~~~"
+                                    "#~#"])]
       ;; From [1 1]: orthogonal neighbors [0 1], [2 1], [1 0], [1 2] are all sea
       ;; Diagonal neighbors [0 0], [0 2], [2 0], [2 2] are all land
       ;; So orthogonal neighbors are sea but NOT orthogonally adjacent to land
@@ -201,21 +201,21 @@
       ;; So [0 1] IS orthogonally adjacent to land! This won't work.
       ;; I need a different setup where no sea cell is orthogonally adjacent to land.
       ;; Let's try a 5x5 map with land only at corners
-      (reset! atoms/game-map @(build-test-map ["LsssL"
-                                               "sssss"
-                                               "sssss"
-                                               "sssss"
-                                               "LsssL"]))
+      (reset! atoms/game-map @(build-test-map ["#~~~#"
+                                               "~~~~~"
+                                               "~~~~~"
+                                               "~~~~~"
+                                               "#~~~#"]))
       ;; From [2 2]: all orthogonal neighbors [1 2], [3 2], [2 1], [2 3] are sea
       ;; None of them are orthogonally adjacent to land (land is only at corners)
       ;; But [1 1], [1 3], [3 1], [3 3] (diagonals of [2 2]) are sea and diagonally adjacent to corners
       ;; Actually [1 1] is diagonally adjacent to [0 0] (land), so [1 1] is coastal (diagonal)
       ;; We need unexplored cells: make [0 0] unexplored in player-map
-      (reset! atoms/player-map @(build-test-map [".sssL"
-                                                 "sssss"
-                                                 "sssss"
-                                                 "sssss"
-                                                 "LsssL"]))
+      (reset! atoms/player-map @(build-test-map [".~~~#"
+                                                 "~~~~~"
+                                                 "~~~~~"
+                                                 "~~~~~"
+                                                 "#~~~#"]))
       ;; Now [1 1] is diagonal coastal (adjacent to [0 0] which is land in game-map)
       ;; And [1 1] is adjacent to unexplored [0 0] in player-map
       ;; From [2 2], [1 1] should be picked as unvisited-coastal-unexplored
@@ -228,11 +228,11 @@
     ;; Scenario: All unvisited moves are non-coastal, no orthogonal coastal (visited or not)
     ;; But there's a visited diagonal coastal cell
     ;; This requires: only visited diagonal coastal options remaining
-    (let [game-map (build-test-map ["LsssL"
-                                    "sssss"
-                                    "sssss"
-                                    "sssss"
-                                    "LsssL"])]
+    (let [game-map (build-test-map ["#~~~#"
+                                    "~~~~~"
+                                    "~~~~~"
+                                    "~~~~~"
+                                    "#~~~#"])]
       (reset! atoms/player-map @game-map)  ;; All explored
       ;; From [2 2]: coastal cells (diagonal to land) are [1 1], [1 3], [3 1], [3 3]
       ;; Non-coastal cells are [1 2], [2 1], [2 3], [3 2]
@@ -253,9 +253,9 @@
 
   (it "falls back to any unvisited move when no coastal"
     ;; No coastal cells at all, but there are unvisited sea cells
-    (let [game-map (build-test-map ["sss"
-                                    "sss"
-                                    "sss"])]
+    (let [game-map (build-test-map ["~~~"
+                                    "~~~"
+                                    "~~~"])]
       (reset! atoms/player-map @game-map)
       ;; Mark some as visited, leave others unvisited
       (let [visited #{[0 0] [0 1] [0 2] [1 0]}]
@@ -265,9 +265,9 @@
 
   (it "falls back to any move when all visited"
     ;; All cells visited, should pick any valid move
-    (let [game-map (build-test-map ["sss"
-                                    "sss"
-                                    "sss"])]
+    (let [game-map (build-test-map ["~~~"
+                                    "~~~"
+                                    "~~~"])]
       (reset! atoms/player-map @game-map)
       ;; All neighbors visited
       (let [visited #{[0 0] [0 1] [0 2] [1 0] [1 2] [2 0] [2 1] [2 2]}]
@@ -296,29 +296,29 @@
 
 (describe "move-coastline-unit"
   (it "moves transport along coastline"
-    (reset! atoms/game-map @(build-test-map ["Lssss"
-                                             "Lssss"
-                                             "LTsss"
-                                             "sssss"
-                                             "sssss"]))
+    (reset! atoms/game-map @(build-test-map ["#~~~~"
+                                             "#~~~~"
+                                             "#T~~~"
+                                             "~~~~~"
+                                             "~~~~~"]))
     (set-test-unit atoms/game-map "T"
                    :mode :coastline-follow
                    :coastline-steps 50
                    :start-pos [2 1]
                    :visited #{[2 1]}
                    :prev-pos nil)
-    (reset! atoms/player-map @(build-test-map ["sssss"
-                                               "sssss"
-                                               "sssss"
-                                               "sssss"
-                                               "sssss"]))
+    (reset! atoms/player-map @(build-test-map ["~~~~~"
+                                               "~~~~~"
+                                               "~~~~~"
+                                               "~~~~~"
+                                               "~~~~~"]))
     (move-coastline-unit [2 1])
     (should-be-nil (:contents (get-in @atoms/game-map [2 1]))))
 
   (it "wakes up when blocked"
-    (reset! atoms/game-map @(build-test-map ["LLL"
-                                             "LTL"
-                                             "LLL"]))
+    (reset! atoms/game-map @(build-test-map ["###"
+                                             "#T#"
+                                             "###"]))
     (set-test-unit atoms/game-map "T"
                    :mode :coastline-follow
                    :coastline-steps 50
@@ -333,10 +333,10 @@
 
   (it "wakes up when returning to start position after traveling"
     ;; Create a small loop where unit can return to start after 5+ moves
-    (reset! atoms/game-map @(build-test-map ["Lsss"
-                                             "LTLs"
-                                             "Lsss"
-                                             "LLLL"]))
+    (reset! atoms/game-map @(build-test-map ["#~~~"
+                                             "#T#~"
+                                             "#~~~"
+                                             "####"]))
     (set-test-unit atoms/game-map "T"
                    :mode :coastline-follow
                    :coastline-steps 50
@@ -353,9 +353,9 @@
 
   (it "wakes up when hitting map edge (started away from edge)"
     ;; Unit starts away from edge, moves to edge
-    (reset! atoms/game-map @(build-test-map ["sss"
-                                             "LTs"
-                                             "Lss"]))
+    (reset! atoms/game-map @(build-test-map ["~~~"
+                                             "#T~"
+                                             "#~~"]))
     (set-test-unit atoms/game-map "T"
                    :mode :coastline-follow
                    :coastline-steps 50
@@ -374,16 +374,16 @@
 
   (it "wakes up when steps exhausted"
     ;; Large map so unit doesn't hit edge - unit starts in middle, not at edge
-    (reset! atoms/game-map @(build-test-map ["Lsssssssss"
-                                             "Lsssssssss"
-                                             "Lsssssssss"
-                                             "Lsssssssss"
-                                             "Lsssssssss"
-                                             "LTssssssss"
-                                             "Lsssssssss"
-                                             "Lsssssssss"
-                                             "Lsssssssss"
-                                             "Lsssssssss"]))
+    (reset! atoms/game-map @(build-test-map ["#~~~~~~~~~"
+                                             "#~~~~~~~~~"
+                                             "#~~~~~~~~~"
+                                             "#~~~~~~~~~"
+                                             "#~~~~~~~~~"
+                                             "#T~~~~~~~~"
+                                             "#~~~~~~~~~"
+                                             "#~~~~~~~~~"
+                                             "#~~~~~~~~~"
+                                             "#~~~~~~~~~"]))
     (set-test-unit atoms/game-map "T"
                    :mode :coastline-follow
                    :coastline-steps 1  ;; Only 1 step left
@@ -409,26 +409,26 @@
     ;; Large map where unit won't hit any wake conditions
     ;; Use a 20x20 map with land on left, unit starts in middle at [10 1]
     ;; Transport has speed 2, and with 50 coastline-steps, it should continue
-    (reset! atoms/game-map @(build-test-map ["Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "LTssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"
-                                             "Lsssssssssssssssssss"]))
+    (reset! atoms/game-map @(build-test-map ["#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#T~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"
+                                             "#~~~~~~~~~~~~~~~~~~~"]))
     (set-test-unit atoms/game-map "T"
                    :mode :coastline-follow
                    :coastline-steps 50  ;; Plenty of steps
@@ -457,11 +457,11 @@
     ;; A bay is a sea cell surrounded by land on exactly 3 orthogonal sides
     ;; Create a channel that leads into a bay - unit must move into the bay
     ;; Bay at [2 3]: up=[1 3] land, down=[3 3] land, left=[2 2] sea, right=[2 4] land = 3 land sides
-    (reset! atoms/game-map @(build-test-map ["LLLLL"
-                                             "LLsLL"
-                                             "LLTsL"
-                                             "LLsLL"
-                                             "LLLLL"]))
+    (reset! atoms/game-map @(build-test-map ["#####"
+                                             "##~##"
+                                             "##T~#"
+                                             "##~##"
+                                             "#####"]))
     ;; [2 3] has: up=[1 3] land, down=[3 3] land, left=[2 2] sea, right=[2 4] land -> 3 land = bay!
     ;; Put transport at [2 2] with armies. Only valid move is [2 3] (bay) or [1 2] or [3 2]
     ;; Set prev-pos to [1 2] so it doesn't backstep, leaving only [2 3] or [3 2]

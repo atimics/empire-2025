@@ -7,8 +7,8 @@
 
 (describe "set-city-lookaround"
   (around [it]
-    (reset! atoms/game-map @(build-test-map ["sO"
-                                             "XL"]))
+    (reset! atoms/game-map @(build-test-map ["~O"
+                                             "X#"]))
     (it))
 
   (it "sets marching orders to :lookaround on player city"

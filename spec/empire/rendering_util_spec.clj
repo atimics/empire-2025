@@ -143,3 +143,16 @@
           production {[0 0] {:item :army :remaining-rounds 0}}
           result (ru/group-cells-by-color the-map [[0 0]] production true true)]
       (should= 1 (count (get result [0 0 0]))))))
+
+(describe "should-show-paused?"
+  (it "returns true when paused is true"
+    (should (ru/should-show-paused? true false)))
+
+  (it "returns true when pause-requested is true"
+    (should (ru/should-show-paused? false true)))
+
+  (it "returns true when both are true"
+    (should (ru/should-show-paused? true true)))
+
+  (it "returns false when both are false"
+    (should-not (ru/should-show-paused? false false))))

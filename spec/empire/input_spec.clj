@@ -3,6 +3,7 @@
             [empire.input :as input]
             [empire.atoms :as atoms]
             [empire.config :as config]
+            [empire.game-loop :as game-loop]
             [empire.test-utils :refer [build-test-map set-test-unit]]))
 
 (describe "set-city-lookaround"
@@ -75,3 +76,13 @@
     (input/handle-key :space)
     (let [unit (:contents (get-in @atoms/game-map [0 0]))]
       (should-contain "12" (:reason unit)))))
+
+(describe "key-down :P"
+  (before
+    (reset! atoms/paused false)
+    (reset! atoms/pause-requested false)
+    (reset! atoms/backtick-pressed false))
+
+  (it "toggles pause when P is pressed"
+    (input/key-down :P)
+    (should @atoms/pause-requested)))

@@ -2,6 +2,11 @@
   (:require [empire.config :as config]
             [empire.unit-container :as uc]))
 
+(defn should-show-paused?
+  "Returns true if the PAUSED message should be displayed."
+  [paused pause-requested]
+  (or paused pause-requested))
+
 (defn format-unit-status
   "Formats status string for a unit."
   [unit]

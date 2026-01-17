@@ -128,7 +128,7 @@
         dest @atoms/destination
         dest-str (if dest (str "Dest: " (first dest) "," (second dest)) "")]
     (q/text (str "Round: " @atoms/round-number) status-x (+ text-y 10))
-    (if @atoms/paused
+    (if (ru/should-show-paused? @atoms/paused @atoms/pause-requested)
       (do
         (q/fill 255 0 0)
         (q/text "PAUSED" status-x (+ text-y 30))

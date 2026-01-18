@@ -87,6 +87,34 @@
       (let [unit (:contents (get-in @atoms/game-map unit-coords))]
         (should-contain "12" (:reason unit))))))
 
+(describe "handle-key :l on army aboard transport"
+  (before (reset-all-atoms!))
+
+  (it "keeps transport in player-items when more awake armies remain"
+    (reset! atoms/game-map @(build-test-map ["---------"
+                                             "---------"
+                                             "---------"
+                                             "---------"
+                                             "----T----"
+                                             "----#----"
+                                             "---------"
+                                             "---------"
+                                             "---------"]))
+    (set-test-unit atoms/game-map "T" :mode :sentry :hits 1 :army-count 3 :awake-armies 3)
+    (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
+          land-coords [(inc (first transport-coords)) (second transport-coords)]]
+      (reset! atoms/cells-needing-attention [transport-coords])
+      (reset! atoms/player-items [transport-coords])
+      (reset! atoms/waiting-for-input true)
+      (input/handle-key :l)
+      ;; Transport should still be in player-items so remaining armies get attention
+      (should (some #{transport-coords} @atoms/player-items))
+      ;; Disembarked army should be at front of player-items
+      (should= land-coords (first @atoms/player-items))
+      ;; Transport should still have 2 awake armies
+      (let [transport (:contents (get-in @atoms/game-map transport-coords))]
+        (should= 2 (:awake-armies transport))))))
+
 (describe "key-down :P"
   (before
     (reset-all-atoms!)

@@ -1,4 +1,5 @@
-(ns empire.test-utils)
+(ns empire.test-utils
+  (:require [empire.atoms :as atoms]))
 
 (defn- char->cell [c]
   (case c
@@ -79,3 +80,30 @@
                                  (matches-filters? contents filters))]
                   {:pos [row-idx col-idx] :unit contents})]
     (nth matches (dec n) nil)))
+
+(defn reset-all-atoms! []
+  (reset! atoms/map-size [0 0])
+  (reset! atoms/last-key nil)
+  (reset! atoms/backtick-pressed false)
+  (reset! atoms/map-screen-dimensions [0 0])
+  (reset! atoms/text-area-dimensions [0 0 0 0])
+  (reset! atoms/map-to-display :player-map)
+  (reset! atoms/round-number 0)
+  (reset! atoms/last-clicked-cell nil)
+  (reset! atoms/text-font nil)
+  (reset! atoms/production-char-font nil)
+  (reset! atoms/production {})
+  (reset! atoms/game-map nil)
+  (reset! atoms/player-map {})
+  (reset! atoms/cells-needing-attention [])
+  (reset! atoms/player-items [])
+  (reset! atoms/waiting-for-input false)
+  (reset! atoms/message "")
+  (reset! atoms/line2-message "")
+  (reset! atoms/confirmation-until 0)
+  (reset! atoms/line3-message "")
+  (reset! atoms/line3-until 0)
+  (reset! atoms/computer-map {})
+  (reset! atoms/destination nil)
+  (reset! atoms/paused false)
+  (reset! atoms/pause-requested false))

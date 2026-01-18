@@ -2,9 +2,10 @@
   (:require [speclj.core :refer :all]
             [empire.atoms :as atoms]
             [empire.satellite :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit]]))
+            [empire.test-utils :refer [build-test-map set-test-unit reset-all-atoms!]]))
 
 (describe "calculate-satellite-target"
+  (before (reset-all-atoms!))
   (it "extends target to boundary in direction of travel"
     (reset! atoms/game-map @(build-test-map ["##########"
                                              "##########"
@@ -59,6 +60,7 @@
     (should= [0 0] (calculate-satellite-target [5 5] [3 3]))))
 
 (describe "move-satellite"
+  (before (reset-all-atoms!))
   (it "does not move without a target"
     (reset! atoms/game-map @(build-test-map ["##########"
                                              "##########"

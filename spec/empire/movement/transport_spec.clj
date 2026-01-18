@@ -3,10 +3,11 @@
     [empire.atoms :as atoms]
     [empire.game-loop :as game-loop]
     [empire.movement.movement :refer :all]
-    [empire.test-utils :refer [build-test-map set-test-unit get-test-unit]]
+    [empire.test-utils :refer [build-test-map set-test-unit get-test-unit reset-all-atoms!]]
     [speclj.core :refer :all]))
 
 (describe "transport with armies"
+  (before (reset-all-atoms!))
   (it "loads adjacent sentry armies onto transport"
     (reset! atoms/game-map @(build-test-map ["---------"
                                              "---------"
@@ -321,6 +322,7 @@
       (should-not (is-army-aboard-transport? army)))))
 
 (describe "disembark-army-with-target"
+  (before (reset-all-atoms!))
   (it "disembarks army and sets it moving toward extended target"
     (reset! atoms/game-map @(build-test-map ["---------"
                                              "---------"
@@ -347,6 +349,7 @@
         (should= 0 (:steps-remaining army))))))
 
 (describe "disembark-army-to-explore"
+  (before (reset-all-atoms!))
   (it "disembarks army in explore mode"
     (reset! atoms/game-map @(build-test-map ["---------"
                                              "---------"

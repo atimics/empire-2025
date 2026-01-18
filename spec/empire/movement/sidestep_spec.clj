@@ -2,10 +2,11 @@
   (:require
     [empire.atoms :as atoms]
     [empire.game-loop :as game-loop]
-    [empire.test-utils :refer [build-test-map set-test-unit get-test-unit]]
+    [empire.test-utils :refer [build-test-map set-test-unit get-test-unit reset-all-atoms!]]
     [speclj.core :refer :all]))
 
 (describe "sidestep around friendly units"
+  (before (reset-all-atoms!))
   (it "sidesteps diagonally around friendly unit and continues moving"
     (reset! atoms/game-map @(build-test-map ["---------"
                                              "---------"
@@ -215,6 +216,7 @@
       (should-be-nil (:contents (get-in @atoms/game-map moving-coords))))))
 
 (describe "sidestep around cities"
+  (before (reset-all-atoms!))
   (it "army sidesteps around friendly city"
     (reset! atoms/game-map @(build-test-map ["---------"
                                              "---------"

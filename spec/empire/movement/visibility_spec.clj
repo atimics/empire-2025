@@ -2,9 +2,10 @@
   (:require [speclj.core :refer :all]
             [empire.atoms :as atoms]
             [empire.movement.visibility :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit]]))
+            [empire.test-utils :refer [build-test-map set-test-unit reset-all-atoms!]]))
 
 (describe "update-cell-visibility"
+  (before (reset-all-atoms!))
   (it "reveals cells near player-owned units"
     (reset! atoms/game-map @(build-test-map ["---------"
                                              "---------"
@@ -97,6 +98,7 @@
     (should (get-in @atoms/player-map [7 7]))))
 
 (describe "update-combatant-map"
+  (before (reset-all-atoms!))
   (it "reveals all 9 cells around a player unit in center of map"
     (reset! atoms/game-map @(build-test-map ["~~~~~"
                                              "~~~~~"

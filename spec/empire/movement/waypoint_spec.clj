@@ -5,11 +5,12 @@
     [empire.game-loop :as game-loop]
     [empire.movement.movement :as movement]
     [empire.movement.waypoint :as waypoint]
-    [empire.test-utils :refer [build-test-map set-test-unit]]
+    [empire.test-utils :refer [build-test-map set-test-unit reset-all-atoms!]]
     [speclj.core :refer :all]))
 
 (describe "waypoints"
   (before
+    (reset-all-atoms!)
     (reset! atoms/game-map nil)
     (reset! atoms/player-map nil)
     (reset! atoms/destination nil))

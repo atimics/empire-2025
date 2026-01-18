@@ -7,9 +7,10 @@
             [empire.game-loop :as game-loop]
             [empire.input :as input]
             [empire.movement.movement :as movement]
-            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit]]))
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit reset-all-atoms!]]))
 
 (describe "build-player-items"
+  (before (reset-all-atoms!))
   (it "returns coordinates of player cities"
     (reset! atoms/game-map @(build-test-map ["OX"]))
     (should= [[0 0]] (vec (game-loop/build-player-items))))
@@ -29,6 +30,7 @@
     (should= [] (vec (game-loop/build-player-items)))))
 
 (describe "item-processed"
+  (before (reset-all-atoms!))
   (it "resets waiting-for-input to false"
     (reset! atoms/waiting-for-input true)
     (game-loop/item-processed)
@@ -45,6 +47,7 @@
     (should= [] @atoms/cells-needing-attention)))
 
 (describe "wake-airport-fighters"
+  (before (reset-all-atoms!))
   (it "wakes all fighters in player city airports"
     (reset! atoms/game-map (-> @(build-test-map ["O"])
                                (assoc-in [0 0 :fighter-count] 3)
@@ -65,6 +68,7 @@
     (should= nil (:awake-fighters (get-in @atoms/game-map [0 0])))))
 
 (describe "cells-needing-attention"
+  (before (reset-all-atoms!))
   (it "returns empty list when no player cells"
     (reset! atoms/player-map @(build-test-map ["~#"
                                                "X#"]))
@@ -97,6 +101,7 @@
     (should= [[0 0] [0 1]] (attention/cells-needing-attention))))
 
 (describe "remove-dead-units"
+  (before (reset-all-atoms!))
   (it "removes units with hits at or below zero"
     (reset! atoms/game-map @(build-test-map ["AFA"
                                              "###"]))
@@ -109,6 +114,7 @@
     (should= {:type :land} (get-in @atoms/game-map [0 2]))))
 
 (describe "reset-steps-remaining"
+  (before (reset-all-atoms!))
   (it "initializes steps-remaining for player units based on unit speed"
     (reset! atoms/game-map @(build-test-map ["AF"
                                              "A#"]))
@@ -125,6 +131,7 @@
     (should= (config/unit-speed :fighter) (:steps-remaining (:contents (get-in @atoms/game-map [0 0]))))))
 
 (describe "set-unit-movement"
+  (before (reset-all-atoms!))
   (it "preserves existing steps-remaining when setting movement"
     (reset! atoms/game-map @(build-test-map ["F#"]))
     (set-test-unit atoms/game-map "F" :mode :awake :steps-remaining 3)
@@ -135,6 +142,7 @@
       (should= 3 (:steps-remaining unit)))))
 
 (describe "move-current-unit"
+  (before (reset-all-atoms!))
   (before-all
     (reset! atoms/player-map {}))
 
@@ -180,6 +188,7 @@
     (should= nil (game-loop/move-current-unit [0 1]))))
 
 (describe "attempt-fighter-overfly"
+  (before (reset-all-atoms!))
   (it "shoots down fighter when flying over free city"
     (reset! atoms/game-map @(build-test-map ["F+"]))
     (set-test-unit atoms/game-map "F" :mode :awake)
@@ -211,6 +220,7 @@
     (should= (:fighter-destroyed-by-city config/messages) @atoms/line3-message)))
 
 (describe "sentry mode"
+  (before (reset-all-atoms!))
   (it "handle-key with 's' puts unit in sentry mode"
     (reset! atoms/game-map @(build-test-map ["A"]))
     (set-test-unit atoms/game-map "A" :mode :awake)
@@ -263,6 +273,7 @@
     (should= 0 (:hits (:contents (get-in @atoms/game-map [0 0]))))))
 
 (describe "explore mode"
+  (before (reset-all-atoms!))
   (it "handle-key with 'l' puts army in explore mode"
     (reset! atoms/game-map @(build-test-map ["A"]))
     (set-test-unit atoms/game-map "A" :mode :awake)
@@ -411,6 +422,7 @@
       (should= :army-found-city (:reason unit)))))
 
 (describe "calculate-extended-target"
+  (before (reset-all-atoms!))
   (it "calculates target at map edge going east"
     (reset! atoms/game-map @(build-test-map ["#####"
                                              "#####"

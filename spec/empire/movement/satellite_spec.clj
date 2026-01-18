@@ -4,10 +4,11 @@
     [empire.game-loop :as game-loop]
     [empire.movement.movement :refer [move-satellite set-unit-movement]]
     [empire.movement.visibility :refer [update-cell-visibility]]
-    [empire.test-utils :refer [build-test-map set-test-unit get-test-unit]]
+    [empire.test-utils :refer [build-test-map set-test-unit get-test-unit reset-all-atoms!]]
     [speclj.core :refer :all]))
 
 (describe "satellite movement"
+  (before (reset-all-atoms!))
   (it "does not move without a target"
     (reset! atoms/game-map @(build-test-map ["##########"
                                              "##########"

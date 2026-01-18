@@ -4,10 +4,11 @@
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.game-loop :as game-loop]
-            [empire.test-utils :refer [build-test-map set-test-unit]]))
+            [empire.test-utils :refer [build-test-map set-test-unit reset-all-atoms!]]))
 
 (describe "set-city-lookaround"
   (around [it]
+    (reset-all-atoms!)
     (reset! atoms/game-map @(build-test-map ["~O"
                                              "X#"]))
     (it))
@@ -34,6 +35,7 @@
     (should-be-nil (input/set-city-lookaround [0 0]))))
 
 (describe "handle-key :space"
+  (before (reset-all-atoms!))
   (it "sets reason to :skipping-this-round on the unit"
     (reset! atoms/game-map @(build-test-map ["A"]))
     (set-test-unit atoms/game-map "A" :mode :awake)
@@ -79,6 +81,7 @@
 
 (describe "key-down :P"
   (before
+    (reset-all-atoms!)
     (reset! atoms/paused false)
     (reset! atoms/pause-requested false)
     (reset! atoms/backtick-pressed false))

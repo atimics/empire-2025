@@ -3,9 +3,10 @@
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.movement.wake-conditions :refer :all]
-            [empire.test-utils :refer [build-test-map]]))
+            [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
 
 (describe "near-hostile-city?"
+  (before (reset-all-atoms!))
   (it "returns true when adjacent to a computer city"
     (let [game-map (build-test-map ["#####"
                                     "#####"
@@ -39,6 +40,7 @@
       (should-not (near-hostile-city? [2 2] game-map)))))
 
 (describe "friendly-city-in-range?"
+  (before (reset-all-atoms!))
   (it "returns true when friendly city is within range"
     (let [game-map (build-test-map ["#########"
                                     "#########"
@@ -76,6 +78,7 @@
       (should-not (friendly-city-in-range? [4 4] 5 game-map)))))
 
 (describe "wake-before-move"
+  (before (reset-all-atoms!))
   (it "wakes unit when something is in the way"
     (let [unit {:type :army :mode :moving :owner :player :target [4 5] :steps-remaining 1}
           next-cell {:type :land :contents {:type :army :owner :player}}
@@ -129,6 +132,7 @@
       (should-not should-wake?))))
 
 (describe "wake-after-move"
+  (before (reset-all-atoms!))
   (it "wakes army when near hostile city"
     (let [game-map (build-test-map ["#########"
                                     "#########"

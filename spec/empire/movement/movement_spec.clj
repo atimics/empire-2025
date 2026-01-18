@@ -4,7 +4,7 @@
     [empire.config :as config]
     [empire.game-loop :as game-loop]
     [empire.movement.movement :refer :all]
-    [empire.test-utils :refer [build-test-map set-test-unit]]
+    [empire.test-utils :refer [build-test-map set-test-unit reset-all-atoms!]]
     [speclj.core :refer :all]))
 
 (defn move-until-done
@@ -15,6 +15,7 @@
       (recur next-coords))))
 
 (describe "movement"
+  (before (reset-all-atoms!))
   (context "move-current-unit"
     (it "does nothing if no unit"
       (reset! atoms/game-map @(build-test-map ["---------"
@@ -696,6 +697,7 @@
   )
 
 (describe "movement-context"
+  (before (reset-all-atoms!))
   (it "returns :airport-fighter for fighter from airport"
     (let [cell {:type :city :awake-fighters 1}
           unit {:type :fighter :from-airport true}]
@@ -721,6 +723,7 @@
 
 (describe "add-unit-at"
   (before
+    (reset-all-atoms!)
     (reset! atoms/game-map @(build-test-map ["#########"
                                              "#########"
                                              "#########"
@@ -752,6 +755,7 @@
 
 (describe "wake-at"
   (before
+    (reset-all-atoms!)
     (reset! atoms/game-map @(build-test-map ["#########"
                                              "#########"
                                              "#########"

@@ -2,9 +2,11 @@
   (:require [empire.atoms :as atoms]
             [empire.core :as core]
             [empire.rendering-util :as ru]
+            [empire.test-utils :refer [reset-all-atoms!]]
             [speclj.core :refer :all]))
 
 (describe "format-unit-status"
+  (before (reset-all-atoms!))
   (it "formats army status"
     (let [unit {:type :army :hits 1 :mode :awake}]
       (should= "army [1/1] awake" (ru/format-unit-status unit))))
@@ -30,6 +32,7 @@
       (should= "fighter [1/1] fuel:30 flight moving" (ru/format-unit-status unit)))))
 
 (describe "format-city-status"
+  (before (reset-all-atoms!))
   (it "formats player city"
     (let [cell {:type :city :city-status :player}]
       (should= "city:player" (ru/format-city-status cell nil))))
@@ -64,6 +67,7 @@
       (should= "city:player lookaround" (ru/format-city-status cell nil)))))
 
 (describe "format-hover-status"
+  (before (reset-all-atoms!))
   (it "returns nil for empty land"
     (let [cell {:type :land}]
       (should-be-nil (ru/format-hover-status cell nil))))
@@ -81,6 +85,7 @@
       (should= "army [1/1] awake" (ru/format-hover-status cell nil)))))
 
 (describe "key-released"
+  (before (reset-all-atoms!))
   (it "resets last-key atom to nil"
     (reset! atoms/last-key :a)
     (core/key-released nil nil)
@@ -92,6 +97,7 @@
     (should-be-nil @atoms/last-key)))
 
 (describe "compute-screen-dimensions"
+  (before (reset-all-atoms!))
   (it "calculates dimensions for standard screen"
     (let [char-width 10
           char-height 20

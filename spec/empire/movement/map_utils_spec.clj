@@ -2,9 +2,10 @@
   (:require [speclj.core :refer :all]
             [empire.movement.map-utils :as map-utils]
             [empire.atoms :as atoms]
-            [empire.test-utils :refer [build-test-map]]))
+            [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
 
 (describe "process-map"
+  (before (reset-all-atoms!))
   (it "applies function to each cell returning transformed map"
     (let [input-map [[1 2] [3 4]]
           result (map-utils/process-map input-map (fn [i j the-map] (* (get-in the-map [i j]) 2)))]
@@ -38,6 +39,7 @@
       (should= nil (:depth (get-in result [0 1]))))))
 
 (describe "filter-map"
+  (before (reset-all-atoms!))
   (it "returns positions where predicate is true"
     (let [input-map @(build-test-map ["~#"
                                       "#~"])
@@ -65,6 +67,7 @@
       (should= [[0 0] [1 1]] (vec result)))))
 
 (describe "on-coast?"
+  (before (reset-all-atoms!))
   (it "returns true when cell is adjacent to sea"
     (reset! atoms/game-map @(build-test-map ["#~"
                                              "##"]))
@@ -89,6 +92,7 @@
     (should-not (map-utils/on-coast? 2 0))))
 
 (describe "on-map?"
+  (before (reset-all-atoms!))
   (it "returns true for valid coordinates"
     (reset! atoms/map-screen-dimensions [800 600])
     (should (map-utils/on-map? 0 0))
@@ -103,6 +107,7 @@
     (should-not (map-utils/on-map? 0 600))))
 
 (describe "determine-cell-coordinates"
+  (before (reset-all-atoms!))
   (it "converts pixel coordinates to cell coordinates"
     (reset! atoms/map-screen-dimensions [800 600])
     (reset! atoms/game-map (vec (repeat 8 (vec (repeat 6 nil)))))
@@ -114,6 +119,7 @@
     (should= [7 5] (map-utils/determine-cell-coordinates 750 550))))
 
 (describe "city?"
+  (before (reset-all-atoms!))
   (it "returns true for city cells"
     (reset! atoms/game-map @(build-test-map ["+"]))
     (should (map-utils/city? [0 0])))
@@ -127,6 +133,7 @@
     (should-not (map-utils/city? [0 0]))))
 
 (describe "blink?"
+  (before (reset-all-atoms!))
   (it "returns a boolean"
     (should (boolean? (map-utils/blink? 500))))
 
@@ -135,6 +142,7 @@
       (should (or (true? result) (false? result))))))
 
 (describe "adjacent-to-land?"
+  (before (reset-all-atoms!))
   (it "returns true when position is adjacent to land"
     (let [game-map (build-test-map ["~#"
                                     "~~"])]
@@ -158,6 +166,7 @@
       (should (map-utils/adjacent-to-land? [1 1] game-map)))))
 
 (describe "orthogonally-adjacent-to-land?"
+  (before (reset-all-atoms!))
   (it "returns true when orthogonally adjacent to land"
     (let [game-map (build-test-map ["~#"
                                     "~~"])]
@@ -176,6 +185,7 @@
       (should-not (map-utils/orthogonally-adjacent-to-land? [1 1] game-map)))))
 
 (describe "completely-surrounded-by-sea?"
+  (before (reset-all-atoms!))
   (it "returns true when no adjacent land"
     (let [game-map (build-test-map ["~~~"
                                     "~~~"
@@ -189,6 +199,7 @@
       (should-not (map-utils/completely-surrounded-by-sea? [1 1] game-map)))))
 
 (describe "in-bay?"
+  (before (reset-all-atoms!))
   (it "returns true when surrounded by 4 or more land cells"
     (let [game-map (build-test-map ["##~"
                                     "#~#"
@@ -220,6 +231,7 @@
       (should (map-utils/in-bay? [1 1] game-map)))))
 
 (describe "adjacent-to-sea?"
+  (before (reset-all-atoms!))
   (it "returns true when adjacent to sea"
     (let [game-map (build-test-map ["#~"
                                     "##"])]
@@ -232,6 +244,7 @@
       (should-not (map-utils/adjacent-to-sea? [1 1] game-map)))))
 
 (describe "at-map-edge?"
+  (before (reset-all-atoms!))
   (it "returns true for top edge"
     (let [game-map (build-test-map ["#####"
                                     "#####"

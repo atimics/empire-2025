@@ -2,9 +2,11 @@
   (:require
     [empire.atoms :as atoms]
     [empire.init :refer :all]
+    [empire.test-utils :refer [reset-all-atoms!]]
     [speclj.core :refer :all]))
 
 (describe "smooth-map"
+  (before (reset-all-atoms!))
   (it "handles a 1x1 map by returning the same value"
     (let [input [[42]]
           result (smooth-map input)]
@@ -18,6 +20,7 @@
 
 (declare map-size smooth-count land-fraction num-cities min-distance initial-map)
 (describe "make-initial-map"
+  (before (reset-all-atoms!))
   (with map-size [10 10])
   (with smooth-count 5)
   (with land-fraction 0.7)
@@ -75,6 +78,7 @@
           (should (>= distance @min-distance)))))))
 
 (describe "smooth-cell"
+  (before (reset-all-atoms!))
   (it "smooths center cell correctly"
     (let [test-map [[1 2 3] [4 5 6] [7 8 9]]
           result (smooth-cell 1 1 test-map)]
@@ -101,6 +105,7 @@
       (should= 3 result))))
 
 (describe "coastal?"
+  (before (reset-all-atoms!))
   (it "returns true for city adjacent to sea"
     (let [test-map [[{:type :sea} {:type :land} {:type :land}]
                     [{:type :sea} {:type :city :city-status :free} {:type :land}]
@@ -120,6 +125,7 @@
       (should (coastal? [1 1] test-map)))))
 
 (describe "occupy-random-free-city"
+  (before (reset-all-atoms!))
   (it "selects only coastal cities for player"
     (let [;; Map with one inland city and one coastal city
           test-map [[{:type :sea} {:type :land} {:type :land}]
@@ -176,6 +182,7 @@
       (should= :player (:city-status (get-in result [4 3]))))))
 
 (describe "generate-cities"
+  (before (reset-all-atoms!))
   (it "places cities on land cells"
     (let [test-map [[{:type :land} {:type :land}]
                     [{:type :land} {:type :sea}]]

@@ -3,9 +3,10 @@
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.movement.explore :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit]]))
+            [empire.test-utils :refer [build-test-map set-test-unit reset-all-atoms!]]))
 
 (describe "valid-explore-cell?"
+  (before (reset-all-atoms!))
   (it "returns true for land cell without unit"
     (should (valid-explore-cell? {:type :land})))
 
@@ -22,6 +23,7 @@
     (should-not (valid-explore-cell? nil))))
 
 (describe "get-valid-explore-moves"
+  (before (reset-all-atoms!))
   (it "returns adjacent land cells without units"
     (let [game-map (build-test-map ["###"
                                     "###"
@@ -50,6 +52,7 @@
         (should= 3 (count moves))))))
 
 (describe "adjacent-to-unexplored?"
+  (before (reset-all-atoms!))
   (it "returns true when adjacent to unexplored cell"
     (reset! atoms/player-map @(build-test-map ["#-"
                                                "##"]))
@@ -62,6 +65,7 @@
     (should-not (adjacent-to-unexplored? [1 1]))))
 
 (describe "get-unexplored-explore-moves"
+  (before (reset-all-atoms!))
   (it "returns moves adjacent to unexplored cells"
     (let [game-map (build-test-map ["###"
                                     "###"
@@ -76,6 +80,7 @@
         (should (some #{[2 2]} moves))))))
 
 (describe "pick-explore-move"
+  (before (reset-all-atoms!))
   (it "prefers unexplored moves"
     (let [game-map (build-test-map ["###"
                                     "###"
@@ -106,6 +111,7 @@
       (should-be-nil (pick-explore-move [1 1] game-map #{})))))
 
 (describe "set-explore-mode"
+  (before (reset-all-atoms!))
   (it "sets unit to explore mode with initial state"
     (reset! atoms/game-map @(build-test-map ["A"]))
     (set-explore-mode [0 0])
@@ -124,6 +130,7 @@
       (should-be-nil (:target unit)))))
 
 (describe "move-explore-unit"
+  (before (reset-all-atoms!))
   (it "wakes up after explore-steps exhausted"
     (reset! atoms/game-map @(build-test-map ["A#"]))
     (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 1 :visited #{})

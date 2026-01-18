@@ -3,9 +3,10 @@
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.movement.coastline :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit]]))
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit reset-all-atoms!]]))
 
 (describe "coastline-follow-eligible?"
+  (before (reset-all-atoms!))
   (it "returns true for transport near coast"
     (should (coastline-follow-eligible? {:type :transport} true)))
 
@@ -21,6 +22,7 @@
     (should-not (coastline-follow-eligible? {:type :carrier} true))))
 
 (describe "coastline-follow-rejection-reason"
+  (before (reset-all-atoms!))
   (it "returns :not-near-coast for transport not near coast"
     (should= :not-near-coast (coastline-follow-rejection-reason {:type :transport} false)))
 
@@ -32,6 +34,7 @@
     (should-be-nil (coastline-follow-rejection-reason {:type :army} false))))
 
 (describe "valid-coastline-cell?"
+  (before (reset-all-atoms!))
   (it "returns true for empty sea cell"
     (should (valid-coastline-cell? {:type :sea})))
 
@@ -45,6 +48,7 @@
     (should-not (valid-coastline-cell? nil))))
 
 (describe "get-valid-coastline-moves"
+  (before (reset-all-atoms!))
   (it "returns adjacent sea cells without units"
     (let [game-map (build-test-map ["~~~"
                                     "~~~"
@@ -67,6 +71,7 @@
         (should= 7 (count moves))))))
 
 (describe "pick-coastline-move"
+  (before (reset-all-atoms!))
   (it "prefers orthogonally adjacent to land moves"
     (let [game-map (build-test-map ["#~~"
                                     "#~~"
@@ -276,6 +281,7 @@
           (should (some #{move} [[0 0] [0 1] [0 2] [1 0] [1 2] [2 0] [2 1] [2 2]])))))))
 
 (describe "set-coastline-follow-mode"
+  (before (reset-all-atoms!))
   (it "sets unit to coastline-follow mode with initial state"
     (reset! atoms/game-map @(build-test-map ["T"]))
     (set-coastline-follow-mode [0 0])
@@ -295,6 +301,7 @@
       (should-be-nil (:target unit)))))
 
 (describe "move-coastline-unit"
+  (before (reset-all-atoms!))
   (it "moves transport along coastline"
     (reset! atoms/game-map @(build-test-map ["#~~~~"
                                              "#~~~~"

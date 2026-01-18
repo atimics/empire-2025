@@ -3,9 +3,10 @@
             [empire.combat :as combat]
             [empire.atoms :as atoms]
             [empire.config :as config]
-            [empire.test-utils :refer [build-test-map]]))
+            [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
 
 (describe "hostile-city?"
+  (before (reset-all-atoms!))
   (it "returns true for free city"
     (reset! atoms/game-map @(build-test-map ["+"]))
     (should (combat/hostile-city? [0 0])))
@@ -27,6 +28,7 @@
     (should-not (combat/hostile-city? [0 0]))))
 
 (describe "attempt-conquest"
+  (before (reset-all-atoms!))
   (with-stubs)
 
   (it "removes army from original cell on success"

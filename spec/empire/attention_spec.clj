@@ -2,9 +2,10 @@
   (:require [speclj.core :refer :all]
             [empire.attention :as attention]
             [empire.atoms :as atoms]
-            [empire.test-utils :refer [build-test-map set-test-unit]]))
+            [empire.test-utils :refer [build-test-map set-test-unit reset-all-atoms!]]))
 
 (describe "is-city-needing-attention?"
+  (before (reset-all-atoms!))
   (it "returns true for player city at first attention position"
     (let [cell {:type :city :city-status :player}
           clicked-coords [0 0]
@@ -42,6 +43,7 @@
       (should-not (attention/is-city-needing-attention? cell clicked-coords attention-coords)))))
 
 (describe "is-unit-needing-attention?"
+  (before (reset-all-atoms!))
   (it "returns true when attention coords contain a unit"
     (reset! atoms/game-map @(build-test-map ["A"]))
     (should (attention/is-unit-needing-attention? [[0 0]])))
@@ -58,6 +60,7 @@
     (should (attention/is-unit-needing-attention? [[0 0]]))))
 
 (describe "needs-attention?"
+  (before (reset-all-atoms!))
   (it "returns true for awake player unit"
     (reset! atoms/player-map @(build-test-map ["A"]))
     (set-test-unit atoms/player-map "A" :mode :awake)
@@ -115,6 +118,7 @@
     (should-not (attention/needs-attention? 0 0))))
 
 (describe "item-needs-attention?"
+  (before (reset-all-atoms!))
   (it "returns true for awake unit"
     (reset! atoms/game-map @(build-test-map ["A"]))
     (set-test-unit atoms/game-map "A" :mode :awake)
@@ -161,6 +165,7 @@
     (should-not (attention/item-needs-attention? [0 0]))))
 
 (describe "cells-needing-attention"
+  (before (reset-all-atoms!))
   (it "returns coordinates of cells needing attention"
     (reset! atoms/player-map @(build-test-map ["AO"
                                                "#X"]))
@@ -178,6 +183,7 @@
     (should= [] (attention/cells-needing-attention))))
 
 (describe "set-attention-message"
+  (before (reset-all-atoms!))
   (it "sets message for airport fighter"
     (reset! atoms/game-map (-> @(build-test-map ["O"])
                                (assoc-in [0 0 :awake-fighters] 1)

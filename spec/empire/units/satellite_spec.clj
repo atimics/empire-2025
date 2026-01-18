@@ -2,9 +2,10 @@
   (:require [speclj.core :refer :all]
             [empire.units.satellite :as satellite]
             [empire.atoms :as atoms]
-            [empire.test-utils :refer [build-test-map]]))
+            [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
 
 (describe "satellite unit module"
+  (before (reset-all-atoms!))
   (describe "configuration"
     (it "has speed of 10"
       (should= 10 satellite/speed))

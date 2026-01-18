@@ -3,10 +3,11 @@
             [empire.production :as production]
             [empire.atoms :as atoms]
             [empire.config :as config]
-            [empire.test-utils :refer [build-test-map]]))
+            [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
 
 (describe "update-production"
   (around [it]
+    (reset-all-atoms!)
     (reset! atoms/production {})
     (reset! atoms/game-map @(build-test-map ["~O"
                                              "O#"]))
@@ -135,6 +136,7 @@
 
 (describe "set-city-production"
   (before
+    (reset-all-atoms!)
     (reset! atoms/production {}))
 
   (it "sets production for a city"

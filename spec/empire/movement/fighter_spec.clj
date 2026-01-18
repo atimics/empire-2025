@@ -3,10 +3,11 @@
     [empire.atoms :as atoms]
     [empire.game-loop :as game-loop]
     [empire.movement.movement :refer :all]
-    [empire.test-utils :refer [build-test-map set-test-unit]]
+    [empire.test-utils :refer [build-test-map set-test-unit reset-all-atoms!]]
     [speclj.core :refer :all]))
 
 (describe "fighter fuel"
+  (before (reset-all-atoms!))
   (it "moves fighter and decrements fuel"
     (reset! atoms/game-map @(build-test-map ["---------"
                                              "---------"
@@ -263,6 +264,7 @@
       (should= :fighter-bingo (:reason fighter)))))
 
 (describe "carrier fighter deployment"
+  (before (reset-all-atoms!))
   (it "fighter lands on carrier and sleeps"
     (reset! atoms/game-map @(build-test-map ["---------"
                                              "---------"
@@ -451,6 +453,7 @@
       (should= 1 (:fighter-count carrier)))))
 
 (describe "fighter shot down by city"
+  (before (reset-all-atoms!))
   (it "fighter is destroyed when flying into hostile city"
     (reset! atoms/game-map @(build-test-map ["---------"
                                              "---------"
@@ -471,6 +474,7 @@
       (should= 0 (:hits result)))))
 
 (describe "fighter landing at city"
+  (before (reset-all-atoms!))
   (it "fighter lands at city and increments fighter-count"
     (reset! atoms/game-map @(build-test-map ["---------"
                                              "---------"
@@ -490,6 +494,7 @@
       (should-be-nil (:contents city)))))
 
 (describe "get-active-unit airport fighter"
+  (before (reset-all-atoms!))
   (it "returns synthetic fighter when city has awake airport fighters"
     (let [cell {:type :city :city-status :player :fighter-count 2 :awake-fighters 1}]
       (let [active (get-active-unit cell)]
@@ -506,6 +511,7 @@
       (should-not (is-fighter-from-airport? fighter)))))
 
 (describe "launch-fighter-from-airport"
+  (before (reset-all-atoms!))
   (it "removes awake fighter from airport and places it moving"
     (reset! atoms/game-map @(build-test-map ["---------"
                                              "---------"

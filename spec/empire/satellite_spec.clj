@@ -7,56 +7,20 @@
 (describe "calculate-satellite-target"
   (before (reset-all-atoms!))
   (it "extends target to boundary in direction of travel"
-    (reset! atoms/game-map @(build-test-map ["##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"]))
+    (reset! atoms/game-map (make-initial-test-map 10 10 {:type :land}))
     ;; From [2 2] toward [5 5] should extend to [9 9]
     (should= [9 9] (calculate-satellite-target [2 2] [5 5])))
 
   (it "extends target to right edge when moving east"
-    (reset! atoms/game-map @(build-test-map ["##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"]))
+    (reset! atoms/game-map (make-initial-test-map 10 10 {:type :land}))
     (should= [5 9] (calculate-satellite-target [5 3] [5 5])))
 
   (it "extends target to bottom edge when moving south"
-    (reset! atoms/game-map @(build-test-map ["##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"]))
+    (reset! atoms/game-map (make-initial-test-map 10 10 {:type :land}))
     (should= [9 5] (calculate-satellite-target [3 5] [5 5])))
 
   (it "extends target to top-left corner when moving northwest"
-    (reset! atoms/game-map @(build-test-map ["##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"
-                                             "##########"]))
+    (reset! atoms/game-map (make-initial-test-map 10 10 {:type :land}))
     (should= [0 0] (calculate-satellite-target [5 5] [3 3]))))
 
 (describe "move-satellite"

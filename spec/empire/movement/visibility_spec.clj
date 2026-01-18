@@ -2,7 +2,7 @@
   (:require [speclj.core :refer :all]
             [empire.atoms :as atoms]
             [empire.movement.visibility :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit reset-all-atoms!]]))
+            [empire.test-utils :refer [build-test-map set-test-unit reset-all-atoms! make-initial-test-map]]))
 
 (describe "update-cell-visibility"
   (before (reset-all-atoms!))
@@ -17,15 +17,7 @@
                                              "---------"
                                              "---------"]))
     (set-test-unit atoms/game-map "A" :mode :awake)
-    (reset! atoms/player-map @(build-test-map ["---------"
-                                               "---------"
-                                               "---------"
-                                               "---------"
-                                               "---------"
-                                               "---------"
-                                               "---------"
-                                               "---------"
-                                               "---------"]))
+    (reset! atoms/player-map (make-initial-test-map 9 9 nil))
     (update-cell-visibility [4 4] :player)
     ;; Check that the unit's cell and neighbors are revealed
     (should= {:type :land :contents {:type :army :mode :awake :owner :player}} (get-in @atoms/player-map [4 4]))
@@ -52,21 +44,7 @@
                                              "###############"
                                              "###############"]))
     (set-test-unit atoms/game-map "V" :target [14 14] :turns-remaining 50)
-    (reset! atoms/player-map @(build-test-map ["---------------"
-                                               "---------------"
-                                               "---------------"
-                                               "---------------"
-                                               "---------------"
-                                               "---------------"
-                                               "---------------"
-                                               "---------------"
-                                               "---------------"
-                                               "---------------"
-                                               "---------------"
-                                               "---------------"
-                                               "---------------"
-                                               "---------------"
-                                               "---------------"]))
+    (reset! atoms/player-map (make-initial-test-map 15 15 nil))
     (update-cell-visibility [7 7] :player)
     ;; Ring 1 (distance 1) - all 8 cells should be visible
     (should (get-in @atoms/player-map [6 6]))
@@ -105,11 +83,7 @@
                                              "~~A~~"
                                              "~~~~~"
                                              "~~~~~"]))
-    (reset! atoms/player-map @(build-test-map ["-----"
-                                               "-----"
-                                               "-----"
-                                               "-----"
-                                               "-----"]))
+    (reset! atoms/player-map (make-initial-test-map 5 5 nil))
     (update-combatant-map atoms/player-map :player)
     ;; All 9 cells around [2 2] should be revealed
     (should= {:type :sea} (get-in @atoms/player-map [1 1]))
@@ -133,11 +107,7 @@
                                              "~~~~~"
                                              "~~~~~"
                                              "~~~~~"]))
-    (reset! atoms/player-map @(build-test-map ["-----"
-                                               "-----"
-                                               "-----"
-                                               "-----"
-                                               "-----"]))
+    (reset! atoms/player-map (make-initial-test-map 5 5 nil))
     (update-combatant-map atoms/player-map :player)
     ;; Cells at and adjacent to [0 0] should be revealed (clamped)
     (should= {:type :land :contents {:type :army :owner :player}} (get-in @atoms/player-map [0 0]))
@@ -153,11 +123,7 @@
                                              "~~O~~"
                                              "~~~~~"
                                              "~~~~~"]))
-    (reset! atoms/player-map @(build-test-map ["-----"
-                                               "-----"
-                                               "-----"
-                                               "-----"
-                                               "-----"]))
+    (reset! atoms/player-map (make-initial-test-map 5 5 nil))
     (update-combatant-map atoms/player-map :player)
     ;; All 9 cells around [2 2] should be revealed
     (should= {:type :city :city-status :player} (get-in @atoms/player-map [2 2]))
@@ -181,11 +147,7 @@
                                              "~~~~~"
                                              "~~~~~"]))
     (set-test-unit atoms/game-map "A" :owner :computer)
-    (reset! atoms/computer-map @(build-test-map ["-----"
-                                                 "-----"
-                                                 "-----"
-                                                 "-----"
-                                                 "-----"]))
+    (reset! atoms/computer-map (make-initial-test-map 5 5 nil))
     (update-combatant-map atoms/computer-map :computer)
     ;; All 9 cells around [2 2] should be revealed in computer map
     (should= {:type :land :contents {:type :army :owner :computer}} (get-in @atoms/computer-map [2 2]))
@@ -200,13 +162,7 @@
                                              "~~~~A~~"
                                              "~~~~~~~"
                                              "~~~~~~~"]))
-    (reset! atoms/player-map @(build-test-map ["-------"
-                                               "-------"
-                                               "-------"
-                                               "-------"
-                                               "-------"
-                                               "-------"
-                                               "-------"]))
+    (reset! atoms/player-map (make-initial-test-map 7 7 nil))
     (update-combatant-map atoms/player-map :player)
     ;; Both units and their surroundings should be visible
     (should= {:type :land :contents {:type :army :owner :player}} (get-in @atoms/player-map [2 2]))

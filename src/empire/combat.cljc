@@ -1,7 +1,8 @@
 (ns empire.combat
-  (:require [empire.atoms :as atoms]
+  (:require [clojure.string]
+            [empire.atoms :as atoms]
             [empire.config :as config]
-            [empire.movement.movement :as movement]
+            [empire.movement.visibility :as visibility]
             [empire.units.dispatcher :as dispatcher]))
 
 (defn hostile-city? [target-coords]
@@ -18,10 +19,10 @@
       (do
         (swap! atoms/game-map assoc-in army-coords (dissoc army-cell :contents))
         (swap! atoms/game-map assoc-in city-coords (assoc city-cell :city-status :player))
-        (movement/update-cell-visibility city-coords :player))
+        (visibility/update-cell-visibility city-coords :player))
       (do
         (swap! atoms/game-map assoc-in army-coords (dissoc army-cell :contents))
-        (movement/update-cell-visibility army-coords :player)
+        (visibility/update-cell-visibility army-coords :player)
         (atoms/set-line3-message (:conquest-failed config/messages) 3000)))
     true))
 
@@ -41,6 +42,20 @@
   "Returns true if the unit is hostile to the given owner."
   [unit owner]
   (and unit (not= (:owner unit) owner)))
+
+(defn- unit-name
+  "Returns a capitalized display name for a unit type."
+  [unit-type]
+  (-> unit-type name clojure.string/capitalize))
+
+(defn- format-combat-message
+  "Formats a combat result message for display."
+  [winner attacker-type defender-type survivor-hits]
+  (let [attacker-name (unit-name attacker-type)
+        defender-name (unit-name defender-type)]
+    (if (= winner :attacker)
+      (str attacker-name " defeated " defender-name " (" survivor-hits " hits remaining)")
+      (str attacker-name " destroyed by " defender-name))))
 
 (defn fight-round
   "Executes one round of combat. 50% chance attacker hits, 50% chance defender hits.
@@ -73,9 +88,14 @@
         defender (:contents target-cell)]
     (if (or (nil? defender) (not (hostile-unit? defender (:owner attacker))))
       false
-      (let [result (resolve-combat attacker defender)]
+      (let [result (resolve-combat attacker defender)
+            message (format-combat-message (:winner result)
+                                           (:type attacker)
+                                           (:type defender)
+                                           (:hits (:survivor result)))]
         (swap! atoms/game-map assoc-in (conj attacker-coords :contents) nil)
         (if (= :attacker (:winner result))
           (swap! atoms/game-map assoc-in (conj target-coords :contents) (:survivor result))
           (swap! atoms/game-map assoc-in (conj target-coords :contents) (:survivor result)))
+        (atoms/set-confirmation-message message 3000)
         true))))

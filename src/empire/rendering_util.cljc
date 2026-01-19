@@ -12,8 +12,8 @@
   [unit]
   (let [type-name (name (:type unit))
         owner (name (:owner unit))
-        hits (:hits unit)
         max-hits (config/item-hits (:type unit))
+        hits (or (:hits unit) max-hits)
         fuel (when (= (:type unit) :fighter) (:fuel unit))
         cargo (case (:type unit)
                 :transport (:army-count unit 0)

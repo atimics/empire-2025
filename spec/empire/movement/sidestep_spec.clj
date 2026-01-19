@@ -77,7 +77,7 @@
         (should= :awake (:mode unit))
         (should= :somethings-in-the-way (:reason unit)))))
 
-  (it "does not sidestep when blocked by enemy unit"
+  (it "attacks (not sidesteps) when blocked by enemy unit"
     (reset! atoms/game-map @(build-test-map ["---------"
                                              "---------"
                                              "---------"
@@ -87,17 +87,18 @@
                                              "---------"
                                              "---------"
                                              "---------"]))
-    (set-test-unit atoms/game-map "A" :mode :moving :target [4 8] :steps-remaining 1)
+    (set-test-unit atoms/game-map "A" :hits 1 :mode :moving :target [4 8] :steps-remaining 1)
     (let [moving-coords (:pos (get-test-unit atoms/game-map "A"))
           enemy-coords [(first moving-coords) (inc (second moving-coords))]]
       ;; Add blocking enemy army adjacent to moving unit
-      (swap! atoms/game-map assoc-in enemy-coords {:type :land :contents {:type :army :owner :computer :mode :sentry}})
+      (swap! atoms/game-map assoc-in enemy-coords {:type :land :contents {:type :army :owner :computer :mode :sentry :hits 1}})
       (reset! atoms/player-map (make-initial-test-map 9 9 nil))
-      (game-loop/move-current-unit moving-coords)
-      ;; Unit should wake up, not sidestep (enemy blocking)
-      (let [unit (:contents (get-in @atoms/game-map moving-coords))]
-        (should= :awake (:mode unit))
-        (should= :somethings-in-the-way (:reason unit)))))
+      (with-redefs [rand (constantly 0.4)]
+        (game-loop/move-current-unit moving-coords)
+        ;; Unit should attack enemy, not sidestep. Attacker wins and moves to enemy cell.
+        (should= nil (:contents (get-in @atoms/game-map moving-coords)))
+        (should= :army (:type (:contents (get-in @atoms/game-map enemy-coords))))
+        (should= :player (:owner (:contents (get-in @atoms/game-map enemy-coords)))))))
 
   (it "fighter sidesteps around friendly fighter and continues"
     (reset! atoms/game-map @(build-test-map ["---------"

@@ -244,4 +244,33 @@
         (let [survivor (:contents (get-in @atoms/game-map [0 1]))]
           (should= :destroyer (:type survivor))
           (should= :player (:owner survivor))
-          (should= 2 (:hits survivor)))))))
+          (should= 2 (:hits survivor))))))
+
+  (it "displays victory message with remaining hits when attacker wins"
+    (reset! atoms/game-map @(build-test-map ["Da"]))
+    (set-test-unit atoms/game-map "D" :hits 3)
+    (set-test-unit atoms/game-map "a" :hits 1)
+    (reset! atoms/line2-message "")
+    (with-redefs [rand (constantly 0.4)]
+      (combat/attempt-attack [0 0] [0 1])
+      (should= "Destroyer defeated Army (3 hits remaining)" @atoms/line2-message)))
+
+  (it "displays defeat message when attacker loses"
+    (reset! atoms/game-map @(build-test-map ["Ad"]))
+    (set-test-unit atoms/game-map "A" :hits 1)
+    (set-test-unit atoms/game-map "d" :hits 3)
+    (reset! atoms/line2-message "")
+    (with-redefs [rand (constantly 0.6)]
+      (combat/attempt-attack [0 0] [0 1])
+      (should= "Army destroyed by Destroyer" @atoms/line2-message)))
+
+  (it "displays correct hits when survivor is damaged"
+    (reset! atoms/game-map @(build-test-map ["Dd"]))
+    (set-test-unit atoms/game-map "D" :hits 3)
+    (set-test-unit atoms/game-map "d" :hits 3)
+    (reset! atoms/line2-message "")
+    ;; Rolls: 0.4 (D hits d:2), 0.6 (d hits D:2), 0.4 (D hits d:1), 0.4 (D hits d:0)
+    (let [rolls (atom [0.4 0.6 0.4 0.4])]
+      (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
+        (combat/attempt-attack [0 0] [0 1])
+        (should= "Destroyer defeated Destroyer (2 hits remaining)" @atoms/line2-message)))))

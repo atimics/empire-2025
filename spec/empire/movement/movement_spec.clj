@@ -826,3 +826,84 @@
     (swap! atoms/game-map assoc-in [3 4]
            {:type :city :city-status :computer})
     (should-not (wake-at [3 4]))))
+
+(describe "combat during movement"
+  (before (reset-all-atoms!))
+
+  (it "army attacks enemy army when moving into its cell"
+    (reset! atoms/game-map @(build-test-map ["Aa"]))
+    (set-test-unit atoms/game-map "A" :hits 1 :mode :moving :target [0 1] :steps-remaining 1)
+    (set-test-unit atoms/game-map "a" :hits 1)
+    (reset! atoms/player-map @(build-test-map ["--"]))
+    (with-redefs [rand (constantly 0.4)]
+      (game-loop/move-current-unit [0 0])
+      (should= nil (:contents (get-in @atoms/game-map [0 0])))
+      (should= :army (:type (:contents (get-in @atoms/game-map [0 1]))))
+      (should= :player (:owner (:contents (get-in @atoms/game-map [0 1]))))))
+
+  (it "army is destroyed when losing to enemy army"
+    (reset! atoms/game-map @(build-test-map ["Aa"]))
+    (set-test-unit atoms/game-map "A" :hits 1 :mode :moving :target [0 1] :steps-remaining 1)
+    (set-test-unit atoms/game-map "a" :hits 1)
+    (reset! atoms/player-map @(build-test-map ["--"]))
+    (with-redefs [rand (constantly 0.6)]
+      (game-loop/move-current-unit [0 0])
+      (should= nil (:contents (get-in @atoms/game-map [0 0])))
+      (should= :army (:type (:contents (get-in @atoms/game-map [0 1]))))
+      (should= :computer (:owner (:contents (get-in @atoms/game-map [0 1]))))))
+
+  (it "destroyer attacks enemy transport on sea"
+    (reset! atoms/game-map @(build-test-map ["Dt"]))
+    (set-test-unit atoms/game-map "D" :hits 3 :mode :moving :target [0 1] :steps-remaining 1)
+    (set-test-unit atoms/game-map "t" :hits 1)
+    (reset! atoms/player-map @(build-test-map ["~~"]))
+    (with-redefs [rand (constantly 0.4)]
+      (game-loop/move-current-unit [0 0])
+      (should= nil (:contents (get-in @atoms/game-map [0 0])))
+      (should= :destroyer (:type (:contents (get-in @atoms/game-map [0 1]))))
+      (should= :player (:owner (:contents (get-in @atoms/game-map [0 1]))))))
+
+  (it "fighter attacks enemy fighter"
+    (reset! atoms/game-map @(build-test-map ["Ff"]))
+    (set-test-unit atoms/game-map "F" :hits 1 :fuel 20 :mode :moving :target [0 1] :steps-remaining 1)
+    (set-test-unit atoms/game-map "f" :hits 1)
+    (reset! atoms/player-map @(build-test-map ["--"]))
+    (with-redefs [rand (constantly 0.4)]
+      (game-loop/move-current-unit [0 0])
+      (should= nil (:contents (get-in @atoms/game-map [0 0])))
+      (should= :fighter (:type (:contents (get-in @atoms/game-map [0 1]))))
+      (should= :player (:owner (:contents (get-in @atoms/game-map [0 1]))))))
+
+  (it "attacker survives with reduced hits"
+    (reset! atoms/game-map @(build-test-map ["Dd"]))
+    (set-test-unit atoms/game-map "D" :hits 3 :mode :moving :target [0 1] :steps-remaining 1)
+    (set-test-unit atoms/game-map "d" :hits 3)
+    (reset! atoms/player-map @(build-test-map ["~~"]))
+    ;; Rolls: 0.4 (D hits d:2), 0.6 (d hits D:2), 0.4 (D hits d:1), 0.4 (D hits d:0)
+    (let [rolls (atom [0.4 0.6 0.4 0.4])]
+      (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
+        (game-loop/move-current-unit [0 0])
+        (let [survivor (:contents (get-in @atoms/game-map [0 1]))]
+          (should= :destroyer (:type survivor))
+          (should= :player (:owner survivor))
+          (should= 2 (:hits survivor))))))
+
+  (it "does not attack friendly units"
+    (reset! atoms/game-map @(build-test-map ["AA"]))
+    (set-test-unit atoms/game-map "A1" :hits 1 :mode :moving :target [0 1] :steps-remaining 1)
+    (set-test-unit atoms/game-map "A2" :hits 1)
+    (reset! atoms/player-map @(build-test-map ["--"]))
+    (game-loop/move-current-unit [0 0])
+    ;; Should wake up, not attack
+    (should= :awake (:mode (:contents (get-in @atoms/game-map [0 0]))))
+    (should= :army (:type (:contents (get-in @atoms/game-map [0 1])))))
+
+  (it "army cannot attack ship on sea (terrain incompatible)"
+    (reset! atoms/game-map @(build-test-map ["A~"]))
+    (swap! atoms/game-map assoc-in [0 1 :contents] {:type :destroyer :owner :computer :hits 3})
+    (set-test-unit atoms/game-map "A" :hits 1 :mode :moving :target [0 1] :steps-remaining 1)
+    (reset! atoms/player-map @(build-test-map ["--"]))
+    (game-loop/move-current-unit [0 0])
+    ;; Army should wake up because it can't move onto sea
+    (should= :awake (:mode (:contents (get-in @atoms/game-map [0 0]))))
+    (should= :destroyer (:type (:contents (get-in @atoms/game-map [0 1]))))))

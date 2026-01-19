@@ -70,6 +70,15 @@
                  (when (> new-steps 0)
                    pos))))
 
+           ;; Combat - attacker is at pos if won, nil if lost
+           :combat
+           (let [moved-cell (get-in @atoms/game-map pos)
+                 moved-unit (:contents moved-cell)]
+             (when (and moved-unit (= (:owner moved-unit) (:owner unit)))
+               ;; Attacker won - they're now at pos
+               (swap! atoms/game-map assoc-in (conj pos :contents :steps-remaining) 0)
+               nil))  ;; Combat ends the move
+
            ;; Woke up - done moving
            :woke nil))))))
 

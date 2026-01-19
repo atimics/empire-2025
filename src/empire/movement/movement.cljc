@@ -1,5 +1,6 @@
 (ns empire.movement.movement
   (:require [empire.atoms :as atoms]
+            [empire.combat :as combat]
             [empire.config :as config]
             [empire.movement.map-utils :as map-utils]
             [empire.unit-container :as uc]
@@ -216,6 +217,30 @@
     (and blocker
          (= (:owner blocker) (:owner unit)))))
 
+(defn- blocked-by-enemy?
+  "Returns true if the next cell contains an enemy unit (different owner)."
+  [unit next-cell]
+  (let [blocker (:contents next-cell)]
+    (and blocker
+         (not= (:owner blocker) (:owner unit)))))
+
+(defn- can-attack-enemy?
+  "Returns true if unit can attack the enemy in next-cell.
+   The unit must be able to occupy the terrain (ignoring the enemy)."
+  [unit next-cell]
+  (and (blocked-by-enemy? unit next-cell)
+       (dispatcher/can-move-to? (:type unit) (dissoc next-cell :contents))))
+
+(defn- handle-combat
+  "Handles combat between unit at from-coords and enemy at next-pos.
+   Returns {:result :combat :pos final-pos}."
+  [from-coords next-pos cell]
+  (let [unit (:contents cell)
+        result (combat/attempt-attack from-coords next-pos)]
+    (when result
+      (visibility/update-cell-visibility next-pos (:owner unit)))
+    {:result :combat :pos next-pos}))
+
 (defn- should-sidestep-city?
   "Returns true if unit should sidestep around the city in next-cell.
    Armies sidestep friendly cities. Fighters sidestep all cities except their target."
@@ -262,7 +287,7 @@
 
 (defn move-unit
   "Moves a unit one step toward target. Returns a map with:
-   :result - :normal, :sidestep, or :woke
+   :result - :normal, :sidestep, :woke, or :combat
    :pos - the new position (or original if woke)"
   [from-coords target-coords cell current-map]
   (let [unit (:contents cell)
@@ -279,6 +304,12 @@
            (= (:reason woken-unit) :somethings-in-the-way)
            (blocked-by-friendly? unit next-cell))
       (try-sidestep from-coords next-pos target-coords cell woken-unit current-map)
+
+      ;; Combat with enemy unit (if terrain allows)
+      (and woke?
+           (= (:reason woken-unit) :somethings-in-the-way)
+           (can-attack-enemy? unit next-cell))
+      (handle-combat from-coords next-pos cell)
 
       ;; Other wake conditions - just wake up
       woke?

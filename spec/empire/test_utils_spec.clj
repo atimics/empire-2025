@@ -28,43 +28,43 @@
     (should= [[nil]] (build-test-map ["-"])))
 
   (it "converts A to army on land"
-    (should= [[{:type :land :contents {:type :army :owner :player}}]]
+    (should= [[{:type :land :contents {:type :army :owner :player :hits 1}}]]
              (build-test-map ["A"])))
 
   (it "converts T to transport on sea"
-    (should= [[{:type :sea :contents {:type :transport :owner :player}}]]
+    (should= [[{:type :sea :contents {:type :transport :owner :player :hits 1}}]]
              (build-test-map ["T"])))
 
   (it "converts D to destroyer on sea"
-    (should= [[{:type :sea :contents {:type :destroyer :owner :player}}]]
+    (should= [[{:type :sea :contents {:type :destroyer :owner :player :hits 3}}]]
              (build-test-map ["D"])))
 
   (it "converts P to patrol-boat on sea"
-    (should= [[{:type :sea :contents {:type :patrol-boat :owner :player}}]]
+    (should= [[{:type :sea :contents {:type :patrol-boat :owner :player :hits 1}}]]
              (build-test-map ["P"])))
 
   (it "converts C to carrier on sea"
-    (should= [[{:type :sea :contents {:type :carrier :owner :player}}]]
+    (should= [[{:type :sea :contents {:type :carrier :owner :player :hits 8}}]]
              (build-test-map ["C"])))
 
   (it "converts B to battleship on sea"
-    (should= [[{:type :sea :contents {:type :battleship :owner :player}}]]
+    (should= [[{:type :sea :contents {:type :battleship :owner :player :hits 10}}]]
              (build-test-map ["B"])))
 
   (it "converts S to submarine on sea"
-    (should= [[{:type :sea :contents {:type :submarine :owner :player}}]]
+    (should= [[{:type :sea :contents {:type :submarine :owner :player :hits 2}}]]
              (build-test-map ["S"])))
 
   (it "converts F to fighter over land"
-    (should= [[{:type :land :contents {:type :fighter :owner :player}}]]
+    (should= [[{:type :land :contents {:type :fighter :owner :player :hits 1}}]]
              (build-test-map ["F"])))
 
   (it "converts J to fighter over sea"
-    (should= [[{:type :sea :contents {:type :fighter :owner :player}}]]
+    (should= [[{:type :sea :contents {:type :fighter :owner :player :hits 1}}]]
              (build-test-map ["J"])))
 
   (it "converts V to satellite over land"
-    (should= [[{:type :land :contents {:type :satellite :owner :player}}]]
+    (should= [[{:type :land :contents {:type :satellite :owner :player :hits 1}}]]
              (build-test-map ["V"])))
 
   (it "builds multi-cell rows"
@@ -81,48 +81,48 @@
 
   ;; Enemy unit conversions (lowercase)
   (it "converts a to enemy army on land"
-    (should= [[{:type :land :contents {:type :army :owner :computer}}]]
+    (should= [[{:type :land :contents {:type :army :owner :computer :hits 1}}]]
              (build-test-map ["a"])))
 
   (it "converts t to enemy transport on sea"
-    (should= [[{:type :sea :contents {:type :transport :owner :computer}}]]
+    (should= [[{:type :sea :contents {:type :transport :owner :computer :hits 1}}]]
              (build-test-map ["t"])))
 
   (it "converts d to enemy destroyer on sea"
-    (should= [[{:type :sea :contents {:type :destroyer :owner :computer}}]]
+    (should= [[{:type :sea :contents {:type :destroyer :owner :computer :hits 3}}]]
              (build-test-map ["d"])))
 
   (it "converts p to enemy patrol-boat on sea"
-    (should= [[{:type :sea :contents {:type :patrol-boat :owner :computer}}]]
+    (should= [[{:type :sea :contents {:type :patrol-boat :owner :computer :hits 1}}]]
              (build-test-map ["p"])))
 
   (it "converts c to enemy carrier on sea"
-    (should= [[{:type :sea :contents {:type :carrier :owner :computer}}]]
+    (should= [[{:type :sea :contents {:type :carrier :owner :computer :hits 8}}]]
              (build-test-map ["c"])))
 
   (it "converts b to enemy battleship on sea"
-    (should= [[{:type :sea :contents {:type :battleship :owner :computer}}]]
+    (should= [[{:type :sea :contents {:type :battleship :owner :computer :hits 10}}]]
              (build-test-map ["b"])))
 
   (it "converts s to enemy submarine on sea"
-    (should= [[{:type :sea :contents {:type :submarine :owner :computer}}]]
+    (should= [[{:type :sea :contents {:type :submarine :owner :computer :hits 2}}]]
              (build-test-map ["s"])))
 
   (it "converts f to enemy fighter over land"
-    (should= [[{:type :land :contents {:type :fighter :owner :computer}}]]
+    (should= [[{:type :land :contents {:type :fighter :owner :computer :hits 1}}]]
              (build-test-map ["f"])))
 
   (it "converts j to enemy fighter over sea"
-    (should= [[{:type :sea :contents {:type :fighter :owner :computer}}]]
+    (should= [[{:type :sea :contents {:type :fighter :owner :computer :hits 1}}]]
              (build-test-map ["j"])))
 
   (it "converts v to enemy satellite over land"
-    (should= [[{:type :land :contents {:type :satellite :owner :computer}}]]
+    (should= [[{:type :land :contents {:type :satellite :owner :computer :hits 1}}]]
              (build-test-map ["v"])))
 
   (it "builds map with mixed player and enemy units"
-    (should= [[{:type :sea :contents {:type :transport :owner :player}}
-               {:type :sea :contents {:type :transport :owner :computer}}]]
+    (should= [[{:type :sea :contents {:type :transport :owner :player :hits 1}}
+               {:type :sea :contents {:type :transport :owner :computer :hits 1}}]]
              (build-test-map ["Tt"]))))
 
 (describe "set-test-unit"

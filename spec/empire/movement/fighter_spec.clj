@@ -16,7 +16,7 @@
       (reset! atoms/player-map (make-initial-test-map 1 3 nil))
       (game-loop/move-current-unit fighter-coords)
       (should= {:type :land} (get-in @atoms/game-map fighter-coords))
-      (should= {:type :land :contents {:type :fighter :mode :awake :owner :player :fuel 9 :steps-remaining 0}} (get-in @atoms/game-map target-coords))))
+      (should= {:type :land :contents {:type :fighter :owner :player :hits 1 :steps-remaining 0 :mode :awake :fuel 9}} (get-in @atoms/game-map target-coords))))
 
   (it "fighter wakes when fuel reaches 0"
     (reset! atoms/game-map (build-test-map ["-F#"]))
@@ -26,7 +26,7 @@
       (reset! atoms/player-map (make-initial-test-map 1 3 nil))
       (game-loop/move-current-unit fighter-coords)
       (should= {:type :land} (get-in @atoms/game-map fighter-coords))
-      (should= {:type :land :contents {:type :fighter :mode :awake :owner :player :fuel 0 :reason :fighter-out-of-fuel :steps-remaining 0}} (get-in @atoms/game-map target-coords))))
+      (should= {:type :land :contents {:type :fighter :owner :player :hits 1 :steps-remaining 0 :mode :awake :fuel 0 :reason :fighter-out-of-fuel}} (get-in @atoms/game-map target-coords))))
 
   (it "fighter crashes when trying to move with 0 fuel"
     (reset! atoms/game-map (build-test-map ["-F#"]))

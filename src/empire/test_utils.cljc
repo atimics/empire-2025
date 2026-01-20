@@ -1,5 +1,9 @@
 (ns empire.test-utils
-  (:require [empire.atoms :as atoms]))
+  (:require [empire.atoms :as atoms]
+            [empire.units.dispatcher :as dispatcher]))
+
+(defn- make-unit [unit-type owner]
+  {:type unit-type :owner owner :hits (dispatcher/hits unit-type)})
 
 (defn- char->cell [c]
   (case c
@@ -11,27 +15,27 @@
     \X {:type :city :city-status :computer}
     \* {:type :land :waypoint true}
     ;; Player units (uppercase)
-    \A {:type :land :contents {:type :army :owner :player}}
-    \T {:type :sea :contents {:type :transport :owner :player}}
-    \D {:type :sea :contents {:type :destroyer :owner :player}}
-    \P {:type :sea :contents {:type :patrol-boat :owner :player}}
-    \C {:type :sea :contents {:type :carrier :owner :player}}
-    \B {:type :sea :contents {:type :battleship :owner :player}}
-    \S {:type :sea :contents {:type :submarine :owner :player}}
-    \F {:type :land :contents {:type :fighter :owner :player}}
-    \J {:type :sea :contents {:type :fighter :owner :player}}
-    \V {:type :land :contents {:type :satellite :owner :player}}
+    \A {:type :land :contents (make-unit :army :player)}
+    \T {:type :sea :contents (make-unit :transport :player)}
+    \D {:type :sea :contents (make-unit :destroyer :player)}
+    \P {:type :sea :contents (make-unit :patrol-boat :player)}
+    \C {:type :sea :contents (make-unit :carrier :player)}
+    \B {:type :sea :contents (make-unit :battleship :player)}
+    \S {:type :sea :contents (make-unit :submarine :player)}
+    \F {:type :land :contents (make-unit :fighter :player)}
+    \J {:type :sea :contents (make-unit :fighter :player)}
+    \V {:type :land :contents (make-unit :satellite :player)}
     ;; Enemy units (lowercase)
-    \a {:type :land :contents {:type :army :owner :computer}}
-    \t {:type :sea :contents {:type :transport :owner :computer}}
-    \d {:type :sea :contents {:type :destroyer :owner :computer}}
-    \p {:type :sea :contents {:type :patrol-boat :owner :computer}}
-    \c {:type :sea :contents {:type :carrier :owner :computer}}
-    \b {:type :sea :contents {:type :battleship :owner :computer}}
-    \s {:type :sea :contents {:type :submarine :owner :computer}}
-    \f {:type :land :contents {:type :fighter :owner :computer}}
-    \j {:type :sea :contents {:type :fighter :owner :computer}}
-    \v {:type :land :contents {:type :satellite :owner :computer}}
+    \a {:type :land :contents (make-unit :army :computer)}
+    \t {:type :sea :contents (make-unit :transport :computer)}
+    \d {:type :sea :contents (make-unit :destroyer :computer)}
+    \p {:type :sea :contents (make-unit :patrol-boat :computer)}
+    \c {:type :sea :contents (make-unit :carrier :computer)}
+    \b {:type :sea :contents (make-unit :battleship :computer)}
+    \s {:type :sea :contents (make-unit :submarine :computer)}
+    \f {:type :land :contents (make-unit :fighter :computer)}
+    \j {:type :sea :contents (make-unit :fighter :computer)}
+    \v {:type :land :contents (make-unit :satellite :computer)}
     (throw (ex-info (str "Unknown map char: " c) {:char c}))))
 
 (defn build-test-map [strings]
@@ -148,4 +152,6 @@
   (reset! atoms/computer-map {})
   (reset! atoms/destination nil)
   (reset! atoms/paused false)
-  (reset! atoms/pause-requested false))
+  (reset! atoms/pause-requested false)
+  (reset! atoms/computer-items [])
+  (reset! atoms/computer-turn false))

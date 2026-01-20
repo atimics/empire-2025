@@ -1,6 +1,7 @@
 (ns empire.game-loop
   (:require [empire.atoms :as atoms]
             [empire.attention :as attention]
+            [empire.computer :as computer]
             [empire.config :as config]
             [empire.container-ops :as container-ops]
             [empire.movement.movement :as movement]
@@ -37,6 +38,16 @@
         :let [cell (get-in @atoms/game-map [i j])]
         :when (or (= (:city-status cell) :player)
                   (= (:owner (:contents cell)) :player))]
+    [i j]))
+
+(defn build-computer-items
+  "Builds list of computer city/unit coordinates to process this round."
+  []
+  (for [i (range (count @atoms/game-map))
+        j (range (count (first @atoms/game-map)))
+        :let [cell (get-in @atoms/game-map [i j])]
+        :when (or (= (:city-status cell) :computer)
+                  (= (:owner (:contents cell)) :computer))]
     [i j]))
 
 (defn move-current-unit
@@ -269,7 +280,7 @@
     (repair-city-ships [i j])))
 
 (defn start-new-round
-  "Starts a new round by building player items list and updating game state."
+  "Starts a new round by building player and computer items lists and updating game state."
   []
   (swap! atoms/round-number inc)
   (move-satellites)
@@ -282,6 +293,7 @@
   (wake-airport-fighters)
   ;; Carrier fighters stay asleep until 'u' is pressed - do not auto-wake at round start
   (reset! atoms/player-items (vec (build-player-items)))
+  (reset! atoms/computer-items (vec (build-computer-items)))
   (reset! atoms/waiting-for-input false)
   (reset! atoms/message "")
   (reset! atoms/cells-needing-attention []))
@@ -363,29 +375,71 @@
               (do (swap! atoms/player-items #(cons new-coords (rest %))) :continue)
               (do (swap! atoms/player-items rest) :done))))))))
 
+(defn- process-one-computer-item
+  "Processes a single computer item. Returns :done when item processed."
+  []
+  (let [coords (first @atoms/computer-items)
+        cell (get-in @atoms/game-map coords)
+        is-computer-city? (and (= (:type cell) :city) (= (:city-status cell) :computer))
+        has-computer-unit? (= (:owner (:contents cell)) :computer)]
+    ;; Handle city production if this is a computer city
+    (when is-computer-city?
+      (computer/process-computer-city coords))
+    ;; Process unit movement if there's a computer unit here
+    (if has-computer-unit?
+      (let [new-coords (computer/process-computer-unit coords)]
+        (if new-coords
+          (do (swap! atoms/computer-items #(cons new-coords (rest %))) :continue)
+          (do (swap! atoms/computer-items rest) :done)))
+      ;; No unit, just city processing done
+      (do (swap! atoms/computer-items rest) :done))))
+
+(defn- process-computer-items
+  "Processes computer items until done or safety limit reached."
+  []
+  (loop [processed 0]
+    (cond
+      (empty? @atoms/computer-items) nil
+      (>= processed 100) nil
+      :else
+      (let [result (process-one-computer-item)]
+        (case result
+          :continue (recur (inc processed))
+          :done (recur (inc processed)))))))
+
 (defn advance-game
-  "Advances the game by processing player items until one needs attention or round ends.
+  "Advances the game by processing player items, then computer items.
    Processes multiple non-attention items per frame for faster rounds."
   []
   (cond
     @atoms/paused nil
-    (empty? @atoms/player-items)
+
+    ;; Both lists empty - start new round (or pause)
+    (and (empty? @atoms/player-items) (empty? @atoms/computer-items))
     (if @atoms/pause-requested
       (do (reset! atoms/paused true) (reset! atoms/pause-requested false))
       (start-new-round))
+
+    ;; Waiting for player input
     @atoms/waiting-for-input nil
-    :else
+
+    ;; Player items to process
+    (seq @atoms/player-items)
     (loop [processed 0]
       (cond
-        (empty? @atoms/player-items) nil  ;; Round ended
-        @atoms/waiting-for-input nil      ;; Hit item needing attention
-        (>= processed 100) nil            ;; Safety limit per frame
+        (empty? @atoms/player-items) nil
+        @atoms/waiting-for-input nil
+        (>= processed 100) nil
         :else
         (let [result (process-one-item)]
           (case result
-            :waiting nil                  ;; Stop - needs user input
-            :continue (recur (inc processed))  ;; Item still active, continue
-            :done (recur (inc processed))))))))
+            :waiting nil
+            :continue (recur (inc processed))
+            :done (recur (inc processed))))))
+
+    ;; Computer items to process
+    :else
+    (process-computer-items)))
 
 (defn toggle-pause
   "Toggles pause state. If running, requests pause at end of round.

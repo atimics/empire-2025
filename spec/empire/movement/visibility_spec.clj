@@ -20,7 +20,7 @@
     (reset! atoms/player-map (make-initial-test-map 9 9 nil))
     (update-cell-visibility [4 4] :player)
     ;; Check that the unit's cell and neighbors are revealed
-    (should= {:type :land :contents {:type :army :mode :awake :owner :player}} (get-in @atoms/player-map [4 4]))
+    (should= {:type :land :contents {:type :army :owner :player :hits 1 :mode :awake}} (get-in @atoms/player-map [4 4]))
     (should= {:type :land} (get-in @atoms/player-map [4 5]))
     (should= {:type :land} (get-in @atoms/player-map [5 4]))
     ;; Check that distant cells are not revealed
@@ -56,7 +56,7 @@
     (should= {:type :sea} (get-in @atoms/player-map [1 2]))
     (should= {:type :sea} (get-in @atoms/player-map [1 3]))
     (should= {:type :sea} (get-in @atoms/player-map [2 1]))
-    (should= {:type :land :contents {:type :army :owner :player}} (get-in @atoms/player-map [2 2]))
+    (should= {:type :land :contents {:type :army :owner :player :hits 1}} (get-in @atoms/player-map [2 2]))
     (should= {:type :sea} (get-in @atoms/player-map [2 3]))
     (should= {:type :sea} (get-in @atoms/player-map [3 1]))
     (should= {:type :sea} (get-in @atoms/player-map [3 2]))
@@ -76,7 +76,7 @@
     (reset! atoms/player-map (make-initial-test-map 5 5 nil))
     (update-combatant-map atoms/player-map :player)
     ;; Cells at and adjacent to [0 0] should be revealed (clamped)
-    (should= {:type :land :contents {:type :army :owner :player}} (get-in @atoms/player-map [0 0]))
+    (should= {:type :land :contents {:type :army :owner :player :hits 1}} (get-in @atoms/player-map [0 0]))
     (should= {:type :sea} (get-in @atoms/player-map [0 1]))
     (should= {:type :sea} (get-in @atoms/player-map [1 0]))
     (should= {:type :sea} (get-in @atoms/player-map [1 1]))
@@ -115,7 +115,7 @@
     (reset! atoms/computer-map (make-initial-test-map 5 5 nil))
     (update-combatant-map atoms/computer-map :computer)
     ;; All 9 cells around [2 2] should be revealed in computer map
-    (should= {:type :land :contents {:type :army :owner :computer}} (get-in @atoms/computer-map [2 2]))
+    (should= {:type :land :contents {:type :army :owner :computer :hits 1}} (get-in @atoms/computer-map [2 2]))
     (should= {:type :sea} (get-in @atoms/computer-map [1 1]))
     (should= {:type :sea} (get-in @atoms/computer-map [3 3])))
 
@@ -130,8 +130,8 @@
     (reset! atoms/player-map (make-initial-test-map 7 7 nil))
     (update-combatant-map atoms/player-map :player)
     ;; Both units and their surroundings should be visible
-    (should= {:type :land :contents {:type :army :owner :player}} (get-in @atoms/player-map [2 2]))
-    (should= {:type :land :contents {:type :army :owner :player}} (get-in @atoms/player-map [4 4]))
+    (should= {:type :land :contents {:type :army :owner :player :hits 1}} (get-in @atoms/player-map [2 2]))
+    (should= {:type :land :contents {:type :army :owner :player :hits 1}} (get-in @atoms/player-map [4 4]))
     ;; Overlapping cell [3 3] should be revealed by both
     (should= {:type :sea} (get-in @atoms/player-map [3 3]))
     ;; Far corner should not be revealed

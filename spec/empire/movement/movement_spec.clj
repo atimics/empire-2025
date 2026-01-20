@@ -64,7 +64,7 @@
                                                      "---------"]))
           (game-loop/move-current-unit unit-coords)
           (should= {:type :land} (get-in @atoms/game-map unit-coords))
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map target-coords))
+          (should= {:type :land :contents {:type :army :owner :player :hits 1 :mode :awake :steps-remaining 0}} (get-in @atoms/game-map target-coords))
           (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map))))))
 
       (it "moves a unit up and sets mode to awake"
@@ -89,7 +89,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [4 3]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :mode :awake :steps-remaining 0}} (get-in @atoms/game-map [4 3]))
         (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit left and sets mode to awake"
@@ -114,7 +114,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [3 4]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :mode :awake :steps-remaining 0}} (get-in @atoms/game-map [3 4]))
         (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit right and sets mode to awake"
@@ -139,7 +139,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [5 4]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :mode :awake :steps-remaining 0}} (get-in @atoms/game-map [5 4]))
         (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit up-left and sets mode to awake"
@@ -164,7 +164,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [3 3]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :mode :awake :steps-remaining 0}} (get-in @atoms/game-map [3 3]))
         (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit up-right and sets mode to awake"
@@ -189,7 +189,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [5 3]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :mode :awake :steps-remaining 0}} (get-in @atoms/game-map [5 3]))
         (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit down-left and sets mode to awake"
@@ -214,7 +214,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [3 5]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :mode :awake :steps-remaining 0}} (get-in @atoms/game-map [3 5]))
         (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "moves a unit down-right and sets mode to awake"
@@ -239,7 +239,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [5 5]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :mode :awake :steps-remaining 0}} (get-in @atoms/game-map [5 5]))
         (should= 2 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
       (it "wakes up a unit if the next move would be into sea"
@@ -265,7 +265,7 @@
                                                      "---------"
                                                      "---------"]))
           (game-loop/move-current-unit unit-coords)
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player :reason :cant-move-into-water :steps-remaining 1}} (get-in @atoms/game-map unit-coords))
+          (should= {:type :land :contents {:type :army :owner :player :hits 1 :steps-remaining 1 :mode :awake :reason :cant-move-into-water}} (get-in @atoms/game-map unit-coords))
           (should= {:type :sea} (get-in @atoms/game-map target-coords))))
 
       (it "wakes up a unit if the next move would be into a friendly city"
@@ -289,7 +289,7 @@
                                                    "---------"
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
-        (should= {:type :land :contents {:type :army :mode :awake :owner :player :reason :cant-move-into-city :steps-remaining 1}} (get-in @atoms/game-map [4 4]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :steps-remaining 1 :mode :awake :reason :cant-move-into-city}} (get-in @atoms/game-map [4 4]))
         (should= {:type :city :city-status :player} (get-in @atoms/game-map [4 5])))
 
       (it "wakes up a unit when moving near an enemy city"
@@ -314,7 +314,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :awake :owner :player :reason :army-found-city :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :steps-remaining 0 :mode :awake :reason :army-found-city}} (get-in @atoms/game-map [4 5]))
         (should= {:type :city :city-status :computer} (get-in @atoms/game-map [4 6])))
       )
 
@@ -343,7 +343,7 @@
                                                      "---------"]))
           (update-combatant-map atoms/player-map :player)
           ;; Check that the unit's cell and neighbors are revealed
-          (should= {:type :land :contents {:type :army :mode :awake :owner :player}} (get-in @atoms/player-map unit-coords))
+          (should= {:type :land :contents {:type :army :owner :player :hits 1 :mode :awake}} (get-in @atoms/player-map unit-coords))
           (should= {:type :land} (get-in @atoms/player-map [row (inc col)]))
           (should= {:type :land} (get-in @atoms/player-map [(inc row) col]))
           (should= nil (get-in @atoms/player-map [(dec row) col]))
@@ -380,7 +380,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [8 4] :steps-remaining 0}} (get-in @atoms/game-map [5 4]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :steps-remaining 0 :mode :moving :target [8 4]}} (get-in @atoms/game-map [5 4]))
         (should= {:type :land} (get-in @atoms/game-map [8 4]))
         (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
@@ -406,7 +406,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [0 4] :steps-remaining 0}} (get-in @atoms/game-map [3 4]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :steps-remaining 0 :mode :moving :target [0 4]}} (get-in @atoms/game-map [3 4]))
         (should= {:type :land} (get-in @atoms/game-map [0 4]))
         (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
@@ -432,7 +432,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [4 0] :steps-remaining 0}} (get-in @atoms/game-map [4 3]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :steps-remaining 0 :mode :moving :target [4 0]}} (get-in @atoms/game-map [4 3]))
         (should= {:type :land} (get-in @atoms/game-map [4 0]))
         (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
@@ -458,7 +458,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [4 8] :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :steps-remaining 0 :mode :moving :target [4 8]}} (get-in @atoms/game-map [4 5]))
         (should= {:type :land} (get-in @atoms/game-map [4 8]))
         (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
@@ -484,7 +484,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [8 0] :steps-remaining 0}} (get-in @atoms/game-map [5 3]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :steps-remaining 0 :mode :moving :target [8 0]}} (get-in @atoms/game-map [5 3]))
         (should= {:type :land} (get-in @atoms/game-map [8 0]))
         (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
@@ -510,7 +510,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [0 0] :steps-remaining 0}} (get-in @atoms/game-map [3 3]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :steps-remaining 0 :mode :moving :target [0 0]}} (get-in @atoms/game-map [3 3]))
         (should= {:type :land} (get-in @atoms/game-map [0 0]))
         (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
@@ -536,7 +536,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [8 8] :steps-remaining 0}} (get-in @atoms/game-map [5 5]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :steps-remaining 0 :mode :moving :target [8 8]}} (get-in @atoms/game-map [5 5]))
         (should= {:type :land} (get-in @atoms/game-map [8 8]))
         (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
 
@@ -562,7 +562,7 @@
                                                    "---------"]))
         (game-loop/move-current-unit [4 4])
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [0 8] :steps-remaining 0}} (get-in @atoms/game-map [3 5]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :steps-remaining 0 :mode :moving :target [0 8]}} (get-in @atoms/game-map [3 5]))
         (should= {:type :land} (get-in @atoms/game-map [0 8]))
         (should= 3 (count (filter (complement nil?) (flatten @atoms/game-map)))))
       )
@@ -591,7 +591,7 @@
         (game-loop/move-current-unit [4 4])
         ;; After first move, unit at [4 5], still moving
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
-        (should= {:type :land :contents {:type :army :mode :moving :owner :player :target [4 6] :steps-remaining 0}} (get-in @atoms/game-map [4 5]))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :steps-remaining 0 :mode :moving :target [4 6]}} (get-in @atoms/game-map [4 5]))
         (should= {:type :land} (get-in @atoms/game-map [4 6]))
         ;; Give the unit another step and call again
         (swap! atoms/game-map assoc-in [4 5 :contents :steps-remaining] 1)
@@ -599,7 +599,7 @@
         ;; After second move, unit at [4 6], awake
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
         (should= {:type :land} (get-in @atoms/game-map [4 5]))
-        (should= {:type :land :contents {:type :army :mode :awake :owner :player :steps-remaining 0}} (get-in @atoms/game-map [4 6])))
+        (should= {:type :land :contents {:type :army :owner :player :hits 1 :mode :awake :steps-remaining 0}} (get-in @atoms/game-map [4 6])))
       )
 
     (describe "is-computers?"

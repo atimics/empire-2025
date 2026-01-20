@@ -102,3 +102,11 @@
 (def pause-requested
   "An atom indicating a pause has been requested at end of current round."
   (atom false))
+
+(def computer-items
+  "An atom containing list of computer city/unit coords to process."
+  (atom []))
+
+(def computer-turn
+  "An atom indicating if we're currently processing the computer's turn."
+  (atom false))

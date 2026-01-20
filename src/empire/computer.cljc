@@ -9,15 +9,8 @@
 (defn- get-neighbors
   "Returns valid neighbor coordinates for a position."
   [pos]
-  (let [[x y] pos
-        height (count @atoms/game-map)
-        width (count (first @atoms/game-map))]
-    (for [[dx dy] map-utils/neighbor-offsets
-          :let [nx (+ x dx)
-                ny (+ y dy)]
-          :when (and (>= nx 0) (< nx height)
-                     (>= ny 0) (< ny width))]
-      [nx ny])))
+  (map-utils/get-matching-neighbors pos @atoms/game-map map-utils/neighbor-offsets
+                                    some?))
 
 (defn- attackable-target?
   "Returns true if the cell contains an attackable target for the computer."

@@ -15,31 +15,14 @@
 (defn get-valid-explore-moves
   "Returns list of valid adjacent positions for exploration."
   [pos current-map]
-  (let [[x y] pos
-        height (count @current-map)
-        width (count (first @current-map))]
-    (for [[dx dy] map-utils/neighbor-offsets
-          :let [nx (+ x dx)
-                ny (+ y dy)
-                cell (when (and (>= nx 0) (< nx height)
-                                (>= ny 0) (< ny width))
-                       (get-in @current-map [nx ny]))]
-          :when (valid-explore-cell? cell)]
-      [nx ny])))
+  (map-utils/get-matching-neighbors pos @current-map map-utils/neighbor-offsets
+                                    valid-explore-cell?))
 
 (defn adjacent-to-unexplored?
   "Returns true if the position has an adjacent unexplored cell."
   [pos]
-  (let [[x y] pos
-        height (count @atoms/player-map)
-        width (count (first @atoms/player-map))]
-    (some (fn [[dx dy]]
-            (let [nx (+ x dx)
-                  ny (+ y dy)]
-              (and (>= nx 0) (< nx height)
-                   (>= ny 0) (< ny width)
-                   (nil? (get-in @atoms/player-map [nx ny])))))
-          map-utils/neighbor-offsets)))
+  (map-utils/any-neighbor-matches? pos @atoms/player-map map-utils/neighbor-offsets
+                                   nil?))
 
 (defn get-unexplored-explore-moves
   "Returns valid moves that are adjacent to unexplored cells."

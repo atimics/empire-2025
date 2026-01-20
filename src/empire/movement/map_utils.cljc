@@ -39,19 +39,54 @@
         :when (pred current)]
     [i j]))
 
+(defn any-neighbor-matches?
+  "Returns true if any neighbor (using given offsets) satisfies the predicate."
+  [pos the-map offsets pred]
+  (let [[x y] pos
+        height (count the-map)
+        width (count (first the-map))]
+    (some (fn [[dx dy]]
+            (let [nx (+ x dx)
+                  ny (+ y dy)]
+              (and (>= nx 0) (< nx height)
+                   (>= ny 0) (< ny width)
+                   (pred (get-in the-map [nx ny])))))
+          offsets)))
+
+(defn- count-matching-neighbors
+  "Counts neighbors (using given offsets) that satisfy the predicate."
+  [pos the-map offsets pred]
+  (let [[x y] pos
+        height (count the-map)
+        width (count (first the-map))]
+    (count (filter (fn [[dx dy]]
+                     (let [nx (+ x dx)
+                           ny (+ y dy)]
+                       (and (>= nx 0) (< nx height)
+                            (>= ny 0) (< ny width)
+                            (pred (get-in the-map [nx ny])))))
+                   offsets))))
+
+(defn get-matching-neighbors
+  "Returns positions of neighbors (using given offsets) that satisfy the predicate."
+  [pos the-map offsets pred]
+  (let [[x y] pos
+        height (count the-map)
+        width (count (first the-map))]
+    (for [[dx dy] offsets
+          :let [nx (+ x dx)
+                ny (+ y dy)
+                cell (when (and (>= nx 0) (< nx height)
+                                (>= ny 0) (< ny width))
+                       (get-in the-map [nx ny]))]
+          :when (and cell (pred cell))]
+      [nx ny])))
+
 (defn on-coast?
   "Checks if a cell is adjacent to sea."
   [cell-x cell-y]
-  (let [game-map-val @atoms/game-map
-        cols (count game-map-val)
-        rows (count (first game-map-val))]
-    (some (fn [[dx dy]]
-            (let [nx (+ cell-x dx)
-                  ny (+ cell-y dy)]
-              (and (>= nx 0) (< nx cols)
-                   (>= ny 0) (< ny rows)
-                   (= :sea (:type (get-in game-map-val [nx ny]))))))
-          neighbor-offsets)))
+  (any-neighbor-matches? [cell-x cell-y] @atoms/game-map neighbor-offsets
+                         #(= :sea (:type %))))
 
 (defn on-map?
   "Returns true if the pixel coordinates are within the map display area."
@@ -85,30 +120,14 @@
 (defn adjacent-to-land?
   "Returns true if the position is adjacent to a land cell."
   [pos current-map]
-  (let [[x y] pos
-        height (count @current-map)
-        width (count (first @current-map))]
-    (some (fn [[dx dy]]
-            (let [nx (+ x dx)
-                  ny (+ y dy)]
-              (and (>= nx 0) (< nx height)
-                   (>= ny 0) (< ny width)
-                   (= :land (:type (get-in @current-map [nx ny]))))))
-          neighbor-offsets)))
+  (any-neighbor-matches? pos @current-map neighbor-offsets
+                         #(= :land (:type %))))
 
 (defn orthogonally-adjacent-to-land?
   "Returns true if the position is orthogonally adjacent to a land cell (N/S/E/W only)."
   [pos current-map]
-  (let [[x y] pos
-        height (count @current-map)
-        width (count (first @current-map))]
-    (some (fn [[dx dy]]
-            (let [nx (+ x dx)
-                  ny (+ y dy)]
-              (and (>= nx 0) (< nx height)
-                   (>= ny 0) (< ny width)
-                   (= :land (:type (get-in @current-map [nx ny]))))))
-          orthogonal-offsets)))
+  (any-neighbor-matches? pos @current-map orthogonal-offsets
+                         #(= :land (:type %))))
 
 (defn completely-surrounded-by-sea?
   "Returns true if the position has no adjacent land cells (completely in open sea)."
@@ -118,31 +137,15 @@
 (defn in-bay?
   "Returns true if the position is in a bay - surrounded by 4 or more land cells."
   [pos current-map]
-  (let [[x y] pos
-        height (count @current-map)
-        width (count (first @current-map))
-        land-count (count (filter (fn [[dx dy]]
-                                    (let [nx (+ x dx)
-                                          ny (+ y dy)]
-                                      (and (>= nx 0) (< nx height)
-                                           (>= ny 0) (< ny width)
-                                           (= :land (:type (get-in @current-map [nx ny]))))))
-                                  neighbor-offsets))]
-    (>= land-count 4)))
+  (>= (count-matching-neighbors pos @current-map neighbor-offsets
+                                #(= :land (:type %)))
+      4))
 
 (defn adjacent-to-sea?
   "Returns true if the position has an adjacent sea cell."
   [pos current-map]
-  (let [[x y] pos
-        height (count @current-map)
-        width (count (first @current-map))]
-    (some (fn [[dx dy]]
-            (let [nx (+ x dx)
-                  ny (+ y dy)]
-              (and (>= nx 0) (< nx height)
-                   (>= ny 0) (< ny width)
-                   (= :sea (:type (get-in @current-map [nx ny]))))))
-          neighbor-offsets)))
+  (any-neighbor-matches? pos @current-map neighbor-offsets
+                         #(= :sea (:type %))))
 
 (defn at-map-edge?
   "Returns true if position is at the edge of the map."

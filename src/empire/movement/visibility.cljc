@@ -13,6 +13,33 @@
   (or (= (:city-status cell) :computer)
       (= (:owner (:contents cell)) :computer)))
 
+(defn- reveal-surrounding-cells!
+  "Reveals the 3x3 area around cell [i,j] in the transient result map.
+   Clamps to map boundaries."
+  [result game-map i j height width]
+  (let [coords (for [row (range (max 0 (dec i)) (min height (+ i 2)))
+                     col (range (max 0 (dec j)) (min width (+ j 2)))]
+                 [row col])]
+    (reduce (fn [r [row col]]
+              (let [cell ((game-map row) col)]
+                (assoc! r row (assoc! (r row) col cell))))
+            result
+            coords)))
+
+(defn- process-map-cells
+  "Iterates over all cells, revealing surroundings for owned cells.
+   Returns the updated transient result."
+  [result game-map ownership-predicate height width]
+  (let [coords (for [i (range height)
+                     j (range width)]
+                 [i j])]
+    (reduce (fn [res [i j]]
+              (if (ownership-predicate ((game-map i) j))
+                (reveal-surrounding-cells! res game-map i j height width)
+                res))
+            result
+            coords)))
+
 (defn update-combatant-map
   "Updates a combatant's visible map by revealing cells near their owned units.
    Optimized to use direct vector access instead of get-in/assoc-in."
@@ -22,44 +49,9 @@
           ownership-predicate (if (= owner :player) is-players? is-computers?)
           height (count game-map)
           width (count (first game-map))
-          max-i (dec height)
-          max-j (dec width)]
-      (loop [i 0
-             result (transient (mapv transient visible-map))]
-        (if (>= i height)
-          (reset! visible-map-atom (mapv persistent! (persistent! result)))
-          (let [game-row (game-map i)]
-            (recur
-              (inc i)
-              (loop [j 0
-                     res result]
-                (if (>= j width)
-                  res
-                  (if (ownership-predicate (game-row j))
-                    ;; This cell is owned - reveal 9 surrounding cells
-                    (let [min-di (if (zero? i) 0 -1)
-                          max-di (if (= i max-i) 0 1)
-                          min-dj (if (zero? j) 0 -1)
-                          max-dj (if (= j max-j) 0 1)]
-                      (recur
-                        (inc j)
-                        (loop [di min-di
-                               r res]
-                          (if (> di max-di)
-                            r
-                            (recur
-                              (inc di)
-                              (loop [dj min-dj
-                                     r2 r]
-                                (if (> dj max-dj)
-                                  r2
-                                  (let [ni (+ i di)
-                                        nj (+ j dj)
-                                        cell ((game-map ni) nj)]
-                                    (recur
-                                      (inc dj)
-                                      (assoc! r2 ni (assoc! (r2 ni) nj cell)))))))))))
-                    (recur (inc j) res)))))))))))
+          transient-map (transient (mapv transient visible-map))
+          updated (process-map-cells transient-map game-map ownership-predicate height width)]
+      (reset! visible-map-atom (mapv persistent! (persistent! updated))))))
 
 (defn update-cell-visibility
   "Updates visibility around a specific cell for the given owner.

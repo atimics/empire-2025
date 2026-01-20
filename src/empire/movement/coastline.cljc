@@ -42,17 +42,8 @@
 (defn get-valid-coastline-moves
   "Returns list of valid adjacent sea positions for coastline following."
   [pos current-map]
-  (let [[x y] pos
-        height (count @current-map)
-        width (count (first @current-map))]
-    (for [[dx dy] map-utils/neighbor-offsets
-          :let [nx (+ x dx)
-                ny (+ y dy)
-                cell (when (and (>= nx 0) (< nx height)
-                                (>= ny 0) (< ny width))
-                       (get-in @current-map [nx ny]))]
-          :when (valid-coastline-cell? cell)]
-      [nx ny])))
+  (map-utils/get-matching-neighbors pos @current-map map-utils/neighbor-offsets
+                                    valid-coastline-cell?))
 
 (defn pick-coastline-move
   "Picks the next coastline move - prefers cells that expose unexplored territory,

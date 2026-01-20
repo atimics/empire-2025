@@ -23,8 +23,7 @@
   "Returns true if the cell contains an attackable target for the computer."
   [cell]
   (or (and (= (:type cell) :city)
-           (config/hostile-city? (:city-status cell))
-           (not= (:city-status cell) :computer))
+           (#{:player :free} (:city-status cell)))
       (and (:contents cell)
            (= (:owner (:contents cell)) :player))))
 
@@ -45,9 +44,9 @@
                  (get-neighbors pos))))
 
 (defn- can-army-move-to?
-  "Returns true if an army can move to this cell."
+  "Returns true if an army can move to this cell (land only, not cities)."
   [cell]
-  (and (#{:land :city} (:type cell))
+  (and (= :land (:type cell))
        (or (nil? (:contents cell))
            (= (:owner (:contents cell)) :player))))
 
@@ -251,10 +250,9 @@
              (= (:owner (:contents target-cell)) :player))
         (combat/attempt-attack pos target)
 
-        ;; Attack hostile city (not our own)
+        ;; Attack hostile city (player or free)
         (and (= (:type target-cell) :city)
-             (config/hostile-city? (:city-status target-cell))
-             (not= (:city-status target-cell) :computer))
+             (#{:player :free} (:city-status target-cell)))
         (attempt-conquest-computer pos target)
 
         ;; Normal move

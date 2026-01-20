@@ -400,8 +400,102 @@
       (should= :army (:type (:contents city-cell)))
       (should= :computer (:owner (:contents city-cell)))))
 
-  (it "army moves to friendly city when all other neighbors blocked"
-    ;; Set up scenario: army at [1,1] with other armies blocking most neighbors
+  (it "multiple armies don't overwrite each other when moving to same cell"
+    ;; Two armies adjacent to the same empty cell
+    (reset! atoms/game-map (build-test-map ["a#a"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (reset! atoms/player-map @atoms/game-map)
+    (reset! atoms/production {})
+    ;; Both armies at [0,0] and [0,2] might want to move to [0,1]
+    ;; Process them in sequence
+    (let [count-armies (fn []
+                         (count (for [j (range 3)
+                                      :let [cell (get-in @atoms/game-map [0 j])]
+                                      :when (and (:contents cell)
+                                                 (= :army (:type (:contents cell))))]
+                                  j)))]
+      (should= 2 (count-armies))
+      ;; Process first army
+      (computer/process-computer-unit [0 0])
+      (should= 2 (count-armies))
+      ;; Process second army - should NOT overwrite the first
+      (computer/process-computer-unit [0 2])
+      (should= 2 (count-armies))))
+
+  (it "armies survive on tiny island with just city"
+    ;; Minimal island - just the city with no extra land
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                             "~X~"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (reset! atoms/player-map @atoms/game-map)
+    (reset! atoms/production {})
+    (reset! atoms/round-number 0)
+    (reset! atoms/player-items [])
+    (reset! atoms/computer-items [])
+    (reset! atoms/paused false)
+    (reset! atoms/pause-requested false)
+    (reset! atoms/waiting-for-input false)
+    (let [count-armies (fn []
+                         (count (for [i (range 3)
+                                      j (range 3)
+                                      :let [cell (get-in @atoms/game-map [i j])]
+                                      :when (and (:contents cell)
+                                                 (= :army (:type (:contents cell)))
+                                                 (= :computer (:owner (:contents cell))))]
+                                  [i j])))
+          armies-produced (atom 0)]
+      ;; Run 20 rounds
+      (dotimes [_ 20]
+        (let [before-count (count-armies)
+              before-round @atoms/round-number]
+          (loop [safety 0]
+            (when (and (< safety 200) (= @atoms/round-number before-round))
+              (game-loop/advance-game)
+              (recur (inc safety))))
+          (let [after-count (count-armies)]
+            (when (> after-count before-count)
+              (swap! armies-produced + (- after-count before-count))))))
+      ;; On tiny island, only 1 army can exist (blocks production of second)
+      ;; But that 1 army should never disappear
+      (let [final-count (count-armies)]
+        (should= @armies-produced final-count))))
+
+  (it "army moving to city doesn't get processed twice in same round"
+    ;; Scenario: items list has [army-pos, city-pos], army moves to city,
+    ;; then city is processed - army should NOT move again
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                             "~#a#~"
+                                             "~#X#~"
+                                             "~###~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (reset! atoms/player-map @atoms/game-map)
+    (reset! atoms/production {[2 2] {:item :army :remaining-rounds 5}})
+    (reset! atoms/player-items [])
+    (reset! atoms/computer-items [[1 2] [2 2]])  ;; army first, then city
+    (reset! atoms/paused false)
+    (reset! atoms/waiting-for-input false)
+    ;; Army at [1,2] should move toward city [2,2]
+    ;; Then when city [2,2] is processed, the army (now on city) moves again
+    (let [count-armies (fn []
+                         (count (for [i (range 5)
+                                      j (range 5)
+                                      :let [cell (get-in @atoms/game-map [i j])]
+                                      :when (and (:contents cell)
+                                                 (= :army (:type (:contents cell)))
+                                                 (= :computer (:owner (:contents cell))))]
+                                  [i j])))]
+      (should= 1 (count-armies))
+      ;; Process all items via game loop
+      (while (seq @atoms/computer-items)
+        (game-loop/advance-game))
+      ;; Army should still exist
+      (should= 1 (count-armies))))
+
+  (it "army stays put when all land neighbors blocked (won't move through city)"
+    ;; Set up scenario: army at [1,1] with other armies blocking land neighbors
+    ;; City at [2,2] is not a valid move destination
     (reset! atoms/game-map (build-test-map ["~~~~~"
                                              "~###~"
                                              "~#X#~"
@@ -414,10 +508,12 @@
     (swap! atoms/game-map assoc-in [1 1 :contents] {:type :army :owner :computer :hits 1 :mode :awake})
     (swap! atoms/game-map assoc-in [1 2 :contents] {:type :army :owner :computer :hits 1 :mode :awake})
     (swap! atoms/game-map assoc-in [2 1 :contents] {:type :army :owner :computer :hits 1 :mode :awake})
-    ;; Process the army at [1,1] - it should move to [2,2] (the friendly city)
+    ;; Process the army at [1,1] - it has no valid moves (city is not passable)
     (computer/process-computer-unit [1 1])
-    ;; Army should have moved to [2,2] (the city) not died trying to conquer it
-    (should= :army (:type (:contents (get-in @atoms/game-map [2 2])))))
+    ;; Army should stay at [1,1] since it can't move through the city
+    (should= :army (:type (:contents (get-in @atoms/game-map [1 1]))))
+    ;; City should remain empty
+    (should-be-nil (:contents (get-in @atoms/game-map [2 2]))))
 
   (it "army moves off city allowing next production cycle"
     (reset! atoms/game-map (build-test-map ["X#"]))
@@ -435,47 +531,70 @@
     (should-be-nil (:contents (get-in @atoms/game-map [0 0])))
     (should= :army (:type (:contents (get-in @atoms/game-map [0 1])))))
 
-  (it "counts produced vs remaining armies on isolated island"
-    ;; Small island with computer city surrounded by sea
-    (reset! atoms/game-map (build-test-map ["~~~~~"
-                                             "~###~"
-                                             "~#X#~"
-                                             "~###~"
-                                             "~~~~~"]))
+  (it "counts produced vs remaining armies on isolated island using game loop"
+    ;; Oval-shaped island with computer city - use actual game loop
+    (reset! atoms/game-map (build-test-map ["~~~~~~~"
+                                             "~~###~~"
+                                             "~#####~"
+                                             "~##X##~"
+                                             "~#####~"
+                                             "~~###~~"
+                                             "~~~~~~~"]))
     (reset! atoms/player-map @atoms/game-map)
     (reset! atoms/computer-map @atoms/game-map)
     (reset! atoms/production {})
     (reset! atoms/round-number 0)
     (reset! atoms/player-items [])
     (reset! atoms/computer-items [])
+    (reset! atoms/paused false)
+    (reset! atoms/pause-requested false)
+    (reset! atoms/waiting-for-input false)
     ;; Count function for armies on map
-    (let [count-armies (fn []
-                         (count (for [i (range 5)
-                                      j (range 5)
+    (let [height (count @atoms/game-map)
+          width (count (first @atoms/game-map))
+          count-armies (fn []
+                         (count (for [i (range height)
+                                      j (range width)
                                       :let [cell (get-in @atoms/game-map [i j])]
                                       :when (and (:contents cell)
                                                  (= :army (:type (:contents cell)))
                                                  (= :computer (:owner (:contents cell))))]
                                   [i j])))
-          armies-produced (atom 0)]
-      ;; Run 30 rounds (enough to produce 5 armies with 5-round build time)
-      (dotimes [_ 30]
-        (let [before-count (count-armies)]
-          (game-loop/start-new-round)
-          ;; Process computer items
-          (while (seq @atoms/computer-items)
-            (let [coords (first @atoms/computer-items)
-                  cell (get-in @atoms/game-map coords)]
-              (when (and (= (:type cell) :city) (= (:city-status cell) :computer))
-                (computer/process-computer-city coords))
-              (when (= (:owner (:contents cell)) :computer)
-                (computer/process-computer-unit coords))
-              (swap! atoms/computer-items rest)))
+          find-armies (fn []
+                        (vec (for [i (range height)
+                                   j (range width)
+                                   :let [cell (get-in @atoms/game-map [i j])]
+                                   :when (and (:contents cell)
+                                              (= :army (:type (:contents cell)))
+                                              (= :computer (:owner (:contents cell))))]
+                               [i j])))
+          armies-produced (atom 0)
+          debug-log (atom [])]
+      ;; Run 200 rounds using actual advance-game (should produce ~35 armies)
+      (dotimes [_ 200]
+        (let [before-count (count-armies)
+              before-round @atoms/round-number]
+          ;; Call advance-game repeatedly until round changes
+          (loop [safety 0]
+            (when (and (< safety 200) (= @atoms/round-number before-round))
+              (let [pre (count-armies)]
+                (game-loop/advance-game)
+                (let [post (count-armies)]
+                  (when (< post pre)
+                    (swap! debug-log conj {:round @atoms/round-number
+                                           :before pre :after post
+                                           :items @atoms/computer-items}))))
+              (recur (inc safety))))
           (let [after-count (count-armies)]
             (when (> after-count before-count)
               (swap! armies-produced + (- after-count before-count))))))
-      ;; Should have produced 5 armies (30 rounds / 5 rounds per army = 6, minus first round to set production)
-      ;; The key assertion: produced armies should equal remaining armies (no unexplained losses)
+      ;; The key assertion: produced armies should equal remaining armies
       (let [final-count (count-armies)]
+        (when (not= @armies-produced final-count)
+          (println "\n=== GAME LOOP DEBUG ===")
+          (println "Produced:" @armies-produced "Final:" final-count)
+          (doseq [entry @debug-log]
+            (println entry))
+          (println "=======================\n"))
         (should (>= @armies-produced 4))
         (should= @armies-produced final-count)))))

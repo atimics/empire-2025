@@ -36,34 +36,10 @@
     (set-test-unit atoms/game-map "V" :target [4 4] :turns-remaining 50)
     (reset! atoms/player-map (make-initial-test-map 5 5 nil))
     (update-cell-visibility [2 2] :player)
-    ;; Ring 1 (distance 1) - all 8 cells should be visible
-    (should (get-in @atoms/player-map [1 1]))
-    (should (get-in @atoms/player-map [1 2]))
-    (should (get-in @atoms/player-map [1 3]))
-    (should (get-in @atoms/player-map [2 1]))
-    (should (get-in @atoms/player-map [2 3]))
-    (should (get-in @atoms/player-map [3 1]))
-    (should (get-in @atoms/player-map [3 2]))
-    (should (get-in @atoms/player-map [3 3]))
-    ;; Ring 2 (distance 2) - all 16 cells should be visible
-    (should (get-in @atoms/player-map [0 0]))
-    (should (get-in @atoms/player-map [0 1]))
-    (should (get-in @atoms/player-map [0 2]))
-    (should (get-in @atoms/player-map [0 3]))
-    (should (get-in @atoms/player-map [0 4]))
-    (should (get-in @atoms/player-map [1 0]))
-    (should (get-in @atoms/player-map [1 4]))
-    (should (get-in @atoms/player-map [2 0]))
-    (should (get-in @atoms/player-map [2 4]))
-    (should (get-in @atoms/player-map [3 0]))
-    (should (get-in @atoms/player-map [3 4]))
-    (should (get-in @atoms/player-map [4 0]))
-    (should (get-in @atoms/player-map [4 1]))
-    (should (get-in @atoms/player-map [4 2]))
-    (should (get-in @atoms/player-map [4 3]))
-    (should (get-in @atoms/player-map [4 4]))
-    ;; Center cell (the satellite's position) should also be visible
-    (should (get-in @atoms/player-map [2 2]))))
+    ;; All 25 cells in the 5x5 map should be visible (rings 1 and 2 plus center)
+    (doseq [row (range 5)
+            col (range 5)]
+      (should (get-in @atoms/player-map [row col])))))
 
 (describe "update-combatant-map"
   (before (reset-all-atoms!))

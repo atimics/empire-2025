@@ -1317,7 +1317,25 @@
   (it "returns true at map edge with only sea neighbors"
     (reset! atoms/game-map (build-test-map ["~~"
                                              "~~"]))
-    (should (computer/completely-surrounded-by-sea? [0 0]))))
+    (should (computer/completely-surrounded-by-sea? [0 0])))
+
+  (it "returns true at map corner with only sea neighbors"
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                             "~~~"
+                                             "~~~"]))
+    (should (computer/completely-surrounded-by-sea? [0 0])))
+
+  (it "returns true at right edge with only sea neighbors"
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                             "~~~"
+                                             "~~~"]))
+    (should (computer/completely-surrounded-by-sea? [1 2])))
+
+  (it "returns false at edge when land is nearby"
+    (reset! atoms/game-map (build-test-map ["~~#"
+                                             "~~~"
+                                             "~~~"]))
+    (should-not (computer/completely-surrounded-by-sea? [0 1]))))
 
 (describe "directions-away-from-land"
   (before (reset-all-atoms!))
@@ -1343,6 +1361,36 @@
     (let [dirs (computer/directions-away-from-land [1 1])]
       (doseq [d dirs]
         (should= :sea (:type (get-in @atoms/game-map d)))))))
+
+(describe "directions-along-wall"
+  (before (reset-all-atoms!))
+
+  (it "returns sea neighbors parallel to wall when at top edge"
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                             "###"]))
+    ;; At [0 1] top edge with land below - should return [0 0] and [0 2]
+    (let [dirs (computer/directions-along-wall [0 1])]
+      (should (some #{[0 0]} dirs))
+      (should (some #{[0 2]} dirs))))
+
+  (it "returns sea neighbors parallel to wall when at left edge"
+    (reset! atoms/game-map ["~~#"
+                             "~~#"
+                             "~~#"])
+    (reset! atoms/game-map (build-test-map ["~~#"
+                                             "~~#"
+                                             "~~#"]))
+    ;; At [1 0] left edge with land to right - should return [0 0] and [2 0]
+    (let [dirs (computer/directions-along-wall [1 0])]
+      (should (some #{[0 0]} dirs))
+      (should (some #{[2 0]} dirs))))
+
+  (it "returns empty when not at wall or no parallel moves"
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                             "~~~"
+                                             "~~~"]))
+    ;; In open sea, no wall to reflect from
+    (should (empty? (computer/directions-along-wall [1 1])))))
 
 (describe "find-good-beach-near-city"
   (before (reset-all-atoms!))

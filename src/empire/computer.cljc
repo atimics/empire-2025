@@ -580,6 +580,46 @@
                         current-land-cells))
               sea-neighbors))))
 
+(defn directions-along-wall
+  "Returns sea neighbors that move parallel to a wall (map edge or land barrier).
+   Used for reflecting off walls when departing."
+  [pos]
+  (let [[row col] pos
+        height (count @atoms/game-map)
+        width (count (first @atoms/game-map))
+        sea-neighbors (filter (fn [neighbor]
+                                (= :sea (:type (get-in @atoms/game-map neighbor))))
+                              (get-neighbors pos))
+        ;; Check if at map edge
+        at-top-edge (= row 0)
+        at-bottom-edge (= row (dec height))
+        at-left-edge (= col 0)
+        at-right-edge (= col (dec width))
+        ;; Check if adjacent to land in each direction
+        land-above (and (> row 0)
+                        (#{:land :city} (:type (get-in @atoms/game-map [(dec row) col]))))
+        land-below (and (< row (dec height))
+                        (#{:land :city} (:type (get-in @atoms/game-map [(inc row) col]))))
+        land-left (and (> col 0)
+                       (#{:land :city} (:type (get-in @atoms/game-map [row (dec col)]))))
+        land-right (and (< col (dec width))
+                        (#{:land :city} (:type (get-in @atoms/game-map [row (inc col)]))))
+        ;; Determine wall direction(s)
+        wall-horizontal (or at-top-edge at-bottom-edge land-above land-below)
+        wall-vertical (or at-left-edge at-right-edge land-left land-right)]
+    (cond
+      ;; Horizontal wall - move left/right (same row)
+      (and wall-horizontal (not wall-vertical))
+      (filter (fn [[r _]] (= r row)) sea-neighbors)
+
+      ;; Vertical wall - move up/down (same column)
+      (and wall-vertical (not wall-horizontal))
+      (filter (fn [[_ c]] (= c col)) sea-neighbors)
+
+      ;; Corner or no wall - no clear reflection direction
+      :else
+      [])))
+
 (defn find-good-beach-near-city
   "Finds a good beach (sea with 3+ land neighbors) near a computer city."
   []
@@ -764,10 +804,18 @@
         (first (find-passable-ship-neighbors pos)))
       ;; Move away from land
       (let [away-dirs (directions-away-from-land pos)]
-        (if (seq away-dirs)
+        (cond
+          ;; Can move away from land
+          (seq away-dirs)
           (first away-dirs)
-          ;; No direction away - just move to any sea neighbor
-          (first (find-passable-ship-neighbors pos)))))))
+
+          ;; At wall - reflect and move parallel to wall
+          :else
+          (let [wall-dirs (directions-along-wall pos)]
+            (if (seq wall-dirs)
+              (first wall-dirs)
+              ;; Fallback to any sea neighbor
+              (first (find-passable-ship-neighbors pos)))))))))
 
 (defn- transport-move-en-route
   "Handles transport in en-route state - navigate to good unloading beach."

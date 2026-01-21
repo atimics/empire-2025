@@ -177,8 +177,20 @@
                                (* 2 (threat-level computer-map %)))
                    safe)))))))
 
+(defn adjacent-to-computer-unexplored?
+  "Returns true if the position has an adjacent unexplored cell on computer-map."
+  [pos]
+  (map-utils/any-neighbor-matches? pos @atoms/computer-map map-utils/neighbor-offsets
+                                   nil?))
+
+(defn- get-explore-moves
+  "Returns passable moves that are adjacent to unexplored cells."
+  [passable]
+  (filter adjacent-to-computer-unexplored? passable))
+
 (defn- move-toward-city-or-explore
-  "Moves army toward nearest free/player city using A*, or explores."
+  "Moves army toward nearest free/player city using A*, or explores.
+   When exploring, prefers cells adjacent to unexplored areas."
   [pos passable]
   (let [free-cities (find-visible-cities #{:free})
         player-cities (find-visible-cities #{:player})]
@@ -194,7 +206,12 @@
             (move-toward pos nearest passable)))
 
       :else
-      (first passable))))
+      ;; Explore: prefer moves adjacent to unexplored areas
+      (let [explore-moves (get-explore-moves passable)]
+        (if (seq explore-moves)
+          (rand-nth explore-moves)
+          (when (seq passable)
+            (rand-nth passable)))))))
 
 (defn decide-army-move
   "Decides where a computer army should move. Returns target coords or nil.
@@ -463,45 +480,51 @@
     (frequencies units)))
 
 (defn- need-transports?
-  "Returns true if we need more transports for invasion."
+  "Returns true if we need more transports for invasion.
+   Build first transport after 6 armies, then another after each 6 more."
   [unit-counts]
   (let [armies (get unit-counts :army 0)
         transports (get unit-counts :transport 0)]
-    (and (> armies 3)
-         (< transports (max 1 (quot armies 4))))))
+    (>= armies (* 6 (inc transports)))))
 
 (defn- need-fighters?
   "Returns true if we need air support.
-   Only request fighters when we have some ground forces to support."
+   Request fighters after we have 6+ armies (past early buildup)."
   [unit-counts]
   (let [fighters (get unit-counts :fighter 0)
         armies (get unit-counts :army 0)]
-    (and (< fighters 2)
-         (>= armies 3))))
+    (and (>= armies 6)
+         (< fighters 2))))
 
 (defn- need-warships?
   "Returns true if we need naval combat vessels.
-   Only request warships when we have some ground forces first."
+   Only request warships when we have enough armies for existing transports
+   (i.e., at transport capacity, not still building toward next transport)."
   [unit-counts]
   (let [destroyers (get unit-counts :destroyer 0)
         patrol-boats (get unit-counts :patrol-boat 0)
+        transports (get unit-counts :transport 0)
         armies (get unit-counts :army 0)]
-    (and (>= armies 3)
+    (and (pos? transports)
+         (= armies (* 6 transports))
          (< (+ destroyers patrol-boats) 2))))
 
 (defn decide-production
-  "Decides what a computer city should produce based on strategic needs."
+  "Decides what a computer city should produce based on strategic needs.
+   Priority: build 6 armies, then transport, then 6 more armies, repeat."
   [city-pos]
   (let [unit-counts (count-computer-units)
         coastal? (city-is-coastal? city-pos)]
     (cond
-      ;; Coastal cities can build naval units
+      ;; Coastal cities: build transport after every 6 armies
       (and coastal? (need-transports? unit-counts))
       :transport
 
+      ;; Warships only after we have transport capacity
       (and coastal? (need-warships? unit-counts))
       (rand-nth [:destroyer :patrol-boat])
 
+      ;; Fighters only after we have transport capacity
       (need-fighters? unit-counts)
       :fighter
 
@@ -593,7 +616,7 @@
     (when (pos? (:army-count transport 0))
       ;; Create army on land
       (swap! atoms/game-map assoc-in (conj land-pos :contents)
-             {:type :army :owner :computer :hits 1})
+             {:type :army :owner :computer :hits 1 :mode :awake})
       ;; Decrement transport army count
       (swap! atoms/game-map update-in (conj transport-pos :contents :army-count) dec))))
 

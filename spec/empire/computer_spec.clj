@@ -843,35 +843,54 @@
 (describe "smart decide-production"
   (before (reset-all-atoms!))
 
-  (it "returns :transport at coastal city when armies outnumber transports"
-    (reset! atoms/game-map (build-test-map ["~X#"
-                                             "a#a"
-                                             "a#a"]))
-    (reset! atoms/computer-map @atoms/game-map)
-    ;; 4 armies, 0 transports - need transports
-    (should= :transport (computer/decide-production [0 1])))
-
-  (it "returns :army at inland city when few armies exist"
-    (reset! atoms/game-map (build-test-map ["###"
-                                             "#X#"
-                                             "#a#"]))
-    (reset! atoms/computer-map @atoms/game-map)
-    ;; Inland city, only 1 army - build more armies first
-    (should= :army (computer/decide-production [1 1])))
-
-  (it "returns :army at coastal city when no warships exist but too few armies"
-    (reset! atoms/game-map (build-test-map ["~X~"
-                                             "~a~"]))
-    (reset! atoms/computer-map @atoms/game-map)
-    ;; Coastal city, only 1 army, no warships - build armies first
-    (should= :army (computer/decide-production [0 1])))
-
-  (it "returns warship at coastal city when no warships exist and has enough armies"
+  (it "returns :army at coastal city when fewer than 6 armies exist"
     (reset! atoms/game-map (build-test-map ["~X~"
                                              "aaa"
-                                             "~t~"]))
+                                             "aa#"]))
     (reset! atoms/computer-map @atoms/game-map)
-    ;; Has 3 armies and transport but no warships - build warship
+    ;; 5 armies, 0 transports - need 6 armies before transport
+    (should= :army (computer/decide-production [0 1])))
+
+  (it "returns :transport at coastal city when 6 armies exist and no transport"
+    (reset! atoms/game-map (build-test-map ["~X~"
+                                             "aaa"
+                                             "aaa"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; 6 armies, 0 transports - time for first transport
+    (should= :transport (computer/decide-production [0 1])))
+
+  (it "returns :army at coastal city when 6 armies and 1 transport exist"
+    (reset! atoms/game-map (build-test-map ["~X~"
+                                             "aaa"
+                                             "aat"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; 5 armies, 1 transport - need 6 more armies (total 12) before next transport
+    (should= :army (computer/decide-production [0 1])))
+
+  (it "returns :transport at coastal city when 12 armies and 1 transport exist"
+    (reset! atoms/game-map (build-test-map ["~X~~~~~"
+                                             "aaaaaaa"
+                                             "aaaaat~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; 12 armies (7+5), 1 transport - time for second transport
+    (should= :transport (computer/decide-production [0 1])))
+
+  (it "returns :army at inland city regardless of army count"
+    (reset! atoms/game-map (build-test-map ["###"
+                                             "#X#"
+                                             "aaa"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Inland city can't build transports
+    (should= :army (computer/decide-production [1 1])))
+
+  (it "returns warship at coastal city when at transport capacity and no warships"
+    (reset! atoms/game-map (build-test-map ["~X~"
+                                             "aaa"
+                                             "aat"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Has 6 armies and 1 transport (at capacity) but no warships - build warship
+    ;; Note: map has 5 armies, so we add one more
+    (swap! atoms/game-map assoc-in [0 0 :contents] {:type :army :owner :computer :hits 1})
     (let [unit (computer/decide-production [0 1])]
       (should (#{:destroyer :patrol-boat} unit))))
 
@@ -1102,3 +1121,88 @@
       ;; Should be nil (no passable land neighbors) or stay put
       ;; Actually army is on land cell at [0 0], only neighbor is sea
       (should-be-nil move))))
+
+;; Computer Army Exploration Tests
+
+(describe "adjacent-to-computer-unexplored?"
+  (before (reset-all-atoms!))
+
+  (it "returns true when position has adjacent unexplored (nil) cell"
+    (reset! atoms/game-map (build-test-map ["###"
+                                             "###"
+                                             "###"]))
+    ;; Set up computer-map with some cells unexplored (nil)
+    (reset! atoms/computer-map (vec (repeat 3 (vec (repeat 3 nil)))))
+    ;; Reveal cell [1 1] only
+    (swap! atoms/computer-map assoc-in [1 1] (get-in @atoms/game-map [1 1]))
+    ;; [1 1] should have adjacent unexplored
+    (should (computer/adjacent-to-computer-unexplored? [1 1])))
+
+  (it "returns false when all adjacent cells are explored"
+    (reset! atoms/game-map (build-test-map ["###"
+                                             "###"
+                                             "###"]))
+    ;; All cells revealed
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; [1 1] has no unexplored neighbors
+    (should-not (computer/adjacent-to-computer-unexplored? [1 1])))
+
+  (it "returns true for edge cell with unexplored neighbors"
+    (reset! atoms/game-map (build-test-map ["###"
+                                             "###"
+                                             "###"]))
+    (reset! atoms/computer-map (vec (repeat 3 (vec (repeat 3 nil)))))
+    ;; Reveal just corner cell [0 0]
+    (swap! atoms/computer-map assoc-in [0 0] (get-in @atoms/game-map [0 0]))
+    (should (computer/adjacent-to-computer-unexplored? [0 0]))))
+
+(describe "computer army exploration behavior"
+  (before (reset-all-atoms!))
+
+  (it "army prefers moves toward unexplored areas when exploring"
+    (reset! atoms/game-map (build-test-map ["#####"
+                                             "##a##"
+                                             "#####"
+                                             "#####"
+                                             "#####"]))
+    ;; Set up computer-map with only the top-left quadrant explored
+    (reset! atoms/computer-map (vec (repeat 5 (vec (repeat 5 nil)))))
+    ;; Reveal top-left area (rows 0-2, cols 0-2)
+    (doseq [i (range 3)
+            j (range 3)]
+      (swap! atoms/computer-map assoc-in [i j] (get-in @atoms/game-map [i j])))
+    ;; Army at [1 2] - unexplored area is to the right (col 3+) and down (row 3+)
+    ;; Army should prefer moving toward unexplored (right or down)
+    (let [move (computer/decide-army-move [1 2])]
+      (should-not-be-nil move)
+      ;; Should prefer moves adjacent to unexplored: [1 3], [2 2], or [2 3]
+      ;; (cells that are next to the unexplored area)
+      (should (computer/adjacent-to-computer-unexplored? move))))
+
+  (it "army explores randomly when all adjacent areas are explored"
+    (reset! atoms/game-map (build-test-map ["###"
+                                             "#a#"
+                                             "###"]))
+    ;; All explored
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Should still return a valid move (not nil)
+    (let [move (computer/decide-army-move [1 1])]
+      (should-not-be-nil move)
+      (should= :land (:type (get-in @atoms/game-map move)))))
+
+  (it "army moves toward city even when unexplored areas exist"
+    (reset! atoms/game-map (build-test-map ["#####"
+                                             "##a##"
+                                             "#####"
+                                             "#####"
+                                             "+####"]))
+    ;; Only reveal the visible path to city, leave right side unexplored
+    (reset! atoms/computer-map (vec (repeat 5 (vec (repeat 5 nil)))))
+    (doseq [i (range 5)
+            j (range 3)]
+      (swap! atoms/computer-map assoc-in [i j] (get-in @atoms/game-map [i j])))
+    ;; Army at [1 2] should move toward free city at [4 0], not toward unexplored
+    (let [move (computer/decide-army-move [1 2])]
+      (should-not-be-nil move)
+      ;; Should move toward city (down or left)
+      (should (#{[1 1] [2 2] [2 1]} move)))))

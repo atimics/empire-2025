@@ -908,7 +908,29 @@
                                              "aaa"]))
     (reset! atoms/computer-map @atoms/game-map)
     ;; Has 2 fighters (enough), has 3 armies - just build more armies
-    (should= :army (computer/decide-production [0 1]))))
+    (should= :army (computer/decide-production [0 1])))
+
+  (it "single coastal city switches to transport when 6 armies exist"
+    (reset! atoms/game-map (build-test-map ["~~~~~~"
+                                             "~###~~"
+                                             "~#X~~~"
+                                             "~aaa~~"
+                                             "~aaa~~"
+                                             "~~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Single city at [2 2], 6 armies - should build transport
+    (should= :transport (computer/decide-production [2 2])))
+
+  (it "single coastal city returns to army after transport built"
+    (reset! atoms/game-map (build-test-map ["~~~~~~"
+                                             "~###~~"
+                                             "~#X~~~"
+                                             "~aaat~"
+                                             "~aa~~~"
+                                             "~~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Single city, 5 armies, 1 transport - back to building armies
+    (should= :army (computer/decide-production [2 2]))))
 
 ;; Phase 3: Transport Helper Tests
 

@@ -6,6 +6,7 @@
             [empire.container-ops :as container-ops]
             [empire.movement.movement :as movement]
             [empire.movement.wake-conditions :as wake]
+            [empire.pathfinding :as pathfinding]
             [empire.production :as production]
             [empire.unit-container :as uc]))
 
@@ -283,6 +284,7 @@
   "Starts a new round by building player and computer items lists and updating game state."
   []
   (swap! atoms/round-number inc)
+  (pathfinding/clear-path-cache)
   (move-satellites)
   (consume-sentry-fighter-fuel)
   (wake-sentries-seeing-enemy)

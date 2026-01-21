@@ -3,6 +3,7 @@
             [empire.combat :as combat]
             [empire.config :as config]
             [empire.movement.map-utils :as map-utils]
+            [empire.pathfinding :as pathfinding]
             [empire.production :as production]
             [empire.units.dispatcher :as dispatcher]))
 
@@ -21,19 +22,21 @@
            (= (:owner (:contents cell)) :player))))
 
 (defn- find-adjacent-army-target
-  "Finds an adjacent attackable target for an army (must be on land/city). Returns coords or nil."
+  "Finds an adjacent attackable target for an army (must be on land/city).
+   Uses computer-map to respect fog of war. Returns coords or nil."
   [pos]
   (first (filter (fn [neighbor]
-                   (let [cell (get-in @atoms/game-map neighbor)]
+                   (let [cell (get-in @atoms/computer-map neighbor)]
                      (and (#{:land :city} (:type cell))
                           (attackable-target? cell))))
                  (get-neighbors pos))))
 
 (defn- find-adjacent-target
-  "Finds an adjacent attackable target. Returns coords or nil."
+  "Finds an adjacent attackable target.
+   Uses computer-map to respect fog of war. Returns coords or nil."
   [pos]
   (first (filter (fn [neighbor]
-                   (attackable-target? (get-in @atoms/game-map neighbor)))
+                   (attackable-target? (get-in @atoms/computer-map neighbor)))
                  (get-neighbors pos))))
 
 (defn- can-army-move-to?
@@ -74,40 +77,124 @@
   (when (seq passable-neighbors)
     (apply min-key #(distance % target) passable-neighbors)))
 
+;; Threat Assessment Functions
+
+(defn unit-threat
+  "Returns threat value for a unit type.
+   Higher values = more dangerous."
+  [unit-type]
+  (case unit-type
+    :battleship 10
+    :carrier 8
+    :destroyer 6
+    :submarine 5
+    :fighter 4
+    :patrol-boat 3
+    :army 2
+    :transport 1
+    0))
+
+(defn threat-level
+  "Calculates threat level at position based on nearby enemy units.
+   Checks all cells within radius 2 of position.
+   Returns sum of threat values for nearby enemy units."
+  [computer-map position]
+  (let [radius 2
+        [px py] position]
+    (reduce + 0
+            (for [dx (range (- radius) (inc radius))
+                  dy (range (- radius) (inc radius))
+                  :let [x (+ px dx)
+                        y (+ py dy)
+                        cell (get-in computer-map [x y])]
+                  :when (and cell
+                             (:contents cell)
+                             (= (:owner (:contents cell)) :player))]
+              (unit-threat (:type (:contents cell)))))))
+
+(defn safe-moves
+  "Filters moves to avoid high-threat areas when unit is damaged.
+   Returns moves sorted by threat level (safest first).
+   If unit is at full health, returns all moves unchanged."
+  [computer-map _position unit possible-moves]
+  (let [max-hits (dispatcher/hits (:type unit))
+        current-hits (:hits unit max-hits)
+        damaged? (< current-hits max-hits)]
+    (if damaged?
+      (sort-by #(threat-level computer-map %) possible-moves)
+      possible-moves)))
+
+(defn should-retreat?
+  "Returns true if the unit should retreat rather than engage."
+  [pos unit computer-map]
+  (let [unit-type (:type unit)
+        max-hits (dispatcher/hits unit-type)
+        current-hits (:hits unit max-hits)
+        threat (threat-level computer-map pos)]
+    (or
+      ;; Damaged and under threat
+      (and (< current-hits max-hits) (> threat 3))
+      ;; Transport carrying armies - always cautious
+      (and (= unit-type :transport)
+           (> (:army-count unit 0) 0)
+           (> threat 5))
+      ;; Severely damaged (< 50% health)
+      (< current-hits (/ max-hits 2)))))
+
+(defn- find-nearest-friendly-base
+  "Finds the nearest computer-owned city."
+  [pos _unit-type]
+  (let [cities (find-visible-cities #{:computer})]
+    (when (seq cities)
+      (apply min-key #(distance pos %) cities))))
+
+(defn retreat-move
+  "Returns best retreat move toward nearest friendly city.
+   Returns nil if no safe retreat available."
+  [pos unit computer-map passable-moves]
+  (when (seq passable-moves)
+    (let [nearest-city (find-nearest-friendly-base pos (:type unit))]
+      (when nearest-city
+        (let [safe (safe-moves computer-map pos unit passable-moves)]
+          (when (seq safe)
+            ;; Pick move that's both safe and moves toward base
+            (apply min-key #(+ (distance % nearest-city)
+                               (* 2 (threat-level computer-map %)))
+                   safe)))))))
+
+(defn- move-toward-city-or-explore
+  "Moves army toward nearest free/player city using A*, or explores."
+  [pos passable]
+  (let [free-cities (find-visible-cities #{:free})
+        player-cities (find-visible-cities #{:player})]
+    (cond
+      (seq free-cities)
+      (let [nearest (apply min-key #(distance pos %) free-cities)]
+        (or (pathfinding/next-step pos nearest :army)
+            (move-toward pos nearest passable)))
+
+      (seq player-cities)
+      (let [nearest (apply min-key #(distance pos %) player-cities)]
+        (or (pathfinding/next-step pos nearest :army)
+            (move-toward pos nearest passable)))
+
+      :else
+      (first passable))))
+
 (defn decide-army-move
   "Decides where a computer army should move. Returns target coords or nil.
-   Priority: 1) Attack adjacent target 2) Move toward free city
-   3) Move toward player city 4) Explore"
+   Priority: 1) Attack adjacent target 2) Retreat if damaged 3) Move toward free city
+   4) Move toward player city 5) Explore. Uses A* pathfinding when available."
   [pos]
-  (let [adjacent-target (find-adjacent-target pos)
+  (let [cell (get-in @atoms/game-map pos)
+        unit (:contents cell)
+        adjacent-target (find-adjacent-target pos)
         passable (find-passable-neighbors pos)]
     (cond
-      ;; Attack adjacent target
-      adjacent-target
-      adjacent-target
-
-      ;; No valid moves
-      (empty? passable)
-      nil
-
-      ;; Move toward nearest free city
-      :else
-      (let [free-cities (find-visible-cities #{:free})
-            player-cities (find-visible-cities #{:player})]
-        (cond
-          ;; Move toward nearest free city
-          (seq free-cities)
-          (let [nearest (apply min-key #(distance pos %) free-cities)]
-            (move-toward pos nearest passable))
-
-          ;; Move toward nearest player city
-          (seq player-cities)
-          (let [nearest (apply min-key #(distance pos %) player-cities)]
-            (move-toward pos nearest passable))
-
-          ;; Explore - pick first passable neighbor
-          :else
-          (first passable))))))
+      adjacent-target adjacent-target
+      (should-retreat? pos unit @atoms/computer-map) (retreat-move pos unit @atoms/computer-map passable)
+      (empty? passable) nil
+      :else (move-toward-city-or-explore pos passable))))
 
 (defn- can-ship-move-to?
   "Returns true if a ship can move to this cell."
@@ -138,27 +225,38 @@
 
 (defn decide-ship-move
   "Decides where a computer ship should move. Returns target coords or nil.
-   Priority: 1) Attack adjacent target 2) Move toward player unit 3) Patrol"
-  [pos _ship-type]
-  (let [adjacent-target (find-adjacent-target pos)
+   Priority: 1) Attack adjacent target 2) Retreat if damaged 3) Move toward player unit
+   4) Patrol. Uses threat avoidance when damaged."
+  [pos ship-type]
+  (let [cell (get-in @atoms/game-map pos)
+        unit (:contents cell)
+        adjacent-target (find-adjacent-target pos)
         passable (find-passable-ship-neighbors pos)]
     (cond
       ;; Attack adjacent target
       adjacent-target
       adjacent-target
 
+      ;; Check if should retreat
+      (should-retreat? pos unit @atoms/computer-map)
+      (retreat-move pos unit @atoms/computer-map passable)
+
       ;; No valid moves
       (empty? passable)
       nil
 
-      ;; Move toward nearest player unit
+      ;; Move toward nearest player unit with threat awareness
       :else
-      (let [player-units (find-visible-player-units)]
+      (let [player-units (find-visible-player-units)
+            safe-passable (safe-moves @atoms/computer-map pos unit passable)]
         (if (seq player-units)
           (let [nearest (apply min-key #(distance pos %) player-units)]
-            (move-toward pos nearest passable))
-          ;; Patrol - pick random passable neighbor
-          (rand-nth passable))))))
+            (or (pathfinding/next-step pos nearest ship-type)
+                (move-toward pos nearest safe-passable)))
+          ;; Patrol - pick safe random neighbor
+          (if (seq safe-passable)
+            (rand-nth safe-passable)
+            (rand-nth passable)))))))
 
 (defn- can-fighter-move-to?
   "Returns true if a fighter can move to this cell (fighters can fly anywhere)."
@@ -186,7 +284,8 @@
 
 (defn decide-fighter-move
   "Decides where a computer fighter should move. Returns target coords or nil.
-   Priority: 1) Attack adjacent target 2) Return to base if low fuel 3) Explore"
+   Priority: 1) Attack adjacent target 2) Return to base if low fuel 3) Explore.
+   Uses A* pathfinding for better navigation."
   [pos fuel]
   (let [adjacent-target (find-adjacent-target pos)
         passable (find-passable-fighter-neighbors pos)
@@ -201,9 +300,10 @@
       (empty? passable)
       nil
 
-      ;; Return to base if fuel is low (fuel <= distance to city + 1 buffer)
-      (and nearest-city dist-to-city (<= fuel (inc dist-to-city)))
-      (move-toward pos nearest-city passable)
+      ;; Return to base if fuel is low (fuel <= distance to city + 2 buffer for safety)
+      (and nearest-city dist-to-city (<= fuel (+ dist-to-city 2)))
+      (or (pathfinding/next-step pos nearest-city :fighter)
+          (move-toward pos nearest-city passable))
 
       ;; Explore - move toward unexplored or random
       :else

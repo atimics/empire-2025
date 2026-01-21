@@ -3,6 +3,7 @@
             [empire.game-loop :as game-loop]
             [empire.computer :as computer]
             [empire.atoms :as atoms]
+            [empire.pathfinding :as pathfinding]
             [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-city reset-all-atoms!]]))
 
 (describe "build-computer-items"
@@ -362,6 +363,173 @@
     (reset! atoms/production {})
     (computer/process-computer-city [0 0])
     (should= :army (:item (@atoms/production [0 0])))))
+
+(describe "unit-threat"
+  (it "returns correct threat values for unit types"
+    (should= 10 (computer/unit-threat :battleship))
+    (should= 8 (computer/unit-threat :carrier))
+    (should= 6 (computer/unit-threat :destroyer))
+    (should= 5 (computer/unit-threat :submarine))
+    (should= 4 (computer/unit-threat :fighter))
+    (should= 3 (computer/unit-threat :patrol-boat))
+    (should= 2 (computer/unit-threat :army))
+    (should= 1 (computer/unit-threat :transport))
+    (should= 0 (computer/unit-threat :satellite))))
+
+(describe "threat-level"
+  (before (reset-all-atoms!))
+
+  (it "returns 0 with no enemies nearby"
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                             "~d~"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (should= 0 (computer/threat-level @atoms/computer-map [1 1])))
+
+  (it "sums threat of adjacent enemies"
+    (reset! atoms/game-map (build-test-map ["~B~"
+                                             "~d~"
+                                             "~D~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Battleship = 10, Destroyer = 6
+    (should= 16 (computer/threat-level @atoms/computer-map [1 1])))
+
+  (it "considers enemies within radius 2"
+    (reset! atoms/game-map (build-test-map ["B~~~~"
+                                             "~~~~~"
+                                             "~~d~~"
+                                             "~~~~~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Battleship at [0 0] is exactly radius 2 from [2 2]
+    (should= 10 (computer/threat-level @atoms/computer-map [2 2])))
+
+  (it "ignores enemies beyond radius 2"
+    (reset! atoms/game-map (build-test-map ["B~~~~~"
+                                             "~~~~~~"
+                                             "~~~~~~"
+                                             "~~~d~~"
+                                             "~~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Battleship at [0 0] is beyond radius 2 from [3 3]
+    (should= 0 (computer/threat-level @atoms/computer-map [3 3])))
+
+  (it "ignores friendly units"
+    (reset! atoms/game-map (build-test-map ["~b~"
+                                             "~d~"
+                                             "~b~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Both battleships are computer-owned, should not add to threat
+    (should= 0 (computer/threat-level @atoms/computer-map [1 1]))))
+
+(describe "safe-moves"
+  (before (reset-all-atoms!))
+
+  (it "returns all moves unchanged when unit at full health"
+    (reset! atoms/game-map (build-test-map ["~B~"
+                                             "~d~"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (let [unit {:type :destroyer :hits 3}  ;; Full health (destroyer has 3 hits)
+          moves [[0 1] [1 0] [1 2] [2 1]]]
+      (should= moves (computer/safe-moves @atoms/computer-map [1 1] unit moves))))
+
+  (it "sorts moves by threat level when unit is damaged"
+    ;; Battleship at [1 2], destroyer at [3 3]
+    ;; Move [2 3] is within radius 2 of battleship (distance 2)
+    ;; Moves [3 4] and [4 3] are beyond radius 2 (distance 4 each)
+    (reset! atoms/game-map (build-test-map ["~~~~~~"
+                                             "~~B~~~"
+                                             "~~~~~~"
+                                             "~~~d~~"
+                                             "~~~~~~"
+                                             "~~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (let [unit {:type :destroyer :hits 1}  ;; Damaged (less than max 3)
+          moves [[2 3] [3 4] [4 3]]]
+      ;; [2 3] is within range of battleship at [1 2] (threat 10)
+      ;; [3 4] and [4 3] are beyond range (threat 0)
+      (let [sorted-moves (computer/safe-moves @atoms/computer-map [3 3] unit moves)]
+        ;; Lower threat moves should come first
+        (should-not= [2 3] (first sorted-moves))))))
+
+(describe "should-retreat?"
+  (before (reset-all-atoms!))
+
+  (it "returns true when damaged and under threat"
+    (reset! atoms/game-map (build-test-map ["~B~"
+                                             "~d~"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (let [unit {:type :destroyer :hits 2}]  ;; Damaged (max is 3)
+      ;; Threat from battleship = 10, threshold is 3
+      (should (computer/should-retreat? [1 1] unit @atoms/computer-map))))
+
+  (it "returns false for healthy unit under threat"
+    (reset! atoms/game-map (build-test-map ["~B~"
+                                             "~d~"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (let [unit {:type :destroyer :hits 3}]  ;; Full health
+      (should-not (computer/should-retreat? [1 1] unit @atoms/computer-map))))
+
+  (it "returns true for loaded transport under high threat"
+    (reset! atoms/game-map (build-test-map ["~B~"
+                                             "~t~"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (let [unit {:type :transport :hits 3 :army-count 2}]  ;; Transport with armies
+      ;; Threat from battleship = 10, threshold for loaded transport is 5
+      (should (computer/should-retreat? [1 1] unit @atoms/computer-map))))
+
+  (it "returns false for empty transport under moderate threat"
+    (reset! atoms/game-map (build-test-map ["~P~"
+                                             "~t~"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (let [unit {:type :transport :hits 3 :army-count 0}]  ;; Empty transport
+      ;; Threat from patrol-boat = 3, not enough to trigger retreat
+      (should-not (computer/should-retreat? [1 1] unit @atoms/computer-map))))
+
+  (it "returns true for severely damaged unit (< 50% health)"
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                             "~b~"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (let [unit {:type :battleship :hits 3}]  ;; Less than 50% of 8 hits
+      (should (computer/should-retreat? [1 1] unit @atoms/computer-map)))))
+
+(describe "retreat-move"
+  (before (reset-all-atoms!))
+
+  (it "moves toward nearest friendly city"
+    (reset! atoms/game-map (build-test-map ["X~~~B"
+                                             "~~~~~"
+                                             "~~d~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (let [unit {:type :destroyer :hits 1}
+          passable [[1 2] [1 3] [2 1] [2 3]]]
+      ;; City at [0 0], should prefer moving toward it (lower row/col)
+      (let [retreat (computer/retreat-move [2 2] unit @atoms/computer-map passable)]
+        (should-not-be-nil retreat)
+        ;; Should move toward [0 0]
+        (should (#{[1 2] [2 1] [1 3]} retreat)))))
+
+  (it "returns nil when no friendly city exists"
+    (reset! atoms/game-map (build-test-map ["~~~~B"
+                                             "~~~~~"
+                                             "~~d~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (let [unit {:type :destroyer :hits 1}
+          passable [[1 2] [1 3] [2 1] [2 3]]]
+      (should-be-nil (computer/retreat-move [2 2] unit @atoms/computer-map passable))))
+
+  (it "returns nil when no passable moves"
+    (reset! atoms/game-map (build-test-map ["X"
+                                             "d"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (let [unit {:type :destroyer :hits 1}]
+      (should-be-nil (computer/retreat-move [1 0] unit @atoms/computer-map [])))))
 
 (describe "computer production full cycle"
   (before (reset-all-atoms!))

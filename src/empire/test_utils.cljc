@@ -1,5 +1,6 @@
 (ns empire.test-utils
   (:require [empire.atoms :as atoms]
+            [empire.pathfinding :as pathfinding]
             [empire.units.dispatcher :as dispatcher]))
 
 (defn- make-unit [unit-type owner]
@@ -154,4 +155,5 @@
   (reset! atoms/paused false)
   (reset! atoms/pause-requested false)
   (reset! atoms/computer-items [])
-  (reset! atoms/computer-turn false))
+  (reset! atoms/computer-turn false)
+  (pathfinding/clear-path-cache))

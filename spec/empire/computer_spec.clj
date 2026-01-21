@@ -7,6 +7,42 @@
             [empire.production :as production]
             [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-city reset-all-atoms!]]))
 
+(defn count-computer-armies []
+  (let [game-map @atoms/game-map
+        rows (count game-map)
+        cols (count (first game-map))]
+    (count (for [i (range rows)
+                 j (range cols)
+                 :let [cell (get-in game-map [i j])]
+                 :when (and (:contents cell)
+                            (= :army (:type (:contents cell)))
+                            (= :computer (:owner (:contents cell))))]
+             [i j]))))
+
+;; Returns a frequency map of computer unit types on the game-map.
+;; e.g., {:army 3, :transport 1, :fighter 2}
+(defn computer-unit-type-frequencies []
+  (let [game-map @atoms/game-map
+        rows (count game-map)
+        cols (count (first game-map))]
+    (frequencies
+      (for [i (range rows)
+            j (range cols)
+            :let [cell (get-in game-map [i j])
+                  unit (:contents cell)]
+            :when (and unit (= :computer (:owner unit)))]
+        (:type unit)))))
+
+;; Advances the game loop through n complete rounds.
+;; Uses a safety limit to prevent infinite loops if round doesn't advance.
+(defn run-game-rounds [n]
+  (dotimes [_ n]
+    (let [before-round @atoms/round-number]
+      (loop [safety 0]
+        (when (and (< safety 200) (= @atoms/round-number before-round))
+          (game-loop/advance-game)
+          (recur (inc safety)))))))
+
 (describe "build-computer-items"
   (before (reset-all-atoms!))
 
@@ -607,19 +643,13 @@
     (reset! atoms/production {})
     ;; Both armies at [0,0] and [0,2] might want to move to [0,1]
     ;; Process them in sequence
-    (let [count-armies (fn []
-                         (count (for [j (range 3)
-                                      :let [cell (get-in @atoms/game-map [0 j])]
-                                      :when (and (:contents cell)
-                                                 (= :army (:type (:contents cell))))]
-                                  j)))]
-      (should= 2 (count-armies))
-      ;; Process first army
-      (computer/process-computer-unit [0 0])
-      (should= 2 (count-armies))
-      ;; Process second army - should NOT overwrite the first
-      (computer/process-computer-unit [0 2])
-      (should= 2 (count-armies))))
+    (should= 2 (count-computer-armies))
+    ;; Process first army
+    (computer/process-computer-unit [0 0])
+    (should= 2 (count-computer-armies))
+    ;; Process second army - should NOT overwrite the first
+    (computer/process-computer-unit [0 2])
+    (should= 2 (count-computer-armies)))
 
   (it "armies survive on tiny island with just city"
     ;; Minimal island - just the city with no extra land
@@ -635,30 +665,21 @@
     (reset! atoms/paused false)
     (reset! atoms/pause-requested false)
     (reset! atoms/waiting-for-input false)
-    (let [count-armies (fn []
-                         (count (for [i (range 3)
-                                      j (range 3)
-                                      :let [cell (get-in @atoms/game-map [i j])]
-                                      :when (and (:contents cell)
-                                                 (= :army (:type (:contents cell)))
-                                                 (= :computer (:owner (:contents cell))))]
-                                  [i j])))
-          armies-produced (atom 0)]
+    (let [armies-produced (atom 0)]
       ;; Run 20 rounds
       (dotimes [_ 20]
-        (let [before-count (count-armies)
+        (let [before-count (count-computer-armies)
               before-round @atoms/round-number]
           (loop [safety 0]
             (when (and (< safety 200) (= @atoms/round-number before-round))
               (game-loop/advance-game)
               (recur (inc safety))))
-          (let [after-count (count-armies)]
+          (let [after-count (count-computer-armies)]
             (when (> after-count before-count)
               (swap! armies-produced + (- after-count before-count))))))
       ;; On tiny island, only 1 army can exist (blocks production of second)
       ;; But that 1 army should never disappear
-      (let [final-count (count-armies)]
-        (should= @armies-produced final-count))))
+      (should= @armies-produced (count-computer-armies))))
 
   (it "army moving to city doesn't get processed twice in same round"
     ;; Scenario: items list has [army-pos, city-pos], army moves to city,
@@ -677,20 +698,12 @@
     (reset! atoms/waiting-for-input false)
     ;; Army at [1,2] should move toward city [2,2]
     ;; Then when city [2,2] is processed, the army (now on city) moves again
-    (let [count-armies (fn []
-                         (count (for [i (range 5)
-                                      j (range 5)
-                                      :let [cell (get-in @atoms/game-map [i j])]
-                                      :when (and (:contents cell)
-                                                 (= :army (:type (:contents cell)))
-                                                 (= :computer (:owner (:contents cell))))]
-                                  [i j])))]
-      (should= 1 (count-armies))
-      ;; Process all items via game loop
-      (while (seq @atoms/computer-items)
-        (game-loop/advance-game))
-      ;; Army should still exist
-      (should= 1 (count-armies))))
+    (should= 1 (count-computer-armies))
+    ;; Process all items via game loop
+    (while (seq @atoms/computer-items)
+      (game-loop/advance-game))
+    ;; Army should still exist
+    (should= 1 (count-computer-armies)))
 
   (it "army stays put when all land neighbors blocked (won't move through city)"
     ;; Set up scenario: army at [1,1] with other armies blocking land neighbors
@@ -748,32 +761,14 @@
     (reset! atoms/paused false)
     (reset! atoms/pause-requested false)
     (reset! atoms/waiting-for-input false)
-    ;; Count units by type
-    (let [height (count @atoms/game-map)
-          width (count (first @atoms/game-map))
-          count-by-type (fn []
-                          (frequencies
-                            (for [i (range height)
-                                  j (range width)
-                                  :let [cell (get-in @atoms/game-map [i j])
-                                        unit (:contents cell)]
-                                  :when (and unit (= :computer (:owner unit)))]
-                              (:type unit))))
-          run-rounds (fn [n]
-                       (dotimes [_ n]
-                         (let [before-round @atoms/round-number]
-                           (loop [safety 0]
-                             (when (and (< safety 200) (= @atoms/round-number before-round))
-                               (game-loop/advance-game)
-                               (recur (inc safety)))))))]
-      ;; Run enough rounds to produce 6 armies (5 rounds each = 30 rounds)
-      (run-rounds 35)
-      (let [counts (count-by-type)]
-        (should (>= (get counts :army 0) 6)))
-      ;; Run more rounds - should produce a transport (takes 30 rounds)
-      (run-rounds 40)
-      (let [counts (count-by-type)]
-        (should (>= (get counts :transport 0) 1))))))
+    ;; Run enough rounds to produce 6 armies (5 rounds each = 30 rounds)
+    (run-game-rounds 35)
+    (let [counts (computer-unit-type-frequencies)]
+      (should (>= (get counts :army 0) 6)))
+    ;; Run more rounds - should produce a transport (takes 30 rounds)
+    (run-game-rounds 40)
+    (let [counts (computer-unit-type-frequencies)]
+      (should (>= (get counts :transport 0) 1)))))
 
 ;; Phase 3: Smart Production Tests
 

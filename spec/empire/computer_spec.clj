@@ -203,7 +203,17 @@
                                              "~~~"]))
     (reset! atoms/computer-map @atoms/game-map)
     (let [result (computer/process-computer-unit [0 1])]
-      (should-be-nil result))))
+      (should-be-nil result)))
+
+  (it "fighter lands at friendly city when low on fuel"
+    (reset! atoms/game-map (build-test-map ["Xf"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Set fighter with low fuel so it will land at city
+    (swap! atoms/game-map assoc-in [0 1 :contents :fuel] 1)
+    (computer/process-computer-unit [0 1])
+    ;; Fighter should be removed from [0 1] and added to city airport
+    (should-be-nil (:contents (get-in @atoms/game-map [0 1])))
+    (should= 1 (:fighter-count (get-in @atoms/game-map [0 0])))))
 
 (describe "game loop integration"
   (before (reset-all-atoms!))
@@ -849,11 +859,19 @@
     ;; Inland city, only 1 army - build more armies first
     (should= :army (computer/decide-production [1 1])))
 
-  (it "returns warship at coastal city when no warships exist"
+  (it "returns :army at coastal city when no warships exist but too few armies"
     (reset! atoms/game-map (build-test-map ["~X~"
+                                             "~a~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Coastal city, only 1 army, no warships - build armies first
+    (should= :army (computer/decide-production [0 1])))
+
+  (it "returns warship at coastal city when no warships exist and has enough armies"
+    (reset! atoms/game-map (build-test-map ["~X~"
+                                             "aaa"
                                              "~t~"]))
     (reset! atoms/computer-map @atoms/game-map)
-    ;; Has transport but no warships
+    ;; Has 3 armies and transport but no warships - build warship
     (let [unit (computer/decide-production [0 1])]
       (should (#{:destroyer :patrol-boat} unit))))
 

@@ -418,7 +418,7 @@
             ;; Remove fighter from current position
             (swap! atoms/game-map update-in pos dissoc :contents)
             ;; Add to city airport
-            (swap! atoms/game-map update-in [target :fighter-count] (fnil inc 0)))
+            (swap! atoms/game-map update-in (conj target :fighter-count) (fnil inc 0)))
 
           ;; Normal move - consume fuel
           :else
@@ -480,11 +480,14 @@
          (>= armies 3))))
 
 (defn- need-warships?
-  "Returns true if we need naval combat vessels."
+  "Returns true if we need naval combat vessels.
+   Only request warships when we have some ground forces first."
   [unit-counts]
   (let [destroyers (get unit-counts :destroyer 0)
-        patrol-boats (get unit-counts :patrol-boat 0)]
-    (< (+ destroyers patrol-boats) 2)))
+        patrol-boats (get unit-counts :patrol-boat 0)
+        armies (get unit-counts :army 0)]
+    (and (>= armies 3)
+         (< (+ destroyers patrol-boats) 2))))
 
 (defn decide-production
   "Decides what a computer city should produce based on strategic needs."

@@ -42,5 +42,9 @@
                              :else unit)
                       cell (assoc cell :contents unit)]
                   (swap! atoms/game-map assoc-in coords cell)
-                  (swap! atoms/production assoc coords (assoc prod :remaining-rounds (config/item-cost item)))))
+                  ;; For computer cities, clear production so it can re-evaluate what to build
+                  ;; For player cities, restart the same production
+                  (if (= owner :computer)
+                    (swap! atoms/production dissoc coords)
+                    (swap! atoms/production assoc coords (assoc prod :remaining-rounds (config/item-cost item))))))
               (swap! atoms/production assoc coords (assoc prod :remaining-rounds remaining)))))))))

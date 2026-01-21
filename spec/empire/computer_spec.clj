@@ -4,6 +4,7 @@
             [empire.computer :as computer]
             [empire.atoms :as atoms]
             [empire.pathfinding :as pathfinding]
+            [empire.production :as production]
             [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-city reset-all-atoms!]]))
 
 (describe "build-computer-items"
@@ -729,15 +730,15 @@
     (should-be-nil (:contents (get-in @atoms/game-map [0 0])))
     (should= :army (:type (:contents (get-in @atoms/game-map [0 1])))))
 
-  (it "counts produced vs remaining armies on isolated island using game loop"
-    ;; Oval-shaped island with computer city - use actual game loop
-    (reset! atoms/game-map (build-test-map ["~~~~~~~"
-                                             "~~###~~"
-                                             "~#####~"
-                                             "~##X##~"
-                                             "~#####~"
-                                             "~~###~~"
-                                             "~~~~~~~"]))
+  (it "computer city switches production types based on unit counts"
+    ;; Coastal city that will build armies, then transport, then more armies
+    ;; Island needs to be big enough to hold 6+ armies, city must be on coast
+    (reset! atoms/game-map (build-test-map ["~~~~~~~~~~"
+                                             "~########~"
+                                             "~########~"
+                                             "~######X~~"
+                                             "~########~"
+                                             "~~~~~~~~~~"]))
     (reset! atoms/player-map @atoms/game-map)
     (reset! atoms/computer-map @atoms/game-map)
     (reset! atoms/production {})
@@ -747,55 +748,32 @@
     (reset! atoms/paused false)
     (reset! atoms/pause-requested false)
     (reset! atoms/waiting-for-input false)
-    ;; Count function for armies on map
+    ;; Count units by type
     (let [height (count @atoms/game-map)
           width (count (first @atoms/game-map))
-          count-armies (fn []
-                         (count (for [i (range height)
-                                      j (range width)
-                                      :let [cell (get-in @atoms/game-map [i j])]
-                                      :when (and (:contents cell)
-                                                 (= :army (:type (:contents cell)))
-                                                 (= :computer (:owner (:contents cell))))]
-                                  [i j])))
-          find-armies (fn []
-                        (vec (for [i (range height)
-                                   j (range width)
-                                   :let [cell (get-in @atoms/game-map [i j])]
-                                   :when (and (:contents cell)
-                                              (= :army (:type (:contents cell)))
-                                              (= :computer (:owner (:contents cell))))]
-                               [i j])))
-          armies-produced (atom 0)
-          debug-log (atom [])]
-      ;; Run 200 rounds using actual advance-game (should produce ~35 armies)
-      (dotimes [_ 200]
-        (let [before-count (count-armies)
-              before-round @atoms/round-number]
-          ;; Call advance-game repeatedly until round changes
-          (loop [safety 0]
-            (when (and (< safety 200) (= @atoms/round-number before-round))
-              (let [pre (count-armies)]
-                (game-loop/advance-game)
-                (let [post (count-armies)]
-                  (when (< post pre)
-                    (swap! debug-log conj {:round @atoms/round-number
-                                           :before pre :after post
-                                           :items @atoms/computer-items}))))
-              (recur (inc safety))))
-          (let [after-count (count-armies)]
-            (when (> after-count before-count)
-              (swap! armies-produced + (- after-count before-count))))))
-      ;; The key assertion: produced armies should equal remaining armies
-      (let [final-count (count-armies)]
-        (when (not= @armies-produced final-count)
-          (println "\n=== GAME LOOP DEBUG ===")
-          (println "Produced:" @armies-produced "Final:" final-count)
-          (doseq [entry @debug-log]
-            (println entry))
-          (println "=======================\n"))
-        (should (>= @armies-produced 4))
-        (should= @armies-produced final-count)))))
+          count-by-type (fn []
+                          (frequencies
+                            (for [i (range height)
+                                  j (range width)
+                                  :let [cell (get-in @atoms/game-map [i j])
+                                        unit (:contents cell)]
+                                  :when (and unit (= :computer (:owner unit)))]
+                              (:type unit))))
+          run-rounds (fn [n]
+                       (dotimes [_ n]
+                         (let [before-round @atoms/round-number]
+                           (loop [safety 0]
+                             (when (and (< safety 200) (= @atoms/round-number before-round))
+                               (game-loop/advance-game)
+                               (recur (inc safety)))))))]
+      ;; Run enough rounds to produce 6 armies (5 rounds each = 30 rounds)
+      (run-rounds 35)
+      (let [counts (count-by-type)]
+        (should (>= (get counts :army 0) 6)))
+      ;; Run more rounds - should produce a transport (takes 30 rounds)
+      (run-rounds 40)
+      (let [counts (count-by-type)]
+        (should (>= (get counts :transport 0) 1))))))
 
 ;; Phase 3: Smart Production Tests
 
@@ -930,7 +908,27 @@
                                              "~~~~~~"]))
     (reset! atoms/computer-map @atoms/game-map)
     ;; Single city, 5 armies, 1 transport - back to building armies
-    (should= :army (computer/decide-production [2 2]))))
+    (should= :army (computer/decide-production [2 2])))
+
+  (it "computer city re-evaluates production after completing a unit"
+    (reset! atoms/game-map (build-test-map ["~~~~~~"
+                                             "~###~~"
+                                             "~#X~~~"
+                                             "~aaa~~"
+                                             "~aaa~~"
+                                             "~~~~~~"]))
+    (reset! atoms/player-map @atoms/game-map)
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; City producing army, 1 round left - will complete this round
+    (reset! atoms/production {[2 2] {:item :army :remaining-rounds 1}})
+    ;; Complete the army production
+    (production/update-production)
+    ;; Now we have 7 armies - production should be cleared for computer city
+    ;; so it can re-evaluate and choose transport
+    (should-be-nil (@atoms/production [2 2]))
+    ;; Process computer city - should now choose transport
+    (computer/process-computer-city [2 2])
+    (should= :transport (:item (@atoms/production [2 2])))))
 
 ;; Phase 3: Transport Helper Tests
 

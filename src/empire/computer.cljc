@@ -3,6 +3,7 @@
             [empire.combat :as combat]
             [empire.config :as config]
             [empire.movement.map-utils :as map-utils]
+            [empire.movement.visibility :as visibility]
             [empire.pathfinding :as pathfinding]
             [empire.production :as production]
             [empire.units.dispatcher :as dispatcher]))
@@ -389,10 +390,13 @@
       (do
         (swap! atoms/game-map assoc-in army-pos (dissoc army-cell :contents))
         (swap! atoms/game-map assoc-in city-pos (assoc city-cell :city-status :computer))
+        (visibility/update-cell-visibility army-pos :computer)
+        (visibility/update-cell-visibility city-pos :computer)
         nil)
       ;; Failure - army dies
       (do
         (swap! atoms/game-map assoc-in army-pos (dissoc army-cell :contents))
+        (visibility/update-cell-visibility army-pos :computer)
         nil))))
 
 (defn- board-transport

@@ -134,6 +134,18 @@
     ;; City should be either conquered or still free
     (should (#{:computer :free} (:city-status (get-in @atoms/game-map [0 1])))))
 
+  (it "computer-map is updated when army dies during conquest"
+    (reset! atoms/game-map (build-test-map ["a+"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (reset! atoms/player-map @atoms/game-map)
+    (reset! atoms/production {})
+    ;; Verify computer-map shows army before
+    (should= :army (:type (:contents (get-in @atoms/computer-map [0 0]))))
+    ;; Process the army (will attempt conquest)
+    (computer/process-computer-unit [0 0])
+    ;; computer-map should no longer show army at [0 0]
+    (should-be-nil (:contents (get-in @atoms/computer-map [0 0]))))
+
   (it "returns adjacent player unit position to attack"
     (reset! atoms/game-map (build-test-map ["aA"]))
     (reset! atoms/computer-map @atoms/game-map)

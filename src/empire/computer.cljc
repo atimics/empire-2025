@@ -803,29 +803,40 @@
         (or (pathfinding/next-step pos target-beach :transport)
             (first (find-passable-ship-neighbors pos)))))))
 
+;; Counts computer armies on the map with :target set to the given position.
+(defn- armies-en-route-to [target-pos]
+  (count (for [i (range (count @atoms/game-map))
+               j (range (count (first @atoms/game-map)))
+               :let [cell (get-in @atoms/game-map [i j])
+                     unit (:contents cell)]
+               :when (and unit
+                          (= :army (:type unit))
+                          (= :computer (:owner unit))
+                          (= target-pos (:target unit)))]
+           [i j])))
+
 (defn- transport-move-loading
-  "Handles transport in loading state - load armies, depart when ready."
+  "Handles transport in loading state - load armies, depart when ready.
+   Departs when full (6 armies) or when all recruited armies have boarded."
   [pos transport]
   (let [army-count (:army-count transport 0)
-        timeout (:loading-timeout transport 0)
-        origin-beach (:origin-beach transport)]
+        origin-beach (:origin-beach transport)
+        en-route (armies-en-route-to pos)]
     (cond
-      (>= army-count 6)
       ;; Full - start departing
+      (>= army-count 6)
       (do (set-transport-mission pos :departing nil origin-beach)
           nil)
 
-      (> timeout 3)
-      ;; Timeout - depart if we have any armies
-      (when (pos? army-count)
-        (set-transport-mission pos :departing nil origin-beach)
-        nil)
+      ;; All recruited armies accounted for (boarded or died) - depart if we have any
+      (and (zero? en-route) (pos? army-count))
+      (do (set-transport-mission pos :departing nil origin-beach)
+          nil)
 
+      ;; Still waiting for armies
       :else
-      (do
-        (swap! atoms/game-map update-in (conj pos :contents :loading-timeout) (fnil inc 0))
-        (load-adjacent-army pos)
-        nil))))
+      (do (load-adjacent-army pos)
+          nil))))
 
 (defn- transport-move-departing
   "Handles transport in departing state - move away from land until at sea."
@@ -977,7 +988,8 @@
 ;; Army-Transport Recruitment
 
 (defn find-nearest-armies
-  "Finds the n nearest computer armies to a position. Returns seq of positions."
+  "Finds the n nearest computer armies that can reach the position.
+   Only includes armies with a valid path to the target."
   [pos n]
   (let [armies (for [i (range (count @atoms/game-map))
                      j (range (count (first @atoms/game-map)))
@@ -986,8 +998,11 @@
                      :when (and unit
                                 (= :army (:type unit))
                                 (= :computer (:owner unit)))]
-                 [i j])]
-    (->> armies
+                 [i j])
+        reachable (filter #(or (= % pos)
+                               (pathfinding/next-step % pos :army))
+                          armies)]
+    (->> reachable
          (sort-by #(distance pos %))
          (take n))))
 

@@ -1518,6 +1518,68 @@
       (should= :loading (:transport-mission transport))
       (should= [2 3] (:origin-beach transport)))))
 
+(describe "transport-move-loading"
+  (before (reset-all-atoms!))
+
+  (it "departs when all recruited armies have boarded"
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                             "~a##~"
+                                             "~#t~~"
+                                             "~~~~~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Transport at [2 2] in loading state, army at [1 1] with target [2 2]
+    (swap! atoms/game-map update-in [2 2 :contents] assoc
+           :transport-mission :loading
+           :army-count 0
+           :origin-beach [2 2])
+    ;; Direct the army to the beach
+    (swap! atoms/game-map update-in [1 1 :contents] assoc :target [2 2])
+    ;; Move the army to the transport (simulating it boarding)
+    (swap! atoms/game-map assoc-in [1 1 :contents] nil)
+    (swap! atoms/game-map update-in [2 2 :contents] assoc :army-count 1)
+    ;; Now no armies are en route - should depart
+    (computer/decide-transport-move [2 2])
+    (let [transport (:contents (get-in @atoms/game-map [2 2]))]
+      (should= :departing (:transport-mission transport))))
+
+  (it "waits while recruited armies are still en route"
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                             "~a##~"
+                                             "~#t~~"
+                                             "~~~~~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Transport at [2 2] in loading state
+    (swap! atoms/game-map update-in [2 2 :contents] assoc
+           :transport-mission :loading
+           :army-count 0
+           :origin-beach [2 2])
+    ;; Army at [1 1] targeting the beach - still en route
+    (swap! atoms/game-map update-in [1 1 :contents] assoc :target [2 2])
+    ;; Should stay in loading while army is en route
+    (computer/decide-transport-move [2 2])
+    (let [transport (:contents (get-in @atoms/game-map [2 2]))]
+      (should= :loading (:transport-mission transport))))
+
+  (it "departs immediately when full with 6 armies"
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                             "~a##~"
+                                             "~#t~~"
+                                             "~~~~~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Transport at [2 2] with 6 armies
+    (swap! atoms/game-map update-in [2 2 :contents] assoc
+           :transport-mission :loading
+           :army-count 6
+           :origin-beach [2 2])
+    ;; Even with army en route, should depart when full
+    (swap! atoms/game-map update-in [1 1 :contents] assoc :target [2 2])
+    (computer/decide-transport-move [2 2])
+    (let [transport (:contents (get-in @atoms/game-map [2 2]))]
+      (should= :departing (:transport-mission transport)))))
+
 (describe "transport-move-departing"
   (before (reset-all-atoms!))
 
@@ -1696,7 +1758,25 @@
                                              "#####"
                                              "#####"]))
     (let [armies (computer/find-nearest-armies [2 2] 3)]
-      (should= 3 (count armies)))))
+      (should= 3 (count armies))))
+
+  (it "excludes armies that cannot reach the beach"
+    ;; Two islands separated by water - armies on far island can't reach beach
+    ;; Left island is connected, right island is separate
+    (reset! atoms/game-map (build-test-map ["a##~a"
+                                             "###~#"
+                                             "###~#"
+                                             "###~#"
+                                             "a##~a"]))
+    ;; Beach is at [2 1] on the left island
+    ;; Armies at [0 0], [0 4], [4 0], [4 4]
+    ;; [0 0] and [4 0] are on left island, can reach [2 1]
+    ;; [0 4] and [4 4] are on right island, cannot reach [2 1]
+    (let [armies (computer/find-nearest-armies [2 1] 6)]
+      ;; Should only find the 2 reachable armies on the left island
+      (should= 2 (count armies))
+      (should-contain [0 0] armies)
+      (should-contain [4 0] armies))))
 
 (describe "direct-armies-to-beach"
   (before (reset-all-atoms!))

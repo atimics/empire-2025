@@ -710,7 +710,7 @@
                           (nil? (:contents cell)))))
                  (get-neighbors transport-pos))))
 
-(defn- adjacent-to-land?
+(defn adjacent-to-land?
   "Returns true if position has adjacent land cell."
   [pos]
   (some (fn [neighbor]
@@ -871,6 +871,20 @@
       (seq wall-dirs) (rand-nth wall-dirs)
       :else (pick-unvisited-or-random unvisited-passable all-passable))))
 
+(defn- calculate-explore-direction
+  "Calculates initial explore direction - away from origin beach, favoring unexplored areas."
+  [pos origin-beach]
+  (let [[pr pc] pos
+        [or_ oc] origin-beach
+        ;; Base direction: away from origin beach
+        dr (cond (> pr or_) 1 (< pr or_) -1 :else 0)
+        dc (cond (> pc oc) 1 (< pc oc) -1 :else 0)
+        ;; If at same position as origin, pick random direction
+        base-dir (if (and (zero? dr) (zero? dc))
+                   (rand-nth [[1 0] [-1 0] [0 1] [0 -1] [1 1] [1 -1] [-1 1] [-1 -1]])
+                   [dr dc])]
+    base-dir))
+
 (defn- transport-move-departing
   "Handles transport in departing state - move away from land until at sea.
    Tracks visited positions to prevent cycling in complex coastlines."
@@ -879,14 +893,169 @@
         visited (or (:departing-visited transport) #{})]
     (add-to-departing-visited pos)
     (if (completely-surrounded-by-sea? pos)
-      ;; At sea - find invasion target and switch to en-route
-      (if-let [target (find-unloading-beach-for-invasion)]
-        (do (set-transport-mission pos :en-route target origin-beach) nil)
-        (pick-unvisited-or-random
-          (vec (remove visited (find-passable-ship-neighbors pos)))
-          (find-passable-ship-neighbors pos)))
+      ;; At sea - switch to exploring mode with a direction
+      (let [explore-dir (calculate-explore-direction pos origin-beach)]
+        (swap! atoms/game-map update-in (conj pos :contents)
+               #(-> %
+                    (assoc :transport-mission :exploring
+                           :explore-direction explore-dir)
+                    (dissoc :departing-visited)))
+        nil)
       ;; Move away from land, avoiding visited positions
       (pick-departing-move pos visited))))
+
+(defn- get-adjacent-land-cells
+  "Returns adjacent land cells for a position."
+  [pos]
+  (filter (fn [neighbor]
+            (#{:land :city} (:type (get-in @atoms/game-map neighbor))))
+          (get-neighbors pos)))
+
+(defn- land-path-to-beach?
+  "Returns true if any adjacent land cell has a path to the origin beach's land.
+   Uses army pathfinding to check land connectivity (same continent).
+   If origin-beach is on land, checks path directly to it.
+   If origin-beach is sea, checks path to any adjacent land cell."
+  [pos origin-beach]
+  (let [adjacent-land (get-adjacent-land-cells pos)
+        origin-cell (get-in @atoms/game-map origin-beach)
+        ;; If origin-beach is land, it represents the original continent directly
+        ;; Otherwise, find land cells adjacent to origin beach (sea)
+        origin-land-targets (if (#{:land :city} (:type origin-cell))
+                              [origin-beach]
+                              (get-adjacent-land-cells origin-beach))]
+    (when (and (seq adjacent-land) (seq origin-land-targets))
+      ;; Check if any adjacent land can reach any origin land via army path
+      (some (fn [land-pos]
+              (some (fn [origin-land-pos]
+                      (or (= land-pos origin-land-pos)
+                          (pathfinding/next-step land-pos origin-land-pos :army)))
+                    origin-land-targets))
+            adjacent-land))))
+
+(defn- pick-new-explore-direction
+  "Picks a new exploration direction, avoiding the current blocked direction.
+   Prefers directions toward unexplored areas."
+  [pos current-dir]
+  (let [all-dirs [[1 0] [-1 0] [0 1] [0 -1] [1 1] [1 -1] [-1 1] [-1 -1]]
+        ;; Remove current direction and its opposite
+        opposite-dir [(- (first current-dir)) (- (second current-dir))]
+        available-dirs (remove #{current-dir opposite-dir} all-dirs)
+        ;; Filter to passable directions
+        passable-dirs (filter (fn [[dr dc]]
+                                (let [[r c] pos
+                                      new-pos [(+ r dr) (+ c dc)]
+                                      cell (get-in @atoms/game-map new-pos)]
+                                  (and cell
+                                       (= :sea (:type cell))
+                                       (nil? (:contents cell)))))
+                              available-dirs)]
+    (if (seq passable-dirs)
+      (rand-nth (vec passable-dirs))
+      ;; If no passable dirs, try any direction
+      (rand-nth (vec all-dirs)))))
+
+(defn- transport-move-exploring
+  "Handles transport in exploring state - move in set direction until land.
+   When adjacent to land, uses pathfinding to determine if same continent.
+   If same continent (path exists to origin) - pick new direction.
+   If different continent (no path) - switch to coastline-searching."
+  [pos transport]
+  (let [origin-beach (:origin-beach transport)
+        explore-dir (:explore-direction transport)
+        near-land? (adjacent-to-land? pos)
+        [dr dc] (or explore-dir [1 0])  ;; Default direction if not set
+        [r c] pos
+        target-pos [(+ r dr) (+ c dc)]
+        target-cell (get-in @atoms/game-map target-pos)
+        can-move-to-target? (and target-cell
+                                  (= :sea (:type target-cell))
+                                  (nil? (:contents target-cell)))]
+    (cond
+      ;; Adjacent to land - check if same continent
+      near-land?
+      (if (land-path-to-beach? pos origin-beach)
+        ;; Same continent - pick new direction and continue exploring
+        (do (swap! atoms/game-map update-in (conj pos :contents)
+                   #(assoc % :explore-direction (pick-new-explore-direction pos explore-dir)))
+            ;; Try to move in new direction
+            (let [new-dir (pick-new-explore-direction pos explore-dir)
+                  [nr nc] [(+ r (first new-dir)) (+ c (second new-dir))]
+                  new-cell (get-in @atoms/game-map [nr nc])]
+              (when (and new-cell
+                         (= :sea (:type new-cell))
+                         (nil? (:contents new-cell)))
+                [nr nc])))
+        ;; Different continent - switch to coastline-searching
+        (do (swap! atoms/game-map update-in (conj pos :contents)
+                   #(-> %
+                        (assoc :transport-mission :coastline-searching
+                               :coastline-visited #{})
+                        (dissoc :explore-direction)))
+            nil))
+
+      ;; Can move in current direction
+      can-move-to-target?
+      target-pos
+
+      ;; Blocked but not by land - pick new direction
+      :else
+      (let [new-dir (pick-new-explore-direction pos explore-dir)
+            [nr nc] [(+ r (first new-dir)) (+ c (second new-dir))]
+            new-cell (get-in @atoms/game-map [nr nc])]
+        (swap! atoms/game-map update-in (conj pos :contents)
+               #(assoc % :explore-direction new-dir))
+        (when (and new-cell
+                   (= :sea (:type new-cell))
+                   (nil? (:contents new-cell)))
+          [nr nc])))))
+
+(defn- can-unload-at?
+  "Returns true if transport at pos can unload an army (has adjacent empty land)."
+  [pos]
+  (some (fn [neighbor]
+          (let [cell (get-in @atoms/game-map neighbor)]
+            (and (= :land (:type cell))
+                 (nil? (:contents cell)))))
+        (get-neighbors pos)))
+
+(defn- pick-coastline-move
+  "Picks next coastline-hugging move. Prefers unvisited cells adjacent to land."
+  [pos visited]
+  (let [passable (find-passable-ship-neighbors pos)
+        unvisited (vec (remove visited passable))
+        ;; Prefer moves that stay adjacent to land (coastline hugging)
+        coastal-unvisited (vec (filter adjacent-to-land? unvisited))
+        coastal-all (vec (filter adjacent-to-land? passable))
+        ;; Prefer moves toward unexplored areas
+        unexplored-coastal (vec (filter adjacent-to-computer-unexplored? coastal-unvisited))]
+    (cond
+      (seq unexplored-coastal) (rand-nth unexplored-coastal)
+      (seq coastal-unvisited) (rand-nth coastal-unvisited)
+      ;; Prefer any unvisited move over revisiting coastal positions
+      (seq unvisited) (rand-nth unvisited)
+      ;; Only revisit coastal when no other options (may be stuck)
+      (seq coastal-all) (rand-nth coastal-all)
+      (seq passable) (rand-nth passable)
+      :else nil)))
+
+(defn- transport-move-coastline-searching
+  "Handles transport in coastline-searching state - hug coastline looking for unloading beach.
+   Stops immediately when a valid unloading position is found."
+  [pos transport]
+  (let [origin-beach (:origin-beach transport)
+        visited (or (:coastline-visited transport) #{})]
+    ;; Add current position to visited
+    (swap! atoms/game-map update-in (conj pos :contents :coastline-visited) (fnil conj #{}) pos)
+    (if (can-unload-at? pos)
+      ;; Found valid unloading beach - switch to unloading immediately
+      (do (swap! atoms/game-map update-in (conj pos :contents)
+                 #(-> %
+                      (assoc :transport-mission :unloading)
+                      (dissoc :coastline-visited)))
+          nil)
+      ;; Continue coastline hugging
+      (pick-coastline-move pos visited))))
 
 (defn- transport-move-en-route
   "Handles transport in en-route state - navigate to good unloading beach."
@@ -950,6 +1119,8 @@
       :seeking-beach (transport-move-seeking-beach pos transport)
       :loading (transport-move-loading pos transport)
       :departing (transport-move-departing pos transport)
+      :exploring (transport-move-exploring pos transport)
+      :coastline-searching (transport-move-coastline-searching pos transport)
       :en-route (transport-move-en-route pos transport)
       :unloading (transport-move-unloading pos transport)
       :returning (transport-move-returning pos transport)

@@ -1600,7 +1600,7 @@
       ;; Should move to sea neighbor farther from land
       (should= :sea (:type (get-in @atoms/game-map move)))))
 
-  (it "switches to en-route when completely at sea with target available"
+  (it "switches to exploring when completely at sea"
     ;; Beach must have 3+ land neighbors but no city neighbors
     (reset! atoms/game-map (build-test-map ["~~~~~~~"
                                              "~~~~~~~"
@@ -1612,19 +1612,17 @@
                                              "~#+##~~"
                                              "~~~~~~~"]))
     (reset! atoms/computer-map @atoms/game-map)
-    ;; Transport at [2 3] completely surrounded by sea, free city at [7 2]
-    ;; Good beach at [7 4] (3 land neighbors, no city)
+    ;; Transport at [2 3] completely surrounded by sea
     (swap! atoms/game-map update-in [2 3 :contents] assoc
            :transport-mission :departing
            :army-count 2
            :origin-beach [0 0])
     (should (computer/completely-surrounded-by-sea? [2 3]))
-    ;; Verify a good beach exists for invasion
-    (should-not-be-nil (computer/find-unloading-beach-for-invasion))
     (computer/decide-transport-move [2 3])
-    ;; Should switch to en-route
+    ;; Should switch to exploring (not en-route) to find new continent
     (let [transport (:contents (get-in @atoms/game-map [2 3]))]
-      (should= :en-route (:transport-mission transport))))
+      (should= :exploring (:transport-mission transport))
+      (should-not-be-nil (:explore-direction transport))))
 
   (it "tracks visited positions while departing to prevent cycles"
     ;; Transport near land - records visited positions
@@ -1665,7 +1663,7 @@
       ;; Should prefer [3 2] or [3 3] instead
       (should (#{[3 2] [3 3]} move))))
 
-  (it "clears departing-visited when switching to en-route"
+  (it "clears departing-visited when switching to exploring"
     (reset! atoms/game-map (build-test-map ["~~~~~~~"
                                              "~~~~~~~"
                                              "~~~t~~~"
@@ -1683,9 +1681,9 @@
            :origin-beach [0 0]
            :departing-visited #{[1 3] [2 3]})
     (computer/decide-transport-move [2 3])
-    ;; Should switch to en-route and clear visited
+    ;; Should switch to exploring and clear visited
     (let [transport (:contents (get-in @atoms/game-map [2 3]))]
-      (should= :en-route (:transport-mission transport))
+      (should= :exploring (:transport-mission transport))
       (should (nil? (:departing-visited transport)))))
 
   (it "breaks out of potential triangle cycle in complex coastline"
@@ -1957,3 +1955,229 @@
     ;; Army should board the transport
     (let [move (computer/decide-army-move [1 0])]
       (should= [0 1] move))))
+
+;; ============================================================================
+;; Transport Exploring and Coastline-Searching Tests
+;; ============================================================================
+
+(describe "transport-move-exploring"
+  (before (reset-all-atoms!))
+
+  (it "departing switches to exploring with direction when at sea"
+    ;; Transport completely surrounded by sea, origin beach at [0 0]
+    (reset! atoms/game-map (build-test-map ["~~~~~~~"
+                                             "~~~~~~~"
+                                             "~~~t~~~"
+                                             "~~~~~~~"
+                                             "~~~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (swap! atoms/game-map update-in [2 3 :contents] assoc
+           :transport-mission :departing
+           :army-count 2
+           :origin-beach [0 0])
+    (should (computer/completely-surrounded-by-sea? [2 3]))
+    (computer/decide-transport-move [2 3])
+    ;; Should switch to exploring with a direction set
+    (let [transport (:contents (get-in @atoms/game-map [2 3]))]
+      (should= :exploring (:transport-mission transport))
+      (should-not-be-nil (:explore-direction transport))))
+
+  (it "exploring transport moves in its set direction"
+    (reset! atoms/game-map (build-test-map ["~~~~~~~"
+                                             "~~~~~~~"
+                                             "~~~t~~~"
+                                             "~~~~~~~"
+                                             "~~~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Set direction to [1 0] (moving down/south)
+    (swap! atoms/game-map update-in [2 3 :contents] assoc
+           :transport-mission :exploring
+           :army-count 2
+           :explore-direction [1 0]
+           :origin-beach [0 0])
+    (let [move (computer/decide-transport-move [2 3])]
+      (should-not-be-nil move)
+      ;; Should move in direction [1 0] from [2 3] -> [3 3]
+      (should= [3 3] move)))
+
+  (it "exploring transport continues exploring when land is same continent"
+    ;; Transport encounters land that has path back to origin beach (same continent)
+    ;; Origin beach at [4 1], land connects via [4,2] to land at [3,3]
+    (reset! atoms/game-map (build-test-map ["~~~~~~~"
+                                             "~~~#~~~"
+                                             "~~~#~~~"
+                                             "~~~#~~~"
+                                             "~###~~~"
+                                             "~~~t~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Transport at [5 3], direction [-1 0] (north), origin beach at [4 1]
+    ;; Land at [4,1]-[4,3] connects to land column at [1-3, 3] - same continent
+    (swap! atoms/game-map update-in [5 3 :contents] assoc
+           :transport-mission :exploring
+           :army-count 2
+           :explore-direction [-1 0]
+           :origin-beach [4 1])
+    ;; Move transport to [4 3] where it's adjacent to land
+    (swap! atoms/game-map assoc-in [4 3] {:type :sea})
+    (swap! atoms/game-map update-in [5 3 :contents] dissoc :type)
+    (swap! atoms/game-map assoc-in [4 3 :contents]
+           (get-in @atoms/game-map [5 3 :contents]))
+    (swap! atoms/game-map update-in [5 3] dissoc :contents)
+    ;; Now transport at [4 3] is adjacent to land at [3 3] and [4 2]
+    ;; Land at [3 3] connects to [4 1] via [4 2]
+    (computer/decide-transport-move [4 3])
+    (let [transport (:contents (get-in @atoms/game-map [4 3]))]
+      ;; Should still be exploring (same continent) with new direction
+      (should= :exploring (:transport-mission transport))))
+
+  (it "exploring transport switches to coastline-searching when land is different continent"
+    ;; Transport encounters land that has NO path back to origin beach (different continent)
+    (reset! atoms/game-map (build-test-map ["~~~~~~~"
+                                             "~~~#~~~"
+                                             "~~~t~~~"
+                                             "~~~~~~~"
+                                             "~~~~~~~"
+                                             "~~~~~~~"
+                                             "#~~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Transport at [2 3], adjacent to land at [1 3]
+    ;; Origin beach at [6 0] - land at [1 3] has NO path to [6 0] (isolated)
+    (swap! atoms/game-map update-in [2 3 :contents] assoc
+           :transport-mission :exploring
+           :army-count 2
+           :explore-direction [-1 0]
+           :origin-beach [6 0])
+    (computer/decide-transport-move [2 3])
+    (let [transport (:contents (get-in @atoms/game-map [2 3]))]
+      ;; Should switch to coastline-searching (different continent)
+      (should= :coastline-searching (:transport-mission transport))))
+
+  (it "exploring transport picks new direction when blocked by land"
+    ;; Transport moving in a direction but blocked, should pick new direction
+    (reset! atoms/game-map (build-test-map ["~~~~~~~"
+                                             "~~~#~~~"
+                                             "~~~t~~~"
+                                             "~~~~~~~"
+                                             "~~~~~~~"
+                                             "~~~~~~~"
+                                             "#~~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Transport at [2 3] trying to go north [-1 0] but land at [1 3]
+    ;; Origin beach at [6 0], land at [1 3] connects to [6 0] (same continent via map edge)
+    ;; Actually let's make them clearly connected
+    (reset! atoms/game-map (build-test-map ["~~~~~~~"
+                                             "~~~#~~~"
+                                             "~~~t~~~"
+                                             "~~~#~~~"
+                                             "~~~#~~~"
+                                             "~~~#~~~"
+                                             "~~~#~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Origin beach adjacent to land at [6 3]
+    (swap! atoms/game-map update-in [2 3 :contents] assoc
+           :transport-mission :exploring
+           :army-count 2
+           :explore-direction [-1 0]
+           :origin-beach [6 2])
+    ;; Land forms continuous column from [1 3] to [6 3], origin at [6 2] adjacent to [6 3]
+    (computer/decide-transport-move [2 3])
+    (let [transport (:contents (get-in @atoms/game-map [2 3]))]
+      ;; Should still be exploring with a NEW direction (not [-1 0])
+      (should= :exploring (:transport-mission transport))
+      (should-not= [-1 0] (:explore-direction transport))))
+
+  (it "exploring transport maintains direction in open sea"
+    (reset! atoms/game-map (build-test-map ["~~~~~~~"
+                                             "~~~~~~~"
+                                             "~~~t~~~"
+                                             "~~~~~~~"
+                                             "~~~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Set direction to [0 1] (moving right/east)
+    (swap! atoms/game-map update-in [2 3 :contents] assoc
+           :transport-mission :exploring
+           :army-count 2
+           :explore-direction [0 1]
+           :origin-beach [0 0])
+    (let [move (computer/decide-transport-move [2 3])]
+      (should-not-be-nil move)
+      ;; Should move in direction [0 1] from [2 3] -> [2 4]
+      (should= [2 4] move)
+      ;; Direction should be maintained
+      (let [transport (:contents (get-in @atoms/game-map [2 3]))]
+        (should= [0 1] (:explore-direction transport))))))
+
+(describe "transport-move-coastline-searching"
+  (before (reset-all-atoms!))
+
+  (it "coastline-searching transport hugs the coastline"
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                             "~aaa~"
+                                             "~at~~"
+                                             "~~~~~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Block land cells with armies so transport can't unload
+    (swap! atoms/game-map update-in [2 2 :contents] assoc
+           :transport-mission :coastline-searching
+           :army-count 2
+           :origin-beach [5 5]
+           :coastline-visited #{})
+    (let [move (computer/decide-transport-move [2 2])]
+      (should-not-be-nil move)
+      ;; Should stay adjacent to land (coastline hugging)
+      (should (computer/adjacent-to-land? move))))
+
+  (it "coastline-searching transport stops immediately at valid unloading beach"
+    ;; Transport at a position where it can unload (adjacent to empty land)
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                             "~###~"
+                                             "~#t~~"
+                                             "~~~~~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (swap! atoms/game-map update-in [2 2 :contents] assoc
+           :transport-mission :coastline-searching
+           :army-count 2
+           :origin-beach [5 5]
+           :coastline-visited #{})
+    ;; Transport at [2 2] is adjacent to empty land at [2 1]
+    ;; Should switch to unloading immediately
+    (computer/decide-transport-move [2 2])
+    (let [transport (:contents (get-in @atoms/game-map [2 2]))]
+      (should= :unloading (:transport-mission transport))))
+
+  (it "coastline-searching transport tracks visited positions"
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                             "~aaa~"
+                                             "~~ta~"
+                                             "~~~a~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (swap! atoms/game-map update-in [2 2 :contents] assoc
+           :transport-mission :coastline-searching
+           :army-count 2
+           :origin-beach [5 5]
+           :coastline-visited #{})
+    ;; All adjacent land cells are occupied by armies (a = computer army on land)
+    ;; so transport won't find unloading beach yet
+    (computer/decide-transport-move [2 2])
+    (let [transport (:contents (get-in @atoms/game-map [2 2]))]
+      (should (contains? (:coastline-visited transport) [2 2]))))
+
+  (it "coastline-searching transport avoids revisiting positions"
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                             "~aaa~"
+                                             "~~ta~"
+                                             "~~~a~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; All land cells blocked by armies so no unloading possible
+    (swap! atoms/game-map update-in [2 2 :contents] assoc
+           :transport-mission :coastline-searching
+           :army-count 2
+           :origin-beach [5 5]
+           :coastline-visited #{[2 1] [3 2]})
+    (let [move (computer/decide-transport-move [2 2])]
+      ;; Should avoid [2 1] and [3 2] which are visited
+      (should-not (#{[2 1] [3 2]} move)))))

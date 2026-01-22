@@ -40,11 +40,24 @@ Similar to the player's coastline-follow mode:
 - Track visited positions to avoid cycling
 - Check every position for valid unloading beach
 
-### Beach Detection
+### Beach Detection and Unloading
+
+A valid unloading beach requires:
+- **3+ adjacent land/city cells** (same as loading beaches)
+- **No adjacent player cities** (enemy cities for computer)
+- **At least one empty land cell** to unload armies to
 
 At each step of `:coastline-searching`:
-- Check if current position has adjacent empty land cell
+- Check if current position meets all unloading beach requirements
 - If valid beach found → **immediately** switch to `:unloading`
+
+### Multi-Army Unloading
+
+In `:unloading` state:
+- Find ALL adjacent empty land cells
+- Unload one army to each available cell in a **single round**
+- Armies are placed in explore mode to fan out and discover the new continent
+- When all armies unloaded, switch to `:returning`
 
 ## State Machine
 
@@ -63,6 +76,9 @@ At each step of `:coastline-searching`:
 - `pick-new-explore-direction` - Selects new direction when blocked or same continent
 - `transport-move-exploring` - Main exploring state handler
 - `transport-move-coastline-searching` - Coastline hugging state handler
+- `can-unload-at?` - Checks if position is valid unloading beach (3+ land, no player city, empty land)
+- `find-all-disembark-targets` - Returns all adjacent empty land cells for multi-army unloading
+- `transport-move-unloading` - Unloads multiple armies per round
 
 ## Files Modified
 

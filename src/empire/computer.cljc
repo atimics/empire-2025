@@ -1010,14 +1010,33 @@
                    (nil? (:contents new-cell)))
           [nr nc])))))
 
-(defn- can-unload-at?
-  "Returns true if transport at pos can unload an army (has adjacent empty land)."
+(defn- adjacent-to-player-city?
+  "Returns true if position has an adjacent player-owned city."
   [pos]
   (some (fn [neighbor]
           (let [cell (get-in @atoms/game-map neighbor)]
-            (and (= :land (:type cell))
-                 (nil? (:contents cell)))))
+            (and (= :city (:type cell))
+                 (= :player (:city-status cell)))))
         (get-neighbors pos)))
+
+(defn- find-empty-land-neighbor
+  "Returns first adjacent empty land cell, or nil."
+  [pos]
+  (first (filter (fn [neighbor]
+                   (let [cell (get-in @atoms/game-map neighbor)]
+                     (and (= :land (:type cell))
+                          (nil? (:contents cell)))))
+                 (get-neighbors pos))))
+
+(defn can-unload-at?
+  "Returns true if computer transport can unload at pos:
+   - 3+ adjacent land/city cells
+   - No adjacent player (enemy) cities
+   - At least one empty land cell to unload to."
+  [pos]
+  (and (>= (count-land-neighbors pos) 3)
+       (not (adjacent-to-player-city? pos))
+       (find-empty-land-neighbor pos)))
 
 (defn- pick-coastline-move
   "Picks next coastline-hugging move. Prefers unvisited cells adjacent to land."
@@ -1078,8 +1097,18 @@
         (set-transport-mission pos :en-route new-target origin-beach)
         (pathfinding/next-step pos new-target :transport)))))
 
+(defn- find-all-disembark-targets
+  "Returns all adjacent empty land cells for army disembarkation."
+  [pos]
+  (filter (fn [neighbor]
+            (let [cell (get-in @atoms/game-map neighbor)]
+              (and (= :land (:type cell))
+                   (nil? (:contents cell)))))
+          (get-neighbors pos)))
+
 (defn- transport-move-unloading
-  "Handles transport in unloading state - disembark armies in explore mode, return to origin."
+  "Handles transport in unloading state - disembark as many armies as possible, return to origin.
+   Unloads one army to each available empty land cell in a single round."
   [pos transport]
   (let [army-count (:army-count transport 0)
         origin-beach (:origin-beach transport)]
@@ -1088,9 +1117,15 @@
       (do (set-transport-mission pos :returning nil origin-beach)
           (when origin-beach
             (pathfinding/next-step pos origin-beach :transport)))
-      ;; Disembark army in explore mode
-      (when-let [land (find-disembark-target pos)]
-        (disembark-army-to-explore pos land)
+      ;; Disembark as many armies as possible
+      (let [targets (find-all-disembark-targets pos)
+            armies-to-unload (min army-count (count targets))]
+        (doseq [land (take armies-to-unload targets)]
+          (disembark-army-to-explore pos land))
+        ;; Check if all armies unloaded, switch to returning
+        (let [remaining (:army-count (:contents (get-in @atoms/game-map pos)) 0)]
+          (when (zero? remaining)
+            (set-transport-mission pos :returning nil origin-beach)))
         nil))))
 
 (defn- transport-move-returning

@@ -2181,3 +2181,109 @@
     (let [move (computer/decide-transport-move [2 2])]
       ;; Should avoid [2 1] and [3 2] which are visited
       (should-not (#{[2 1] [3 2]} move)))))
+
+(describe "unloading beach requirements"
+  (before (reset-all-atoms!))
+
+  (it "can-unload-at? returns false with fewer than 3 adjacent land cells"
+    ;; Transport at [1 1] with only 1 adjacent land cell at [0 1]
+    (reset! atoms/game-map (build-test-map ["~#~"
+                                             "~t~"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (should-not (computer/can-unload-at? [1 1])))
+
+  (it "can-unload-at? returns false when adjacent to player city"
+    ;; Transport at [1 1] with 3+ land but adjacent to player city at [0 1]
+    (reset! atoms/game-map (build-test-map ["#O#"
+                                             "#t#"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (should-not (computer/can-unload-at? [1 1])))
+
+  (it "can-unload-at? returns true with valid beach"
+    ;; Transport at [1 1] with 3+ land cells, no player city, empty land available
+    (reset! atoms/game-map (build-test-map ["###"
+                                             "#t~"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (should (computer/can-unload-at? [1 1])))
+
+  (it "can-unload-at? returns false when all land cells occupied"
+    ;; Transport with 3+ land neighbors but all occupied by armies
+    (reset! atoms/game-map (build-test-map ["aaa"
+                                             "at~"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (should-not (computer/can-unload-at? [1 1])))
+
+  (it "coastline-searching skips positions adjacent to player city"
+    ;; Transport coastline-searching, position adjacent to player city should not trigger unloading
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                             "~#O#~"
+                                             "~~t~~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (swap! atoms/game-map update-in [2 2 :contents] assoc
+           :transport-mission :coastline-searching
+           :army-count 2
+           :origin-beach [5 5]
+           :coastline-visited #{})
+    ;; Has 3 land neighbors but one is player city - should NOT switch to unloading
+    (computer/decide-transport-move [2 2])
+    (let [transport (:contents (get-in @atoms/game-map [2 2]))]
+      (should= :coastline-searching (:transport-mission transport)))))
+
+(describe "multi-army unloading"
+  (before (reset-all-atoms!))
+
+  (it "transport unloads multiple armies in one round"
+    ;; Transport with 3 armies, 3 empty adjacent land cells
+    (reset! atoms/game-map (build-test-map ["###"
+                                             "#t~"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (swap! atoms/game-map update-in [1 1 :contents] assoc
+           :transport-mission :unloading
+           :army-count 3
+           :origin-beach [2 2])
+    (computer/process-computer-unit [1 1])
+    ;; Should have unloaded all 3 armies (one to each empty land cell)
+    (let [transport (:contents (get-in @atoms/game-map [1 1]))
+          army-at-00 (:contents (get-in @atoms/game-map [0 0]))
+          army-at-01 (:contents (get-in @atoms/game-map [0 1]))
+          army-at-02 (:contents (get-in @atoms/game-map [0 2]))
+          army-at-10 (:contents (get-in @atoms/game-map [1 0]))]
+      (should= 0 (:army-count transport))
+      ;; Count armies placed on land
+      (should= 3 (count (filter #(= :army (:type %)) [army-at-00 army-at-01 army-at-02 army-at-10])))))
+
+  (it "transport unloads only to available empty land cells"
+    ;; Transport with 4 armies but only 2 empty land cells
+    (reset! atoms/game-map (build-test-map ["a#a"
+                                             "#t~"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (swap! atoms/game-map update-in [1 1 :contents] assoc
+           :transport-mission :unloading
+           :army-count 4
+           :origin-beach [2 2])
+    (computer/process-computer-unit [1 1])
+    ;; Should have unloaded 2 armies (to [0 1] and [1 0])
+    (let [transport (:contents (get-in @atoms/game-map [1 1]))]
+      (should= 2 (:army-count transport))))
+
+  (it "transport switches to returning after all armies unloaded"
+    (reset! atoms/game-map (build-test-map ["###"
+                                             "#t~"
+                                             "~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (swap! atoms/game-map update-in [1 1 :contents] assoc
+           :transport-mission :unloading
+           :army-count 2
+           :origin-beach [2 2])
+    (computer/process-computer-unit [1 1])
+    ;; After unloading all armies, should switch to returning
+    (let [transport (:contents (get-in @atoms/game-map [1 1]))]
+      (should= 0 (:army-count transport))
+      (should= :returning (:transport-mission transport)))))

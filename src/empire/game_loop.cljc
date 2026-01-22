@@ -2,6 +2,7 @@
   (:require [empire.atoms :as atoms]
             [empire.attention :as attention]
             [empire.computer :as computer]
+            [empire.computer.production :as computer-production]
             [empire.config :as config]
             [empire.container-ops :as container-ops]
             [empire.movement.movement :as movement]
@@ -386,7 +387,7 @@
         has-computer-unit? (= (:owner (:contents cell)) :computer)]
     ;; Handle city production if this is a computer city
     (when is-computer-city?
-      (computer/process-computer-city coords))
+      (computer-production/process-computer-city coords))
     ;; Process unit movement if there's a computer unit here
     (if has-computer-unit?
       (let [new-coords (computer/process-computer-unit coords)]

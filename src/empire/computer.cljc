@@ -763,30 +763,15 @@
              (fnil inc 0))
       true)))
 
-(defn- disembark-army
-  "Disembarks one army from transport to land position."
+(defn disembark-army-to-explore
+  "Disembarks one army from transport to land position.
+   Army starts awake - computer movement logic handles exploration."
   [transport-pos land-pos]
   (let [transport (get-in @atoms/game-map (conj transport-pos :contents))]
     (when (pos? (:army-count transport 0))
       ;; Create army on land
       (swap! atoms/game-map assoc-in (conj land-pos :contents)
              {:type :army :owner :computer :hits 1 :mode :awake})
-      ;; Decrement transport army count
-      (swap! atoms/game-map update-in (conj transport-pos :contents :army-count) dec))))
-
-(defn disembark-army-to-explore
-  "Disembarks one army from transport to land position with explore mode."
-  [transport-pos land-pos]
-  (let [transport (get-in @atoms/game-map (conj transport-pos :contents))]
-    (when (pos? (:army-count transport 0))
-      ;; Create army on land with explore mode
-      (swap! atoms/game-map assoc-in (conj land-pos :contents)
-             {:type :army
-              :owner :computer
-              :hits 1
-              :mode :explore
-              :explore-steps 50
-              :visited #{land-pos}})
       ;; Decrement transport army count
       (swap! atoms/game-map update-in (conj transport-pos :contents :army-count) dec))))
 

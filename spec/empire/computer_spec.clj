@@ -1746,7 +1746,7 @@
 (describe "disembark-army-to-explore"
   (before (reset-all-atoms!))
 
-  (it "creates army with explore mode on land"
+  (it "creates army with awake mode on land"
     (reset! atoms/game-map (build-test-map ["~#~"
                                              "~t~"
                                              "~~~"]))
@@ -1754,13 +1754,11 @@
     ;; Transport at [1 1] with armies
     (swap! atoms/game-map update-in [1 1 :contents] assoc :army-count 2)
     (computer/disembark-army-to-explore [1 1] [0 1])
-    ;; Army should be on land with explore mode
+    ;; Army should be on land with awake mode
     (let [army (:contents (get-in @atoms/game-map [0 1]))]
       (should= :army (:type army))
       (should= :computer (:owner army))
-      (should= :explore (:mode army))
-      (should= 50 (:explore-steps army))
-      (should (contains? (:visited army) [0 1]))))
+      (should= :awake (:mode army))))
 
   (it "decrements transport army count"
     (reset! atoms/game-map (build-test-map ["~#~"
@@ -1771,10 +1769,10 @@
     (computer/disembark-army-to-explore [1 1] [0 1])
     (should= 1 (:army-count (:contents (get-in @atoms/game-map [1 1]))))))
 
-(describe "transport unloading with explore mode"
+(describe "transport unloading"
   (before (reset-all-atoms!))
 
-  (it "disembarks armies in explore mode during unloading"
+  (it "disembarks armies in awake mode during unloading"
     (reset! atoms/game-map (build-test-map ["~#~"
                                              "~t~"
                                              "~~~"]))
@@ -1785,10 +1783,10 @@
            :army-count 2
            :origin-beach [1 1])
     (computer/process-computer-unit [1 1])
-    ;; Army should be on land with explore mode
+    ;; Army should be on land with awake mode
     (let [army (:contents (get-in @atoms/game-map [0 1]))]
       (should= :army (:type army))
-      (should= :explore (:mode army)))))
+      (should= :awake (:mode army)))))
 
 (describe "transport production initialization"
   (before (reset-all-atoms!))

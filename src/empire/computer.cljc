@@ -718,13 +718,19 @@
         (get-neighbors pos)))
 
 (defn- set-transport-mission
-  "Sets transport mission state."
+  "Sets transport mission state. Clears departing-visited when leaving departing state."
   ([pos mission target]
    (swap! atoms/game-map update-in (conj pos :contents)
-          assoc :transport-mission mission :transport-target target))
+          (fn [contents]
+            (-> contents
+                (assoc :transport-mission mission :transport-target target)
+                (dissoc :departing-visited)))))
   ([pos mission target origin-beach]
    (swap! atoms/game-map update-in (conj pos :contents)
-          assoc :transport-mission mission :transport-target target :origin-beach origin-beach)))
+          (fn [contents]
+            (-> contents
+                (assoc :transport-mission mission :transport-target target :origin-beach origin-beach)
+                (dissoc :departing-visited))))))
 
 (defn- load-adjacent-army
   "Loads an adjacent computer army onto the transport. Returns true if loaded."
@@ -838,31 +844,49 @@
       (do (load-adjacent-army pos)
           nil))))
 
+(defn- add-to-departing-visited
+  "Adds position to departing-visited set in transport state."
+  [pos]
+  (swap! atoms/game-map update-in (conj pos :contents :departing-visited)
+         (fnil conj #{}) pos))
+
+(defn- pick-unvisited-or-random
+  "Picks from unvisited positions first, falling back to random from all."
+  [unvisited all-positions]
+  (cond
+    (seq unvisited) (rand-nth unvisited)
+    (seq all-positions) (rand-nth (vec all-positions))
+    :else nil))
+
+(defn- pick-departing-move
+  "Picks the best move while departing, avoiding visited positions.
+   Priority: away-from-land > wall-parallel > unvisited passable > any passable."
+  [pos visited]
+  (let [away-dirs (vec (remove visited (directions-away-from-land pos)))
+        wall-dirs (vec (remove visited (directions-along-wall pos)))
+        all-passable (find-passable-ship-neighbors pos)
+        unvisited-passable (vec (remove visited all-passable))]
+    (cond
+      (seq away-dirs) (rand-nth away-dirs)
+      (seq wall-dirs) (rand-nth wall-dirs)
+      :else (pick-unvisited-or-random unvisited-passable all-passable))))
+
 (defn- transport-move-departing
-  "Handles transport in departing state - move away from land until at sea."
+  "Handles transport in departing state - move away from land until at sea.
+   Tracks visited positions to prevent cycling in complex coastlines."
   [pos transport]
-  (let [origin-beach (:origin-beach transport)]
+  (let [origin-beach (:origin-beach transport)
+        visited (or (:departing-visited transport) #{})]
+    (add-to-departing-visited pos)
     (if (completely-surrounded-by-sea? pos)
       ;; At sea - find invasion target and switch to en-route
       (if-let [target (find-unloading-beach-for-invasion)]
-        (do (set-transport-mission pos :en-route target origin-beach)
-            nil)
-        ;; No target found - stay departing and explore
-        (first (find-passable-ship-neighbors pos)))
-      ;; Move away from land
-      (let [away-dirs (directions-away-from-land pos)]
-        (cond
-          ;; Can move away from land
-          (seq away-dirs)
-          (first away-dirs)
-
-          ;; At wall - reflect and move parallel to wall
-          :else
-          (let [wall-dirs (directions-along-wall pos)]
-            (if (seq wall-dirs)
-              (first wall-dirs)
-              ;; Fallback to any sea neighbor
-              (first (find-passable-ship-neighbors pos)))))))))
+        (do (set-transport-mission pos :en-route target origin-beach) nil)
+        (pick-unvisited-or-random
+          (vec (remove visited (find-passable-ship-neighbors pos)))
+          (find-passable-ship-neighbors pos)))
+      ;; Move away from land, avoiding visited positions
+      (pick-departing-move pos visited))))
 
 (defn- transport-move-en-route
   "Handles transport in en-route state - navigate to good unloading beach."

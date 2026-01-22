@@ -1624,7 +1624,88 @@
     (computer/decide-transport-move [2 3])
     ;; Should switch to en-route
     (let [transport (:contents (get-in @atoms/game-map [2 3]))]
-      (should= :en-route (:transport-mission transport)))))
+      (should= :en-route (:transport-mission transport))))
+
+  (it "tracks visited positions while departing to prevent cycles"
+    ;; Transport near land - records visited positions
+    (reset! atoms/game-map (build-test-map ["~~~#~"
+                                             "~~t#~"
+                                             "~~~#~"
+                                             "~~~~~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Transport at [1 2] adjacent to land, should move away
+    (swap! atoms/game-map update-in [1 2 :contents] assoc
+           :transport-mission :departing
+           :army-count 2
+           :origin-beach [1 2])
+    (let [move (computer/decide-transport-move [1 2])]
+      (should-not-be-nil move)
+      ;; Should have added current position to departing-visited
+      (let [transport (:contents (get-in @atoms/game-map [1 2]))]
+        (should (contains? (:departing-visited transport) [1 2])))))
+
+  (it "avoids revisiting positions while departing"
+    ;; Transport with some positions already visited
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                             "~###~"
+                                             "~#t~~"
+                                             "~~~~~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Transport at [2 2] with [2 3] already visited
+    (swap! atoms/game-map update-in [2 2 :contents] assoc
+           :transport-mission :departing
+           :army-count 2
+           :origin-beach [2 2]
+           :departing-visited #{[2 2] [2 3]})
+    (let [move (computer/decide-transport-move [2 2])]
+      (should-not-be-nil move)
+      ;; Should not return to [2 3] since it's visited (unless no other option)
+      ;; Should prefer [3 2] or [3 3] instead
+      (should (#{[3 2] [3 3]} move))))
+
+  (it "clears departing-visited when switching to en-route"
+    (reset! atoms/game-map (build-test-map ["~~~~~~~"
+                                             "~~~~~~~"
+                                             "~~~t~~~"
+                                             "~~~~~~~"
+                                             "~~~~~~~"
+                                             "~#####~"
+                                             "~#####~"
+                                             "~#+##~~"
+                                             "~~~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Transport completely at sea with visited history
+    (swap! atoms/game-map update-in [2 3 :contents] assoc
+           :transport-mission :departing
+           :army-count 2
+           :origin-beach [0 0]
+           :departing-visited #{[1 3] [2 3]})
+    (computer/decide-transport-move [2 3])
+    ;; Should switch to en-route and clear visited
+    (let [transport (:contents (get-in @atoms/game-map [2 3]))]
+      (should= :en-route (:transport-mission transport))
+      (should (nil? (:departing-visited transport)))))
+
+  (it "breaks out of potential triangle cycle in complex coastline"
+    ;; Peninsula-like shape that could cause triangle cycling
+    ;; Transport at [2 3], land forms a narrow passage
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                             "~~#~~"
+                                             "~~#t~"
+                                             "~~#~~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Transport has visited [2 3], [1 3], [2 4] - triangle positions
+    (swap! atoms/game-map update-in [2 3 :contents] assoc
+           :transport-mission :departing
+           :army-count 2
+           :origin-beach [2 3]
+           :departing-visited #{[2 3] [1 3] [2 4]})
+    ;; Should still find a move (either unvisited or random fallback)
+    (let [move (computer/decide-transport-move [2 3])]
+      (should-not-be-nil move))))
 
 (describe "transport-move-returning"
   (before (reset-all-atoms!))

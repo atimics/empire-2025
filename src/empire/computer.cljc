@@ -574,14 +574,27 @@
           (= :city (:type (get-in @atoms/game-map neighbor))))
         (get-neighbors pos)))
 
+(defn- friendly-unit-at?
+  "Returns true if position has a computer-owned unit."
+  [pos]
+  (let [cell (get-in @atoms/game-map pos)]
+    (and (:contents cell)
+         (= :computer (:owner (:contents cell))))))
+
 (defn good-beach?
   "Returns true if pos is a sea cell with 3+ adjacent land cells and no adjacent cities.
-   Loading beaches should not be adjacent to cities."
+   Does not check occupancy - use available-beach? for finding unoccupied beaches."
   [pos]
   (let [cell (get-in @atoms/game-map pos)]
     (and (= :sea (:type cell))
          (not (adjacent-to-city? pos))
          (>= (count-land-neighbors pos) 3))))
+
+(defn- available-beach?
+  "Returns true if pos is a good beach that is not occupied by a friendly unit."
+  [pos]
+  (and (good-beach? pos)
+       (not (friendly-unit-at? pos))))
 
 (defn completely-surrounded-by-sea?
   "Returns true if position has no adjacent land cells."
@@ -649,18 +662,18 @@
       [])))
 
 (defn find-good-beach-near-city
-  "Finds a good beach (sea with 3+ land neighbors, no city neighbors) near a computer city.
+  "Finds an available beach (good beach not occupied by friendly unit) near a computer city.
    Looks at cells within 2 hops of the city since beaches can't be adjacent to cities."
   []
   (let [coastal-cities (filter city-is-coastal? (find-visible-cities #{:computer}))]
     (first (for [city coastal-cities
                  neighbor (get-neighbors city)
                  neighbor2 (get-neighbors neighbor)
-                 :when (good-beach? neighbor2)]
+                 :when (available-beach? neighbor2)]
              neighbor2))))
 
 (defn find-unloading-beach-for-invasion
-  "Finds a good beach near enemy/free cities for invasion.
+  "Finds an available beach near enemy/free cities for invasion.
    Looks at cells within 2 hops of the city since beaches can't be adjacent to cities."
   []
   (let [target-cities (concat (find-visible-cities #{:free})
@@ -668,7 +681,7 @@
     (first (for [city target-cities
                  neighbor (get-neighbors city)
                  neighbor2 (get-neighbors neighbor)
-                 :when (good-beach? neighbor2)]
+                 :when (available-beach? neighbor2)]
              neighbor2))))
 
 ;; Transport Operations - Loading Dock
@@ -1162,15 +1175,22 @@
       nil)))
 
 (defn- process-transport
-  "Processes a transport unit."
+  "Processes a transport unit. Avoids moving onto friendly units."
   [pos]
   (when-let [target (decide-transport-move pos)]
-    (let [target-cell (get-in @atoms/game-map target)]
-      (if (and (:contents target-cell)
-               (= (:owner (:contents target-cell)) :player))
+    (let [target-cell (get-in @atoms/game-map target)
+          target-unit (:contents target-cell)]
+      (cond
         ;; Attack player unit (unlikely but possible)
+        (and target-unit (= (:owner target-unit) :player))
         (combat/attempt-attack pos target)
-        ;; Normal move
+
+        ;; Skip if friendly unit present (don't overwrite)
+        (and target-unit (= (:owner target-unit) :computer))
+        nil
+
+        ;; Normal move (empty cell)
+        :else
         (move-unit-to pos target))))
   nil)
 

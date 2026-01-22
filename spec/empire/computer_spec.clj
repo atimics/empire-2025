@@ -2287,3 +2287,68 @@
     (let [transport (:contents (get-in @atoms/game-map [1 1]))]
       (should= 0 (:army-count transport))
       (should= :returning (:transport-mission transport)))))
+
+(describe "transport collision avoidance"
+  (before (reset-all-atoms!))
+
+  (it "transport does not overwrite friendly transport"
+    ;; Two transports, one tries to move onto the other
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                             "~~t~~"
+                                             "~~t~~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Transport at [2 2] tries to move north to [1 2] where another transport is
+    (swap! atoms/game-map update-in [2 2 :contents] assoc
+           :transport-mission :exploring
+           :army-count 2
+           :explore-direction [-1 0]
+           :origin-beach [4 4])
+    (computer/process-computer-unit [2 2])
+    ;; Transport at [1 2] should NOT have been overwritten
+    (should= :transport (:type (:contents (get-in @atoms/game-map [1 2]))))
+    ;; Count total transports - should still be 2 (one moved elsewhere, one at [1 2])
+    (let [transport-count (count (for [i (range 5) j (range 5)
+                                        :let [cell (get-in @atoms/game-map [i j])]
+                                        :when (= :transport (:type (:contents cell)))]
+                                    [i j]))]
+      (should= 2 transport-count)))
+
+  (it "find-good-beach-near-city excludes occupied beaches"
+    ;; Beach at [2 2] is good but occupied by transport
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                             "~###~"
+                                             "~#t~~"
+                                             "~#X~~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Transport occupies the beach at [2 2]
+    (let [beach (computer/find-good-beach-near-city)]
+      ;; Should not return [2 2] since it's occupied
+      (should-not= [2 2] beach)))
+
+  (it "transport seeking occupied beach does not overwrite it"
+    ;; Transport seeking a beach that's occupied - pathfinding leads toward it
+    ;; but process-transport should prevent overwriting when it arrives
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                             "~###~"
+                                             "~#t~~"
+                                             "~#X~~"
+                                             "~~~~~"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    ;; Put another transport adjacent to the occupied beach, trying to move onto it
+    (swap! atoms/game-map assoc-in [2 3 :contents]
+           {:type :transport :owner :computer
+            :transport-mission :seeking-beach
+            :transport-target [2 2]
+            :origin-beach [2 2]})
+    ;; Process should NOT overwrite the transport at [2 2]
+    (computer/process-computer-unit [2 3])
+    ;; Transport at [2 2] should NOT have been overwritten
+    (should= :transport (:type (:contents (get-in @atoms/game-map [2 2]))))
+    ;; Count total transports - should still be 2
+    (let [transport-count (count (for [i (range 5) j (range 5)
+                                        :let [cell (get-in @atoms/game-map [i j])]
+                                        :when (= :transport (:type (:contents cell)))]
+                                    [i j]))]
+      (should= 2 transport-count))))

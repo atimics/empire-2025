@@ -1,6 +1,6 @@
-(ns empire.production-spec
+(ns empire.player.production-spec
   (:require [speclj.core :refer :all]
-            [empire.production :as production]
+            [empire.player.production :as production]
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.test-utils :refer [build-test-map get-test-city reset-all-atoms!]]))

@@ -1,16 +1,16 @@
-(ns empire.input
+(ns empire.ui.input
   (:require [empire.atoms :as atoms]
-            [empire.attention :as attention]
-            [empire.combat :as combat]
+            [empire.player.attention :as attention]
+            [empire.player.combat :as combat]
             [empire.config :as config]
-            [empire.container-ops :as container-ops]
+            [empire.containers.ops :as container-ops]
             [empire.game-loop :as game-loop]
             [empire.movement.coastline :as coastline]
             [empire.movement.explore :as explore]
             [empire.movement.map-utils :as map-utils]
             [empire.movement.movement :as movement]
-            [empire.production :as production]
-            [empire.unit-container :as uc]
+            [empire.player.production :as production]
+            [empire.containers.helpers :as uc]
             [empire.units.dispatcher :as dispatcher]
             [empire.movement.waypoint :as waypoint]
             [quil.core :as q]))

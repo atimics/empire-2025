@@ -1,7 +1,7 @@
 (ns empire.movement.transport-spec
   (:require
     [empire.atoms :as atoms]
-    [empire.container-ops :as container-ops]
+    [empire.containers.ops :as container-ops]
     [empire.game-loop :as game-loop]
     [empire.movement.map-utils :as map-utils]
     [empire.movement.movement :refer :all]

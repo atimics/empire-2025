@@ -1,6 +1,6 @@
-(ns empire.rendering-util-spec
+(ns empire.ui.rendering-util-spec
   (:require [speclj.core :refer :all]
-            [empire.rendering-util :as ru]))
+            [empire.ui.rendering-util :as ru]))
 
 (describe "format-unit-status"
   (it "formats basic player army status"

@@ -8,11 +8,11 @@
 					 :spec  {:main-opts ["-m" "speclj.main" "-c"]
                    :extra-deps  {speclj/speclj {:mvn/version "3.10.0"}}
                    :extra-paths ["spec"]}
-	         :empire {:main-opts [-m empire.core]}
-					 :run {:main-opts [-m empire.core]}
+	         :empire {:main-opts [-m empire.ui.core]}
+					 :run {:main-opts [-m empire.ui.core]}
 					 :cljs {:main-opts ["-m" "cljs.main"
 					                         "--optimizations" "none"
-					                         "--compile" "empire.core"
+					                         "--compile" "empire.ui.core"
 																	 ]}
 					 :cov {:main-opts ["-m" "speclj.cloverage" "--" "-p" "src" "-s" "spec"]
 					                  :extra-deps {cloverage/cloverage {:mvn/version "1.2.4"}}

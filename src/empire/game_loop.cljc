@@ -1,19 +1,19 @@
 (ns empire.game-loop
   (:require [empire.atoms :as atoms]
-            [empire.attention :as attention]
+            [empire.player.attention :as attention]
             [empire.computer :as computer]
             [empire.computer.production :as computer-production]
             [empire.config :as config]
-            [empire.container-ops :as container-ops]
+            [empire.containers.ops :as container-ops]
             [empire.movement.coastline :as coastline]
             [empire.movement.explore :as explore]
             [empire.movement.movement :as movement]
             [empire.movement.visibility :as visibility]
             [empire.movement.wake-conditions :as wake]
             [empire.pathfinding :as pathfinding]
-            [empire.production :as production]
-            [empire.satellite :as satellite]
-            [empire.unit-container :as uc]))
+            [empire.player.production :as production]
+            [empire.movement.satellite :as satellite]
+            [empire.containers.helpers :as uc]))
 
 (defn update-player-map
   "Reveals cells near player-owned units on the visible map."

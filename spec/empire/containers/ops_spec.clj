@@ -1,6 +1,6 @@
-(ns empire.container-ops-spec
+(ns empire.containers.ops-spec
   (:require [empire.atoms :as atoms]
-            [empire.container-ops :refer :all]
+            [empire.containers.ops :refer :all]
             [empire.test-utils :refer [build-test-map get-test-unit reset-all-atoms! set-test-unit]]
             [speclj.core :refer :all]))
 

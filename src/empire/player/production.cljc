@@ -1,4 +1,4 @@
-(ns empire.production
+(ns empire.player.production
   (:require [empire.atoms :as atoms]
             [empire.config :as config]))
 

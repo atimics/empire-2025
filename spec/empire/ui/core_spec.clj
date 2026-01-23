@@ -1,7 +1,7 @@
-(ns empire.core-spec
+(ns empire.ui.core-spec
   (:require [empire.atoms :as atoms]
-            [empire.core :as core]
-            [empire.rendering-util :as ru]
+            [empire.ui.core :as core]
+            [empire.ui.rendering-util :as ru]
             [empire.test-utils :refer [reset-all-atoms!]]
             [speclj.core :refer :all]))
 

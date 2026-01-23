@@ -1,4 +1,4 @@
-(ns empire.satellite
+(ns empire.movement.satellite
   (:require [empire.atoms :as atoms]
             [empire.movement.visibility :as visibility]))
 

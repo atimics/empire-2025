@@ -1,6 +1,6 @@
-(ns empire.attention-spec
+(ns empire.player.attention-spec
   (:require [speclj.core :refer :all]
-            [empire.attention :as attention]
+            [empire.player.attention :as attention]
             [empire.atoms :as atoms]
             [empire.test-utils :refer [build-test-map get-test-city get-test-unit set-test-unit reset-all-atoms!]]))
 

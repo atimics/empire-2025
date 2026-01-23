@@ -1,7 +1,7 @@
 (ns empire.movement.fighter-spec
   (:require
     [empire.atoms :as atoms]
-    [empire.container-ops :as container-ops]
+    [empire.containers.ops :as container-ops]
     [empire.game-loop :as game-loop]
     [empire.movement.movement :refer :all]
     [empire.movement.wake-conditions :as wake]

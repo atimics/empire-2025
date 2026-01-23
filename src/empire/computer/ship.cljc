@@ -1,6 +1,6 @@
 (ns empire.computer.ship
   (:require [empire.atoms :as atoms]
-            [empire.combat :as combat]
+            [empire.player.combat :as combat]
             [empire.computer.core :as core]
             [empire.computer.threat :as threat]
             [empire.pathfinding :as pathfinding]))

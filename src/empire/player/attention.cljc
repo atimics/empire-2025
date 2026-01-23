@@ -1,9 +1,9 @@
-(ns empire.attention
+(ns empire.player.attention
   (:require [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.movement.map-utils :as map-utils]
             [empire.movement.movement :as movement]
-            [empire.unit-container :as uc]))
+            [empire.containers.helpers :as uc]))
 
 (defn is-unit-needing-attention?
   "Returns true if there is an attention-needing unit."

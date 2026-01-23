@@ -1,6 +1,6 @@
-(ns empire.rendering-util
+(ns empire.ui.rendering-util
   (:require [empire.config :as config]
-            [empire.unit-container :as uc]
+            [empire.containers.helpers :as uc]
             [empire.units.dispatcher :as dispatcher]))
 
 (defn should-show-paused?

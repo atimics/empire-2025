@@ -1,6 +1,6 @@
-(ns empire.combat-spec
+(ns empire.player.combat-spec
   (:require [speclj.core :refer :all]
-            [empire.combat :as combat]
+            [empire.player.combat :as combat]
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.test-utils :refer [build-test-map get-test-city get-test-unit set-test-unit reset-all-atoms!]]

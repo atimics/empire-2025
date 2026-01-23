@@ -1,13 +1,13 @@
 (ns empire.movement.movement
   (:require [empire.atoms :as atoms]
-            [empire.combat :as combat]
+            [empire.player.combat :as combat]
             [empire.config :as config]
-            [empire.container-ops :as container-ops]
+            [empire.containers.ops :as container-ops]
             [empire.movement.map-utils :as map-utils]
             [empire.movement.visibility :as visibility]
             [empire.movement.wake-conditions :as wake]
-            [empire.satellite :as satellite]
-            [empire.unit-container :as uc]
+            [empire.movement.satellite :as satellite]
+            [empire.containers.helpers :as uc]
             [empire.units.dispatcher :as dispatcher]))
 
 ;; Core movement functions

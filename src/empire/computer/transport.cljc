@@ -1,6 +1,6 @@
 (ns empire.computer.transport
   (:require [empire.atoms :as atoms]
-            [empire.combat :as combat]
+            [empire.player.combat :as combat]
             [empire.computer.core :as core]
             [empire.computer.production :as production]
             [empire.computer.ship :as ship]

@@ -1,6 +1,6 @@
-(ns empire.unit-container-spec
+(ns empire.containers.helpers-spec
   (:require [speclj.core :refer :all]
-            [empire.unit-container :as uc]))
+            [empire.containers.helpers :as uc]))
 
 (describe "get-count"
   (it "returns count when key exists"

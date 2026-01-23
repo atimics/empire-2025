@@ -1,6 +1,6 @@
-(ns empire.input-spec
+(ns empire.ui.input-spec
   (:require [speclj.core :refer :all]
-            [empire.input :as input]
+            [empire.ui.input :as input]
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.game-loop :as game-loop]

@@ -1,12 +1,12 @@
 (ns empire.repair-spec
   (:require [speclj.core :refer :all]
-            [empire.unit-container :as uc]
+            [empire.containers.helpers :as uc]
             [empire.units.dispatcher :as dispatcher]
             [empire.atoms :as atoms]
             [empire.test-utils :as tu]
             [empire.movement.movement :as movement]
             [empire.game-loop :as game-loop]
-            [empire.container-ops :as container-ops]))
+            [empire.containers.ops :as container-ops]))
 
 (describe "Shipyard helpers"
   (describe "add-ship-to-shipyard"

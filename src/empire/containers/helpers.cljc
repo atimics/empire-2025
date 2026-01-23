@@ -1,4 +1,4 @@
-(ns empire.unit-container
+(ns empire.containers.helpers
   (:require [empire.units.dispatcher :as dispatcher]))
 
 (defn get-count

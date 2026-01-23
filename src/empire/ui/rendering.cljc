@@ -1,9 +1,9 @@
-(ns empire.rendering
+(ns empire.ui.rendering
   (:require [clojure.string :as str]
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.movement.map-utils :as map-utils]
-            [empire.rendering-util :as ru]
+            [empire.ui.rendering-util :as ru]
             [quil.core :as q]))
 
 (defn draw-production-indicators

@@ -1,10 +1,10 @@
-(ns empire.core
+(ns empire.ui.core
   (:require [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.game-loop :as game-loop]
             [empire.init :as init]
-            [empire.input :as input]
-            [empire.rendering :as rendering]
+            [empire.ui.input :as input]
+            [empire.ui.rendering :as rendering]
             [quil.core :as q]
             [quil.middleware :as m]))
 

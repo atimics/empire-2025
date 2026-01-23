@@ -4,9 +4,28 @@
     [empire.game-loop :as game-loop]
     [empire.movement.movement :refer [set-unit-movement]]
     [empire.movement.visibility :refer [update-cell-visibility]]
-    [empire.satellite :refer [move-satellite]]
+    [empire.movement.satellite :refer [move-satellite calculate-satellite-target]]
     [empire.test-utils :refer [build-test-map set-test-unit get-test-unit reset-all-atoms! make-initial-test-map]]
     [speclj.core :refer :all]))
+
+(describe "calculate-satellite-target"
+  (before (reset-all-atoms!))
+  (it "extends target to boundary in direction of travel"
+    (reset! atoms/game-map (make-initial-test-map 5 5 {:type :land}))
+    ;; From [1 1] toward [2 2] should extend to [4 4]
+    (should= [4 4] (calculate-satellite-target [1 1] [2 2])))
+
+  (it "extends target to right edge when moving east"
+    (reset! atoms/game-map (make-initial-test-map 5 5 {:type :land}))
+    (should= [2 4] (calculate-satellite-target [2 1] [2 2])))
+
+  (it "extends target to bottom edge when moving south"
+    (reset! atoms/game-map (make-initial-test-map 5 5 {:type :land}))
+    (should= [4 2] (calculate-satellite-target [1 2] [2 2])))
+
+  (it "extends target to top-left corner when moving northwest"
+    (reset! atoms/game-map (make-initial-test-map 5 5 {:type :land}))
+    (should= [0 0] (calculate-satellite-target [2 2] [1 1]))))
 
 (describe "satellite movement"
   (before (reset-all-atoms!))

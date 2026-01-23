@@ -2,7 +2,7 @@
   (:require [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.movement.map-utils :as map-utils]
-            [empire.unit-container :as uc]
+            [empire.containers.helpers :as uc]
             [empire.units.dispatcher :as dispatcher]))
 
 (defn near-hostile-city?

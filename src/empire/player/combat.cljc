@@ -1,4 +1,4 @@
-(ns empire.combat
+(ns empire.player.combat
   (:require [clojure.string]
             [empire.atoms :as atoms]
             [empire.config :as config]

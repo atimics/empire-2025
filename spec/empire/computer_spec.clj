@@ -9,10 +9,10 @@
             [empire.computer.ship :as ship]
             [empire.computer.threat :as threat]
             [empire.computer.transport :as transport]
-            [empire.combat :as combat]
+            [empire.player.combat :as combat]
             [empire.atoms :as atoms]
             [empire.pathfinding :as pathfinding]
-            [empire.production :as production]
+            [empire.player.production :as production]
             [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-city reset-all-atoms!]]))
 
 (defn count-computer-armies []

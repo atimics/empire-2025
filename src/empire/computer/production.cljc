@@ -1,7 +1,7 @@
 (ns empire.computer.production
   (:require [empire.atoms :as atoms]
             [empire.movement.map-utils :as map-utils]
-            [empire.production :as production]))
+            [empire.player.production :as production]))
 
 (defn- get-neighbors
   "Returns valid neighbor coordinates for a position."

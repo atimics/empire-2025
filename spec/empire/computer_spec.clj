@@ -2581,3 +2581,47 @@
     (swap! atoms/used-unloading-beaches conj [2 2])
     ;; Should not find any unloading beach
     (should-be-nil (transport/find-unloading-beach-for-invasion))))
+
+(describe "board-transport adjacency check"
+  (before (reset-all-atoms!))
+
+  (it "allows boarding from orthogonally adjacent cell"
+    (reset! atoms/game-map (build-test-map ["~t~"
+                                             "a~~"
+                                             "~~~"]))
+    ;; Army at [1 0] is adjacent to transport at [0 1]
+    (computer-core/board-transport [1 0] [0 1])
+    ;; Army should be removed
+    (should-be-nil (:contents (get-in @atoms/game-map [1 0])))
+    ;; Transport should have 1 army
+    (should= 1 (:army-count (:contents (get-in @atoms/game-map [0 1])))))
+
+  (it "allows boarding from diagonally adjacent cell"
+    (reset! atoms/game-map (build-test-map ["#t~"
+                                             "#a~"
+                                             "~~~"]))
+    ;; Army at [1 1] is diagonally adjacent to transport at [0 1]
+    (computer-core/board-transport [1 1] [0 1])
+    ;; Army should be removed
+    (should-be-nil (:contents (get-in @atoms/game-map [1 1])))
+    ;; Transport should have 1 army
+    (should= 1 (:army-count (:contents (get-in @atoms/game-map [0 1])))))
+
+  (it "throws exception when boarding from non-adjacent cell"
+    (reset! atoms/game-map (build-test-map ["~t~~~"
+                                             "~~~~~"
+                                             "~~a~~"
+                                             "~~~~~"]))
+    ;; Army at [2 2] is NOT adjacent to transport at [0 1] (2 cells apart)
+    (should-throw clojure.lang.ExceptionInfo
+                  #"Cannot board transport from non-adjacent cell"
+                  (computer-core/board-transport [2 2] [0 1])))
+
+  (it "throws exception when same position is used"
+    (reset! atoms/game-map (build-test-map ["~t~"
+                                             "~~~"
+                                             "~~~"]))
+    ;; Same position is not adjacent to itself
+    (should-throw clojure.lang.ExceptionInfo
+                  #"Cannot board transport from non-adjacent cell"
+                  (computer-core/board-transport [0 1] [0 1]))))

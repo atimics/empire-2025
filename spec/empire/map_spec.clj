@@ -6,6 +6,8 @@
             [empire.config :as config]
             [empire.game-loop :as game-loop]
             [empire.input :as input]
+            [empire.movement.explore :as explore]
+            [empire.movement.map-utils :as map-utils]
             [empire.movement.movement :as movement]
             [empire.test-utils :refer [build-test-map set-test-unit get-test-unit reset-all-atoms! make-initial-test-map]]))
 
@@ -293,7 +295,7 @@
                                              "##"]))
     (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50)
     (reset! atoms/player-map (make-initial-test-map 2 2 nil))
-    (let [result (movement/move-explore-unit [0 0])]
+    (let [result (explore/move-explore-unit [0 0])]
       ;; Returns nil (one step per round)
       (should= nil result)
       ;; Original cell should be empty
@@ -310,7 +312,7 @@
                                              "a#"]))
     (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50)
     (reset! atoms/player-map (make-initial-test-map 2 2 nil))
-    (movement/move-explore-unit [0 0])
+    (explore/move-explore-unit [0 0])
     ;; Should move to [1 1] - the only valid cell
     (should-not-be-nil (:contents (get-in @atoms/game-map [1 1]))))
 
@@ -319,7 +321,7 @@
                                              "O#"]))
     (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50)
     (reset! atoms/player-map (make-initial-test-map 2 2 nil))
-    (movement/move-explore-unit [0 0])
+    (explore/move-explore-unit [0 0])
     ;; Should move to [1 1] - the only valid land cell
     (should-not-be-nil (:contents (get-in @atoms/game-map [1 1]))))
 
@@ -327,7 +329,7 @@
     (reset! atoms/game-map (build-test-map ["A#"]))
     (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 1)
     (reset! atoms/player-map (make-initial-test-map 1 2 nil))
-    (let [result (movement/move-explore-unit [0 0])]
+    (let [result (explore/move-explore-unit [0 0])]
       ;; Should return nil (done exploring)
       (should= nil result)
       ;; Unit should be awake at original position
@@ -340,7 +342,7 @@
                                              "~~"]))
     (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50)
     (reset! atoms/player-map (make-initial-test-map 2 2 nil))
-    (let [result (movement/move-explore-unit [0 0])]
+    (let [result (explore/move-explore-unit [0 0])]
       ;; Should return nil (stuck)
       (should= nil result)
       ;; Unit should be awake
@@ -358,11 +360,11 @@
       (dotimes [_ 10]
         (reset! atoms/game-map initial-map)
         (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50)
-        (movement/move-explore-unit [0 1])
+        (explore/move-explore-unit [0 1])
         ;; Find where the unit moved
         (let [{:keys [pos]} (get-test-unit atoms/game-map "A")]
           ;; Should move to a coastal cell (adjacent to sea)
-          (should (movement/adjacent-to-sea? pos atoms/game-map))))))
+          (should (map-utils/adjacent-to-sea? pos atoms/game-map))))))
 
   (it "explore army prefers moves towards unexplored cells"
     (let [initial-map (build-test-map ["#A#"
@@ -377,7 +379,7 @@
         (reset! atoms/game-map initial-map)
         (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50)
         (reset! atoms/player-map player-map)
-        (movement/move-explore-unit [0 1])
+        (explore/move-explore-unit [0 1])
         ;; Find where the unit moved
         (let [{:keys [pos]} (get-test-unit atoms/game-map "A")]
           ;; Should move to row 1 (adjacent to unexplored row 2)
@@ -392,7 +394,7 @@
       (dotimes [_ 10]
         (reset! atoms/game-map initial-map)
         (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50 :visited #{[0 0]})
-        (movement/move-explore-unit [0 1])
+        (explore/move-explore-unit [0 1])
         ;; Should move to [0 2], not back to [0 0]
         (should-not-be-nil (:contents (get-in @atoms/game-map [0 2]))))))
 
@@ -400,7 +402,7 @@
     (reset! atoms/game-map (build-test-map ["A#X"]))
     (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50)
     (reset! atoms/player-map @atoms/game-map)
-    (movement/move-explore-unit [0 0])
+    (explore/move-explore-unit [0 0])
     ;; Army should have moved to [0 1] and woken up
     (let [unit (:contents (get-in @atoms/game-map [0 1]))]
       (should= :awake (:mode unit))
@@ -411,7 +413,7 @@
     (reset! atoms/game-map (build-test-map ["A#+"]))
     (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50)
     (reset! atoms/player-map @atoms/game-map)
-    (movement/move-explore-unit [0 0])
+    (explore/move-explore-unit [0 0])
     ;; Army should have moved to [0 1] and woken up
     (let [unit (:contents (get-in @atoms/game-map [0 1]))]
       (should= :awake (:mode unit))

@@ -1,7 +1,9 @@
 (ns empire.movement.transport-spec
   (:require
     [empire.atoms :as atoms]
+    [empire.container-ops :as container-ops]
     [empire.game-loop :as game-loop]
+    [empire.movement.map-utils :as map-utils]
     [empire.movement.movement :refer :all]
     [empire.test-utils :refer [build-test-map set-test-unit get-test-unit reset-all-atoms! make-initial-test-map]]
     [speclj.core :refer :all]))
@@ -19,7 +21,7 @@
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
           army1-coords (:pos (get-test-unit atoms/game-map "A1"))
           army2-coords (:pos (get-test-unit atoms/game-map "A2"))]
-      (load-adjacent-sentry-armies transport-coords)
+      (container-ops/load-adjacent-sentry-armies transport-coords)
       (let [transport (:contents (get-in @atoms/game-map transport-coords))]
         (should= 2 (:army-count transport)))
       (should= nil (:contents (get-in @atoms/game-map army1-coords)))
@@ -33,7 +35,7 @@
     (reset! atoms/player-map (make-initial-test-map 2 3 nil))
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
           army-coords (:pos (get-test-unit atoms/game-map "A"))]
-      (load-adjacent-sentry-armies transport-coords)
+      (container-ops/load-adjacent-sentry-armies transport-coords)
       (let [transport (:contents (get-in @atoms/game-map transport-coords))]
         (should= 0 (:army-count transport 0)))
       (should-not= nil (:contents (get-in @atoms/game-map army-coords)))))
@@ -46,7 +48,7 @@
     (set-test-unit atoms/game-map "A" :mode :sentry :hits 1)
     (reset! atoms/player-map (make-initial-test-map 3 3 nil))
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))]
-      (load-adjacent-sentry-armies transport-coords)
+      (container-ops/load-adjacent-sentry-armies transport-coords)
       (let [transport (:contents (get-in @atoms/game-map transport-coords))]
         (should= :awake (:mode transport))
         (should= :transport-at-beach (:reason transport))
@@ -57,7 +59,7 @@
                                              "-#-"]))
     (set-test-unit atoms/game-map "T" :mode :awake :hits 1 :army-count 2 :reason :transport-at-beach)
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))]
-      (wake-armies-on-transport transport-coords)
+      (container-ops/wake-armies-on-transport transport-coords)
       (let [transport (:contents (get-in @atoms/game-map transport-coords))]
         (should= :sentry (:mode transport))
         (should= nil (:reason transport))
@@ -69,7 +71,7 @@
                                              "-#-"]))
     (set-test-unit atoms/game-map "T" :mode :sentry :hits 1 :army-count 2 :awake-armies 2)
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))]
-      (sleep-armies-on-transport transport-coords)
+      (container-ops/sleep-armies-on-transport transport-coords)
       (let [transport (:contents (get-in @atoms/game-map transport-coords))]
         (should= :awake (:mode transport))
         (should= nil (:reason transport))
@@ -83,7 +85,7 @@
     (reset! atoms/player-map (make-initial-test-map 2 3 nil))
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
           land-coords [(inc (first transport-coords)) (second transport-coords)]]
-      (disembark-army-from-transport transport-coords land-coords)
+      (container-ops/disembark-army-from-transport transport-coords land-coords)
       (let [transport (:contents (get-in @atoms/game-map transport-coords))
             disembarked (:contents (get-in @atoms/game-map land-coords))]
         (should= 2 (:army-count transport))
@@ -98,7 +100,7 @@
     (reset! atoms/player-map (make-initial-test-map 2 3 nil))
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
           land-coords [(inc (first transport-coords)) (second transport-coords)]]
-      (disembark-army-from-transport transport-coords land-coords)
+      (container-ops/disembark-army-from-transport transport-coords land-coords)
       (let [transport (:contents (get-in @atoms/game-map transport-coords))]
         (should= :awake (:mode transport))
         (should= 0 (:army-count transport)))))
@@ -110,7 +112,7 @@
     (reset! atoms/player-map (make-initial-test-map 2 3 nil))
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
           land-coords [(inc (first transport-coords)) (second transport-coords)]]
-      (disembark-army-from-transport transport-coords land-coords)
+      (container-ops/disembark-army-from-transport transport-coords land-coords)
       (let [transport (:contents (get-in @atoms/game-map transport-coords))]
         (should= :awake (:mode transport))
         (should= 1 (:army-count transport))
@@ -140,21 +142,21 @@
         (should= :awake (:mode transport))
         (should= nil (:reason transport)))))
 
-  (it "completely-surrounded-by-sea? returns true when no adjacent land"
+  (it "map-utils/completely-surrounded-by-sea? returns true when no adjacent land"
     (reset! atoms/game-map (build-test-map ["~~~"
                                              "~T~"
                                              "~~~"]))
     (set-test-unit atoms/game-map "T" :mode :moving)
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))]
-      (should (completely-surrounded-by-sea? transport-coords atoms/game-map))))
+      (should (map-utils/completely-surrounded-by-sea? transport-coords atoms/game-map))))
 
-  (it "completely-surrounded-by-sea? returns false when adjacent to land"
+  (it "map-utils/completely-surrounded-by-sea? returns false when adjacent to land"
     (reset! atoms/game-map (build-test-map ["~~~"
                                              "~T#"
                                              "~~~"]))
     (set-test-unit atoms/game-map "T" :mode :moving)
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))]
-      (should-not (completely-surrounded-by-sea? transport-coords atoms/game-map))))
+      (should-not (map-utils/completely-surrounded-by-sea? transport-coords atoms/game-map))))
 
   (it "transport wakes with found-land when moving from open sea to land visible"
     (reset! atoms/game-map (build-test-map ["~~~#"
@@ -234,7 +236,7 @@
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
           land-coords [(inc (first transport-coords)) (second transport-coords)]
           extended-target [2 (second transport-coords)]]
-      (disembark-army-with-target transport-coords land-coords extended-target)
+      (container-ops/disembark-army-with-target transport-coords land-coords extended-target)
       (let [transport (:contents (get-in @atoms/game-map transport-coords))
             army (:contents (get-in @atoms/game-map land-coords))]
         (should= 1 (:army-count transport))
@@ -253,7 +255,7 @@
     (reset! atoms/player-map (make-initial-test-map 2 3 nil))
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
           land-coords [(inc (first transport-coords)) (second transport-coords)]]
-      (let [result (disembark-army-to-explore transport-coords land-coords)]
+      (let [result (container-ops/disembark-army-to-explore transport-coords land-coords)]
         (should= land-coords result)
         (let [transport (:contents (get-in @atoms/game-map transport-coords))
               army (:contents (get-in @atoms/game-map land-coords))]

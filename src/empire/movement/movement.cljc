@@ -2,68 +2,13 @@
   (:require [empire.atoms :as atoms]
             [empire.combat :as combat]
             [empire.config :as config]
+            [empire.container-ops :as container-ops]
             [empire.movement.map-utils :as map-utils]
-            [empire.unit-container :as uc]
-            [empire.units.dispatcher :as dispatcher]
             [empire.movement.visibility :as visibility]
             [empire.movement.wake-conditions :as wake]
-            [empire.movement.explore :as explore]
-            [empire.movement.coastline :as coastline]
             [empire.satellite :as satellite]
-            [empire.container-ops :as container-ops]))
-
-;; Re-export functions from new modules for backward compatibility
-
-;; From visibility
-(def update-combatant-map visibility/update-combatant-map)
-(def update-cell-visibility visibility/update-cell-visibility)
-
-;; From wake-conditions
-(def wake-before-move wake/wake-before-move)
-(def wake-after-move wake/wake-after-move)
-(def near-hostile-city? wake/near-hostile-city?)
-(def friendly-city-in-range? wake/friendly-city-in-range?)
-
-;; From map-utils (terrain geometry)
-(def adjacent-to-land? map-utils/adjacent-to-land?)
-(def orthogonally-adjacent-to-land? map-utils/orthogonally-adjacent-to-land?)
-(def completely-surrounded-by-sea? map-utils/completely-surrounded-by-sea?)
-(def in-bay? map-utils/in-bay?)
-(def adjacent-to-sea? map-utils/adjacent-to-sea?)
-(def at-map-edge? map-utils/at-map-edge?)
-
-;; From explore
-(def valid-explore-cell? explore/valid-explore-cell?)
-(def get-valid-explore-moves explore/get-valid-explore-moves)
-(def adjacent-to-unexplored? explore/adjacent-to-unexplored?)
-(def get-unexplored-explore-moves explore/get-unexplored-explore-moves)
-(def pick-explore-move explore/pick-explore-move)
-(def move-explore-unit explore/move-explore-unit)
-(def set-explore-mode explore/set-explore-mode)
-
-;; From coastline
-(def coastline-follow-eligible? coastline/coastline-follow-eligible?)
-(def coastline-follow-rejection-reason coastline/coastline-follow-rejection-reason)
-(def set-coastline-follow-mode coastline/set-coastline-follow-mode)
-(def valid-coastline-cell? coastline/valid-coastline-cell?)
-(def get-valid-coastline-moves coastline/get-valid-coastline-moves)
-(def pick-coastline-move coastline/pick-coastline-move)
-(def move-coastline-unit coastline/move-coastline-unit)
-
-;; From satellite
-(def move-satellite satellite/move-satellite)
-
-;; From container-ops
-(def load-adjacent-sentry-armies container-ops/load-adjacent-sentry-armies)
-(def wake-armies-on-transport container-ops/wake-armies-on-transport)
-(def sleep-armies-on-transport container-ops/sleep-armies-on-transport)
-(def disembark-army-from-transport container-ops/disembark-army-from-transport)
-(def disembark-army-with-target container-ops/disembark-army-with-target)
-(def disembark-army-to-explore container-ops/disembark-army-to-explore)
-(def wake-fighters-on-carrier container-ops/wake-fighters-on-carrier)
-(def sleep-fighters-on-carrier container-ops/sleep-fighters-on-carrier)
-(def launch-fighter-from-carrier container-ops/launch-fighter-from-carrier)
-(def launch-fighter-from-airport container-ops/launch-fighter-from-airport)
+            [empire.unit-container :as uc]
+            [empire.units.dispatcher :as dispatcher]))
 
 ;; Core movement functions
 

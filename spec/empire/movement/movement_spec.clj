@@ -3,7 +3,10 @@
     [empire.atoms :as atoms]
     [empire.config :as config]
     [empire.game-loop :as game-loop]
+    [empire.movement.explore :as explore]
     [empire.movement.movement :refer :all]
+    [empire.movement.visibility :as visibility]
+    [empire.movement.wake-conditions :as wake]
     [empire.test-utils :refer [build-test-map get-test-unit set-test-unit reset-all-atoms!]]
     [speclj.core :refer :all]))
 
@@ -341,7 +344,7 @@
                                                      "---------"
                                                      "---------"
                                                      "---------"]))
-          (update-combatant-map atoms/player-map :player)
+          (visibility/update-combatant-map atoms/player-map :player)
           ;; Check that the unit's cell and neighbors are revealed
           (should= {:type :land :contents {:type :army :owner :player :hits 1 :mode :awake}} (get-in @atoms/player-map unit-coords))
           (should= {:type :land} (get-in @atoms/player-map [row (inc col)]))
@@ -627,7 +630,7 @@
       (it "wakes unit when something is in the way"
         (let [unit {:type :army :mode :moving :owner :player :target [4 5] :steps-remaining 1}
               next-cell {:type :land :contents {:type :army :owner :player}}
-              [result should-wake?] (wake-before-move unit next-cell)]
+              [result should-wake?] (wake/wake-before-move unit next-cell)]
           (should= :awake (:mode result))
           (should= :somethings-in-the-way (:reason result))
           (should should-wake?)))
@@ -635,7 +638,7 @@
       (it "wakes naval unit when trying to move on land"
         (let [unit {:type :destroyer :mode :moving :owner :player :target [4 5] :steps-remaining 1}
               next-cell {:type :land}
-              [result should-wake?] (wake-before-move unit next-cell)]
+              [result should-wake?] (wake/wake-before-move unit next-cell)]
           (should= :awake (:mode result))
           (should= :ships-cant-drive-on-land (:reason result))
           (should should-wake?))))
@@ -680,7 +683,7 @@
                                                    "-----"
                                                    "-----"]))
         ;; [3 2] is unexplored in player-map, so moves from [2 2] that are adjacent to unexplored
-        (let [moves (get-unexplored-explore-moves [2 2] atoms/game-map)]
+        (let [moves (explore/get-unexplored-explore-moves [2 2] atoms/game-map)]
           (should (some #{[3 2]} moves))))
 
       (it "pick-explore-move returns visited cell when all cells visited"
@@ -696,7 +699,7 @@
                                                    "~~~~~"]))
         ;; All valid moves are visited
         (let [visited #{[2 3] [3 2]}
-              move (pick-explore-move [2 2] atoms/game-map visited)]
+              move (explore/pick-explore-move [2 2] atoms/game-map visited)]
           ;; Should still return a move even though all are visited
           (should (some #{move} [[2 3] [3 2]])))))
     )

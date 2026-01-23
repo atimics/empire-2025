@@ -9,9 +9,6 @@
 
 (def min-city-distance 5)
 
-;; Naval unit types - delegate to dispatcher
-(def naval-unit? dispatcher/naval-units)
-
 ;; Hostile city status (not player-owned)
 (def hostile-city? #{:free :computer})
 

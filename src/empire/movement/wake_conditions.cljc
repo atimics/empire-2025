@@ -77,11 +77,11 @@
          (config/hostile-city? (:city-status next-cell)))
     :fighter-over-defended-city
 
-    (and (config/naval-unit? (:type unit)) (= (:type next-cell) :land))
+    (and (dispatcher/naval-units (:type unit)) (= (:type next-cell) :land))
     :ships-cant-drive-on-land
 
     ;; Ships cannot enter cities (except damaged ships docking, handled separately in move-unit)
-    (and (dispatcher/naval-unit? (:type unit)) (= (:type next-cell) :city))
+    (and (dispatcher/naval-units (:type unit)) (= (:type next-cell) :city))
     :ships-cant-enter-city))
 
 (defn- wake-unit-with-reason [unit reason]

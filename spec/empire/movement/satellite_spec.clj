@@ -2,8 +2,9 @@
   (:require
     [empire.atoms :as atoms]
     [empire.game-loop :as game-loop]
-    [empire.movement.movement :refer [move-satellite set-unit-movement]]
+    [empire.movement.movement :refer [set-unit-movement]]
     [empire.movement.visibility :refer [update-cell-visibility]]
+    [empire.satellite :refer [move-satellite]]
     [empire.test-utils :refer [build-test-map set-test-unit get-test-unit reset-all-atoms! make-initial-test-map]]
     [speclj.core :refer :all]))
 

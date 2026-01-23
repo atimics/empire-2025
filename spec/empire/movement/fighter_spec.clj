@@ -1,8 +1,10 @@
 (ns empire.movement.fighter-spec
   (:require
     [empire.atoms :as atoms]
+    [empire.container-ops :as container-ops]
     [empire.game-loop :as game-loop]
     [empire.movement.movement :refer :all]
+    [empire.movement.wake-conditions :as wake]
     [empire.test-utils :refer [build-test-map get-test-unit get-test-city set-test-unit reset-all-atoms! make-initial-test-map]]
     [speclj.core :refer :all]))
 
@@ -214,7 +216,7 @@
     (reset! atoms/game-map (build-test-map ["-C-"]))
     (let [carrier-coords (:pos (get-test-unit atoms/game-map "C"))]
       (set-test-unit atoms/game-map "C" :mode :awake :hits 8 :fighter-count 2)
-      (wake-fighters-on-carrier carrier-coords)
+      (container-ops/wake-fighters-on-carrier carrier-coords)
       (let [carrier (:contents (get-in @atoms/game-map carrier-coords))]
         (should= :sentry (:mode carrier))
         (should= 2 (:fighter-count carrier))
@@ -224,7 +226,7 @@
     (reset! atoms/game-map (build-test-map ["-C-"]))
     (let [carrier-coords (:pos (get-test-unit atoms/game-map "C"))]
       (set-test-unit atoms/game-map "C" :mode :sentry :hits 8 :fighter-count 2 :awake-fighters 2)
-      (sleep-fighters-on-carrier carrier-coords)
+      (container-ops/sleep-fighters-on-carrier carrier-coords)
       (let [carrier (:contents (get-in @atoms/game-map carrier-coords))]
         (should= :awake (:mode carrier))
         (should= 2 (:fighter-count carrier))
@@ -237,7 +239,7 @@
           target-coords [(first carrier-coords) (+ (second carrier-coords) 2)]]
       (set-test-unit atoms/game-map "C" :mode :sentry :hits 8 :fighter-count 2 :awake-fighters 2)
       (reset! atoms/player-map (make-initial-test-map 1 4 nil))
-      (launch-fighter-from-carrier carrier-coords target-coords)
+      (container-ops/launch-fighter-from-carrier carrier-coords target-coords)
       (let [carrier (:contents (get-in @atoms/game-map carrier-coords))
             launched-fighter (:contents (get-in @atoms/game-map adjacent-coords))]
         (should= 1 (:fighter-count carrier))
@@ -252,7 +254,7 @@
           target-coords [(first carrier-coords) (+ (second carrier-coords) 2)]]
       (set-test-unit atoms/game-map "C" :mode :sentry :hits 8 :fighter-count 1 :awake-fighters 1)
       (reset! atoms/player-map (make-initial-test-map 1 4 nil))
-      (launch-fighter-from-carrier carrier-coords target-coords)
+      (container-ops/launch-fighter-from-carrier carrier-coords target-coords)
       (let [carrier (:contents (get-in @atoms/game-map carrier-coords))]
         (should= :sentry (:mode carrier))
         (should= 0 (:fighter-count carrier)))))
@@ -264,7 +266,7 @@
           target-coords [(first carrier-coords) (+ (second carrier-coords) 2)]]
       (set-test-unit atoms/game-map "C" :mode :sentry :hits 8 :fighter-count 1 :awake-fighters 1)
       (reset! atoms/player-map (make-initial-test-map 1 4 nil))
-      (launch-fighter-from-carrier carrier-coords target-coords)
+      (container-ops/launch-fighter-from-carrier carrier-coords target-coords)
       (let [fighter (:contents (get-in @atoms/game-map adjacent-coords))]
         (should= 7 (:steps-remaining fighter)))))
 
@@ -299,7 +301,7 @@
       (set-test-unit atoms/game-map "C" :mode :sentry :hits 8 :fighter-count 1 :awake-fighters 1)
       (reset! atoms/player-map (make-initial-test-map 1 4 nil))
       ;; Launch fighter from carrier toward target
-      (launch-fighter-from-carrier carrier-coords target-coords)
+      (container-ops/launch-fighter-from-carrier carrier-coords target-coords)
       ;; Verify carrier now has 0 fighters
       (let [carrier (:contents (get-in @atoms/game-map carrier-coords))]
         (should= 0 (:fighter-count carrier))
@@ -348,7 +350,7 @@
       ;; wake-after-move takes unit, from-pos, final-pos, and current-map (atom)
       (let [cell (get-in @atoms/game-map fighter-coords)
             unit (:contents cell)
-            result (wake-after-move unit fighter-coords city-coords atoms/game-map)]
+            result (wake/wake-after-move unit fighter-coords city-coords atoms/game-map)]
         (should= 0 (:hits result))))))
 
 (describe "fighter landing at city"
@@ -391,7 +393,7 @@
       (swap! atoms/game-map assoc-in (conj city-coords :fighter-count) 2)
       (swap! atoms/game-map assoc-in (conj city-coords :awake-fighters) 2)
       (reset! atoms/player-map (make-initial-test-map 1 4 nil))
-      (launch-fighter-from-airport city-coords target-coords)
+      (container-ops/launch-fighter-from-airport city-coords target-coords)
       (let [city (get-in @atoms/game-map city-coords)
             fighter (:contents city)]
         (should= 1 (:fighter-count city))

@@ -5,21 +5,25 @@
             [empire.computer.production :as computer-production]
             [empire.config :as config]
             [empire.container-ops :as container-ops]
+            [empire.movement.coastline :as coastline]
+            [empire.movement.explore :as explore]
             [empire.movement.movement :as movement]
+            [empire.movement.visibility :as visibility]
             [empire.movement.wake-conditions :as wake]
             [empire.pathfinding :as pathfinding]
             [empire.production :as production]
+            [empire.satellite :as satellite]
             [empire.unit-container :as uc]))
 
 (defn update-player-map
   "Reveals cells near player-owned units on the visible map."
   []
-  (movement/update-combatant-map atoms/player-map :player))
+  (visibility/update-combatant-map atoms/player-map :player))
 
 (defn update-computer-map
   "Updates the computer's visible map by revealing cells near computer-owned units."
   []
-  (movement/update-combatant-map atoms/computer-map :computer))
+  (visibility/update-combatant-map atoms/computer-map :computer))
 
 (defn remove-dead-units
   "Removes units with hits at or below zero."
@@ -30,7 +34,7 @@
                 contents (:contents cell)]
           :when (and contents (<= (:hits contents 1) 0))]
     (swap! atoms/game-map assoc-in [i j] (dissoc cell :contents))
-    (movement/update-cell-visibility [i j] (:owner contents))))
+    (visibility/update-cell-visibility [i j] (:owner contents))))
 
 (defn build-player-items
   "Builds list of player city/unit coordinates to process this round."
@@ -157,7 +161,7 @@
           bingo-threshold (quot config/fighter-fuel 4)
           low-fuel? (<= new-fuel 1)
           bingo-fuel? (and (<= new-fuel bingo-threshold)
-                           (movement/friendly-city-in-range? pos new-fuel atoms/game-map))]
+                           (wake/friendly-city-in-range? pos new-fuel atoms/game-map))]
       (cond
         (<= new-fuel 0)
         (swap! atoms/game-map assoc-in [i j :contents :hits] 0)
@@ -222,7 +226,7 @@
         ;; Satellite expired
         (<= (:turns-remaining satellite 0) 0)
         (do (swap! atoms/game-map update-in coords dissoc :contents)
-            (movement/update-cell-visibility coords (:owner satellite))
+            (visibility/update-cell-visibility coords (:owner satellite))
             nil)
 
         ;; No more steps this round - decrement turns-remaining once per round
@@ -230,14 +234,14 @@
         (let [new-turns (dec (:turns-remaining satellite 1))]
           (if (<= new-turns 0)
             (do (swap! atoms/game-map update-in coords dissoc :contents)
-                (movement/update-cell-visibility coords (:owner satellite))
+                (visibility/update-cell-visibility coords (:owner satellite))
                 nil)
             (do (swap! atoms/game-map assoc-in (conj coords :contents :turns-remaining) new-turns)
                 coords)))
 
         ;; Move one step
         :else
-        (let [new-coords (movement/move-satellite coords)]
+        (let [new-coords (satellite/move-satellite coords)]
           (recur new-coords (dec steps-left)))))))
 
 (defn move-satellites
@@ -304,12 +308,12 @@
 (defn move-explore-unit
   "Moves an exploring unit. Returns new coords if still exploring, nil if done."
   [coords]
-  (movement/move-explore-unit coords))
+  (explore/move-explore-unit coords))
 
 (defn move-coastline-unit
   "Moves a coastline-following unit. Returns nil when done."
   [coords]
-  (movement/move-coastline-unit coords))
+  (coastline/move-coastline-unit coords))
 
 (defn- auto-launch-fighter [coords cell]
   "Auto-launches a fighter from city airport or carrier if flight-path is set.
@@ -322,10 +326,10 @@
     (when flight-path
       (cond
         has-awake-airport-fighter?
-        (movement/launch-fighter-from-airport coords flight-path)
+        (container-ops/launch-fighter-from-airport coords flight-path)
 
         has-awake-carrier-fighter?
-        (movement/launch-fighter-from-carrier coords flight-path)
+        (container-ops/launch-fighter-from-carrier coords flight-path)
 
         :else nil))))
 
@@ -348,7 +352,7 @@
                                                  (not (:contents tcell)))))
                                         adjacent-cells))]
         (when valid-target
-          (movement/disembark-army-with-target coords valid-target marching-orders))))))
+          (container-ops/disembark-army-with-target coords valid-target marching-orders))))))
 
 (defn- process-one-item
   "Processes a single player item. Returns :done if item was processed and removed,

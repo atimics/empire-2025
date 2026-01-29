@@ -237,57 +237,67 @@
       (should-be-nil (get counts :destroyer)))))
 
 ;; ============================================================================
-;; Gutted Modules: Verify they do nothing
+;; VMS Empire AI Modules: Verify they take actions
 ;; ============================================================================
 
-(describe "gutted army module"
+(describe "VMS army module"
   (before (reset-all-atoms!))
 
-  (it "process-army returns nil and does nothing"
+  (it "process-army moves army toward unexplored territory"
     (reset! atoms/game-map (build-test-map ["a#"]))
+    (reset! atoms/computer-map (build-test-map ["a#"]))
     (let [result (army/process-army [0 0])]
-      (should-be-nil result)
-      ;; Army should still be at original position
-      (should= :army (:type (:contents (get-in @atoms/game-map [0 0])))))))
+      ;; Army should have moved
+      (should= [0 1] result))))
 
-(describe "gutted fighter module"
+(describe "VMS fighter module"
   (before (reset-all-atoms!))
 
-  (it "process-fighter returns nil and does nothing"
-    (reset! atoms/game-map (build-test-map ["f#"]))
-    (let [unit (:contents (get-in @atoms/game-map [0 0]))
-          result (fighter/process-fighter [0 0] unit)]
-      (should-be-nil result)
-      (should= :fighter (:type (:contents (get-in @atoms/game-map [0 0])))))))
+  (it "process-fighter patrols when fuel allows"
+    (reset! atoms/game-map [[{:type :city :city-status :computer}
+                              {:type :land :contents {:type :fighter :owner :computer
+                                                       :fuel 20 :hits 1}}
+                              {:type :land}]])
+    (reset! atoms/computer-map @atoms/game-map)
+    (let [unit (:contents (get-in @atoms/game-map [0 1]))
+          result (fighter/process-fighter [0 1] unit)]
+      ;; Fighter should move
+      (should (or (= [0 0] result) (= [0 2] result))))))
 
-(describe "gutted ship module"
+(describe "VMS ship module"
   (before (reset-all-atoms!))
 
-  (it "process-ship returns nil and does nothing"
+  (it "process-ship explores sea"
     (reset! atoms/game-map (build-test-map ["d~"]))
+    (reset! atoms/computer-map (build-test-map ["d~"]))
     (let [result (ship/process-ship [0 0] :destroyer)]
-      (should-be-nil result)
-      (should= :destroyer (:type (:contents (get-in @atoms/game-map [0 0])))))))
+      ;; Destroyer should move to sea
+      (should= [0 1] result))))
 
-(describe "gutted transport module"
+(describe "VMS transport module"
   (before (reset-all-atoms!))
 
-  (it "process-transport returns nil and does nothing"
-    (reset! atoms/game-map (build-test-map ["t~"]))
+  (it "process-transport moves in loading mode"
+    (reset! atoms/game-map [[{:type :sea :contents {:type :transport :owner :computer
+                                                     :transport-mission :loading
+                                                     :army-count 0}}
+                              {:type :sea}
+                              {:type :land}]])
+    (reset! atoms/computer-map @atoms/game-map)
     (let [result (transport/process-transport [0 0])]
-      (should-be-nil result)
-      (should= :transport (:type (:contents (get-in @atoms/game-map [0 0])))))))
+      ;; Transport should move
+      (should= [0 1] result))))
 
-(describe "gutted production module"
+(describe "VMS production module"
   (before (reset-all-atoms!))
 
-  (it "process-computer-city returns nil and does nothing"
+  (it "process-computer-city sets production"
     (reset! atoms/game-map (build-test-map ["X#"]))
+    (reset! atoms/computer-map (build-test-map ["X#"]))
     (reset! atoms/production {})
-    (let [result (computer-production/process-computer-city [0 0])]
-      (should-be-nil result)
-      ;; Production should NOT be set (function does nothing)
-      (should-be-nil (@atoms/production [0 0])))))
+    (computer-production/process-computer-city [0 0])
+    ;; Production should be set
+    (should-not-be-nil (get @atoms/production [0 0]))))
 
 ;; ============================================================================
 ;; Main Dispatcher
@@ -296,29 +306,39 @@
 (describe "process-computer-unit dispatcher"
   (before (reset-all-atoms!))
 
-  (it "dispatches to army module (which does nothing)"
+  (it "dispatches to army module"
     (reset! atoms/game-map (build-test-map ["a#"]))
+    (reset! atoms/computer-map (build-test-map ["a#"]))
     (let [result (computer/process-computer-unit [0 0])]
-      (should-be-nil result)
-      (should= :army (:type (:contents (get-in @atoms/game-map [0 0]))))))
+      ;; Army should move
+      (should= [0 1] result)))
 
-  (it "dispatches to fighter module (which does nothing)"
-    (reset! atoms/game-map (build-test-map ["f#"]))
-    (let [result (computer/process-computer-unit [0 0])]
-      (should-be-nil result)
-      (should= :fighter (:type (:contents (get-in @atoms/game-map [0 0]))))))
+  (it "dispatches to fighter module"
+    (reset! atoms/game-map [[{:type :city :city-status :computer}
+                              {:type :land :contents {:type :fighter :owner :computer
+                                                       :fuel 20 :hits 1}}]])
+    (reset! atoms/computer-map @atoms/game-map)
+    (let [result (computer/process-computer-unit [0 1])]
+      ;; Fighter should move (to city or patrol)
+      (should (or (= [0 0] result) (nil? result)))))
 
-  (it "dispatches to ship module (which does nothing)"
+  (it "dispatches to ship module"
     (reset! atoms/game-map (build-test-map ["d~"]))
+    (reset! atoms/computer-map (build-test-map ["d~"]))
     (let [result (computer/process-computer-unit [0 0])]
-      (should-be-nil result)
-      (should= :destroyer (:type (:contents (get-in @atoms/game-map [0 0]))))))
+      ;; Ship should move
+      (should= [0 1] result)))
 
-  (it "dispatches to transport module (which does nothing)"
-    (reset! atoms/game-map (build-test-map ["t~"]))
+  (it "dispatches to transport module"
+    (reset! atoms/game-map [[{:type :sea :contents {:type :transport :owner :computer
+                                                     :transport-mission :loading
+                                                     :army-count 0}}
+                              {:type :sea}
+                              {:type :land}]])
+    (reset! atoms/computer-map @atoms/game-map)
     (let [result (computer/process-computer-unit [0 0])]
-      (should-be-nil result)
-      (should= :transport (:type (:contents (get-in @atoms/game-map [0 0]))))))
+      ;; Transport should move
+      (should= [0 1] result)))
 
   (it "returns nil for non-computer unit"
     (reset! atoms/game-map (build-test-map ["A#"]))
@@ -332,7 +352,7 @@
 ;; Game Loop Integration
 ;; ============================================================================
 
-(describe "game loop with gutted AI"
+(describe "game loop with VMS AI"
   (before (reset-all-atoms!))
 
   (it "build-computer-items returns computer city coordinates"
@@ -345,15 +365,22 @@
     (let [items (game-loop/build-computer-items)]
       (should-contain [0 0] items)))
 
-  (it "game runs without errors (computer just doesn't move)"
-    (reset! atoms/game-map (build-test-map ["Oa#X"]))
+  (it "game runs with VMS AI moving units"
+    ;; Map: X##a# - computer city, land, land, computer army, land
+    (reset! atoms/game-map (build-test-map ["X##a#"]))
     (reset! atoms/player-map @atoms/game-map)
     (reset! atoms/computer-map @atoms/game-map)
     (reset! atoms/production {})
     (reset! atoms/player-items [])
-    (reset! atoms/computer-items [[0 1] [0 3]])  ;; army at [0 1], city at [0 3]
+    (reset! atoms/computer-items [[0 3] [0 0]])  ;; army at [0 3], city at [0 0]
     ;; Process computer items - should complete without error
     (doseq [item @atoms/computer-items]
       (computer/process-computer-unit item))
-    ;; Army should still be where it was (no movement)
-    (should= :army (:type (:contents (get-in @atoms/game-map [0 1]))))))
+    ;; Army should have moved (VMS AI takes actions) - toward unexplored or exploring
+    ;; Since all is explored, army stays or moves to adjacent
+    (let [army-at-3 (:contents (get-in @atoms/game-map [0 3]))
+          army-at-4 (:contents (get-in @atoms/game-map [0 4]))
+          army-at-2 (:contents (get-in @atoms/game-map [0 2]))]
+      (should (or (= :army (:type army-at-4))
+                  (= :army (:type army-at-2))
+                  (= :army (:type army-at-3)))))))

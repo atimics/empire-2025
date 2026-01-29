@@ -363,4 +363,63 @@
                 :transport-mission :unloading :army-count 6})
         (let [result (#'empire.computer.transport/find-unload-position [0 3] nil [2 6])]
           ;; Should pick [1,6] (distance 1) not [1,0] (distance 7)
-          (should= [1 6] result))))))
+          (should= [1 6] result)))))
+
+  (describe "global BFS unload (VMS-consistent)"
+    (it "transport finds unload position far from any city via global BFS"
+      ;; Origin continent at row 0. Target land at row 6 with no city nearby.
+      ;; Player city far away at row 10. Old ±3 search would fail; global BFS succeeds.
+      (let [game-map (build-test-map ["X##"
+                                      "###"
+                                      "~~~"
+                                      "~~~"
+                                      "~~~"
+                                      "~~~"
+                                      "###"
+                                      "###"
+                                      "~~~"
+                                      "~~~"
+                                      "O##"
+                                      "###"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (swap! atoms/game-map assoc-in [3 1 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :unloading :army-count 6
+                :origin-continent-pos [0 1]})
+        (transport/process-transport [3 1])
+        ;; Transport should have moved (not stuck)
+        (let [transport-pos (first (for [r (range 12) c (range 3)
+                                        :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
+                                    [r c]))]
+          (should-not-be-nil transport-pos)
+          ;; Should have moved toward the nearest off-continent land (row 6)
+          (should-not= [3 1] transport-pos))))
+
+    (it "transport explores when no off-continent land reachable"
+      ;; Only origin continent exists. No off-continent land at all.
+      ;; Transport should fall back to explore-sea.
+      (let [game-map (build-test-map ["X##"
+                                      "###"
+                                      "~~~"
+                                      "~~~"
+                                      "~~~"])]
+        (reset! atoms/game-map game-map)
+        ;; Leave unexplored territory so explore-sea has somewhere to go
+        (reset! atoms/computer-map (build-test-map ["X##"
+                                                    "###"
+                                                    "~~~"
+                                                    "~~~"
+                                                    "~~-"]))
+        (swap! atoms/game-map assoc-in [2 1 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :unloading :army-count 6
+                :origin-continent-pos [0 1]})
+        (transport/process-transport [2 1])
+        ;; Transport should have moved (explore fallback), not stuck
+        (let [transport-pos (first (for [r (range 5) c (range 3)
+                                        :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
+                                    [r c]))]
+          (should-not-be-nil transport-pos)
+          ;; Should have moved toward unexplored territory
+          (should-not= [2 1] transport-pos))))))

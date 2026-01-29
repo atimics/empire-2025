@@ -183,11 +183,11 @@
              (conj pos :contents :origin-continent-pos) land-pos))))
 
 (defn- move-toward-unload-or-explore
-  "Try to move toward a cross-continent unload target. If none, explore sea."
+  "Try to move toward a cross-continent unload position via global BFS.
+   Falls back to explore-sea if no off-continent land is reachable."
   [pos origin-continent]
-  (if-let [target (find-unload-target origin-continent pos)]
-    (when-let [unload-pos (find-unload-position target origin-continent pos)]
-      (move-toward-position pos unload-pos))
+  (if-let [unload-pos (pathfinding/find-nearest-unload-position pos origin-continent)]
+    (move-toward-position pos unload-pos)
     (explore-sea pos)))
 
 (defn process-transport

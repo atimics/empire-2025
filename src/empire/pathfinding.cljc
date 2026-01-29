@@ -119,6 +119,42 @@
                   new-queue (into rest-queue neighbors)]
               (recur new-queue new-visited))))))))
 
+(defn- adjacent-to-off-continent-land?
+  "Returns true if any neighbor of pos is land/city not on origin-continent."
+  [pos origin-continent game-map]
+  (let [[x y] pos]
+    (some (fn [[dx dy]]
+            (let [nx (+ x dx)
+                  ny (+ y dy)
+                  cell (get-in game-map [nx ny])]
+              (and cell
+                   (#{:land :city} (:type cell))
+                   (or (nil? origin-continent)
+                       (not (contains? origin-continent [nx ny]))))))
+          neighbor-offsets)))
+
+(defn find-nearest-unload-position
+  "BFS from start over sea cells to find nearest empty sea cell
+   adjacent to land not on origin-continent. VMS-style global search."
+  [start origin-continent]
+  (let [game-map @atoms/game-map]
+    (loop [queue (conj clojure.lang.PersistentQueue/EMPTY start)
+           visited #{start}]
+      (when (seq queue)
+        (let [current (peek queue)
+              rest-queue (pop queue)
+              cell (get-in game-map current)]
+          (if (and (not= current start)
+                   (= :sea (:type cell))
+                   (nil? (:contents cell))
+                   (adjacent-to-off-continent-land? current origin-continent game-map))
+            current
+            (let [neighbors (get-passable-neighbors current :transport game-map)
+                  new-neighbors (remove visited neighbors)
+                  new-visited (into visited new-neighbors)
+                  new-queue (into rest-queue new-neighbors)]
+              (recur new-queue new-visited))))))))
+
 (defn next-step
   "Returns the next step toward goal, or nil if unreachable or already at goal.
    This is the main function computer.cljc will call.

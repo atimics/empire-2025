@@ -252,3 +252,86 @@
       (should-not-be-nil target)
       ;; Should find a cell adjacent to [2,2]
       (should (some #{target} [[1 1] [1 2] [2 1]])))))
+
+(describe "find-nearest-unload-position"
+  (before (reset-all-atoms!))
+
+  (it "finds nearest sea cell adjacent to off-continent land"
+    ;; Two continents separated by sea
+    ;; Origin continent at rows 0-1, target continent at rows 4-5
+    (reset! atoms/game-map (build-test-map ["###"
+                                            "###"
+                                            "~~~"
+                                            "~~~"
+                                            "###"
+                                            "###"]))
+    (let [origin-continent #{[0 0] [0 1] [0 2] [1 0] [1 1] [1 2]}
+          result (pathfinding/find-nearest-unload-position [2 1] origin-continent)]
+      ;; Should find a sea cell in row 3 adjacent to land in row 4
+      (should-not-be-nil result)
+      (should= 3 (first result))))
+
+  (it "returns nil when no off-continent land exists"
+    ;; Only one continent, all land is origin continent
+    (reset! atoms/game-map (build-test-map ["###"
+                                            "~~~"
+                                            "~~~"]))
+    (let [origin-continent #{[0 0] [0 1] [0 2]}
+          result (pathfinding/find-nearest-unload-position [1 1] origin-continent)]
+      (should-be-nil result)))
+
+  (it "skips sea cells adjacent only to origin continent"
+    ;; Transport between two continents, origin on top
+    ;; Row 1 sea is adjacent to origin continent - should skip
+    ;; Row 3 sea is adjacent to target continent - should find
+    (reset! atoms/game-map (build-test-map ["###"
+                                            "~~~"
+                                            "~~~"
+                                            "~~~"
+                                            "###"]))
+    (let [origin-continent #{[0 0] [0 1] [0 2]}
+          result (pathfinding/find-nearest-unload-position [1 1] origin-continent)]
+      ;; Should find a cell in row 3 (adjacent to target continent at row 4)
+      (should-not-be-nil result)
+      (should= 3 (first result))))
+
+  (it "skips occupied sea cells as unload destinations"
+    ;; Target continent at row 4. Sea cell [3,1] is occupied by enemy ship.
+    (reset! atoms/game-map (build-test-map ["###"
+                                            "~~~"
+                                            "~~~"
+                                            "~d~"
+                                            "###"]))
+    (let [origin-continent #{[0 0] [0 1] [0 2]}
+          result (pathfinding/find-nearest-unload-position [2 1] origin-continent)]
+      ;; Should skip [3,1] (occupied) and find [3,0] or [3,2]
+      (should-not-be-nil result)
+      (should= 3 (first result))
+      (should-not= [3 1] result)))
+
+  (it "finds globally nearest unload position (not limited to ±3 of a city)"
+    ;; City far from transport, but there's reachable off-continent land nearby
+    ;; Origin continent at row 0, target land at row 4, city at row 8
+    (reset! atoms/game-map (build-test-map ["###"
+                                            "~~~"
+                                            "~~~"
+                                            "~~~"
+                                            "###"
+                                            "~~~"
+                                            "~~~"
+                                            "~~~"
+                                            "O##"]))
+    (let [origin-continent #{[0 0] [0 1] [0 2]}
+          result (pathfinding/find-nearest-unload-position [2 1] origin-continent)]
+      ;; Should find sea adjacent to row 4 land (much closer than row 8 city)
+      (should-not-be-nil result)
+      (should= 3 (first result))))
+
+  (it "works with nil origin-continent (any land qualifies)"
+    (reset! atoms/game-map (build-test-map ["###"
+                                            "~~~"
+                                            "~~~"]))
+    (let [result (pathfinding/find-nearest-unload-position [2 1] nil)]
+      ;; With nil origin, any adjacent land qualifies
+      (should-not-be-nil result)
+      (should= 1 (first result)))))

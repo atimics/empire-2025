@@ -272,17 +272,17 @@
 (describe "VMS ship module"
   (before (reset-all-atoms!))
 
-  (it "process-ship explores sea"
+  (it "process-ship stays put when all sea explored"
     (reset! atoms/game-map (build-test-map ["d~"]))
     (reset! atoms/computer-map (build-test-map ["d~"]))
     (ship/process-ship [0 0] :destroyer)
-    ;; Destroyer should have moved to [0 1]
-    (should= :destroyer (get-in @atoms/game-map [0 1 :contents :type]))))
+    ;; Destroyer stays put - no unexplored territory
+    (should= :destroyer (get-in @atoms/game-map [0 0 :contents :type]))))
 
 (describe "VMS transport module"
   (before (reset-all-atoms!))
 
-  (it "process-transport moves in loading mode"
+  (it "process-transport stays put when loading with no armies and no unexplored"
     (reset! atoms/game-map [[{:type :sea :contents {:type :transport :owner :computer
                                                      :transport-mission :loading
                                                      :army-count 0}}
@@ -290,8 +290,8 @@
                               {:type :land}]])
     (reset! atoms/computer-map @atoms/game-map)
     (transport/process-transport [0 0])
-    ;; Transport should have moved to [0 1]
-    (should= :transport (get-in @atoms/game-map [0 1 :contents :type]))))
+    ;; Transport stays put - no armies, no unexplored territory
+    (should= :transport (get-in @atoms/game-map [0 0 :contents :type]))))
 
 (describe "VMS production module"
   (before (reset-all-atoms!))
@@ -329,14 +329,14 @@
       ;; Fighter module returns nil (units processed once per round)
       (should-be-nil result)))
 
-  (it "dispatches to ship module"
+  (it "dispatches to ship module - stays put when all sea explored"
     (reset! atoms/game-map (build-test-map ["d~"]))
     (reset! atoms/computer-map (build-test-map ["d~"]))
     (let [result (computer/process-computer-unit [0 0])]
       ;; Ship module returns nil (units processed once per round)
       (should-be-nil result)
-      ;; But ship should have moved
-      (should= :destroyer (get-in @atoms/game-map [0 1 :contents :type]))))
+      ;; No unexplored territory, no enemies - ship stays put
+      (should= :destroyer (get-in @atoms/game-map [0 0 :contents :type]))))
 
   (it "dispatches to transport module"
     (reset! atoms/game-map [[{:type :sea :contents {:type :transport :owner :computer
@@ -348,8 +348,8 @@
     (let [result (computer/process-computer-unit [0 0])]
       ;; Transport module returns nil (units processed once per round)
       (should-be-nil result)
-      ;; But transport should have moved
-      (should= :transport (get-in @atoms/game-map [0 1 :contents :type]))))
+      ;; Transport stays put - no armies, no unexplored territory
+      (should= :transport (get-in @atoms/game-map [0 0 :contents :type]))))
 
   (it "returns nil for non-computer unit"
     (reset! atoms/game-map (build-test-map ["A#"]))

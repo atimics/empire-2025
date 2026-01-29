@@ -49,7 +49,8 @@
     (it "consumes fuel each step"
       (reset! atoms/game-map (build-test-map ["X#########f##########"]))
       (set-test-unit atoms/game-map "f" :fuel 30)
-      (reset! atoms/computer-map @atoms/game-map)
+      ;; Unexplored territory to the right so fighter has reason to move
+      (reset! atoms/computer-map (build-test-map ["X#########f........."]))
       (let [unit (get-in @atoms/game-map [0 10 :contents])]
         (fighter/process-fighter [0 10] unit)
         ;; Find the fighter - it should have moved and have fuel < 30
@@ -60,7 +61,8 @@
     (it "moves multiple cells per round"
       (reset! atoms/game-map (build-test-map ["X#########f##########"]))
       (set-test-unit atoms/game-map "f" :fuel 30)
-      (reset! atoms/computer-map @atoms/game-map)
+      ;; Unexplored territory to the right so fighter has reason to move
+      (reset! atoms/computer-map (build-test-map ["X#########f........."]))
       (let [unit (get-in @atoms/game-map [0 10 :contents])]
         (fighter/process-fighter [0 10] unit)
         ;; Fighter should NOT still be at [0 10]
@@ -76,7 +78,8 @@
       ;; After moving once, fuel becomes 0 and fighter should die.
       (reset! atoms/game-map (build-test-map ["f##"]))
       (set-test-unit atoms/game-map "f" :fuel 1)
-      (reset! atoms/computer-map @atoms/game-map)
+      ;; Unexplored territory so fighter has reason to move
+      (reset! atoms/computer-map (build-test-map ["f--"]))
       (let [unit (get-in @atoms/game-map [0 0 :contents])]
         (fighter/process-fighter [0 0] unit)
         ;; Fighter should be gone from the entire map
@@ -123,7 +126,32 @@
         (let [result (get-test-unit atoms/game-map "f")
               [_ fighter-col] (:pos result)]
           (should-not-be-nil result)
-          (should (> fighter-col 1))))))
+          (should (> fighter-col 1)))))
+
+    (it "explores toward unexplored territory without NW bias"
+      ;; 5x5 map. Fighter at center, unexplored only in SE corner.
+      (let [game-map (build-test-map ["#####"
+                                      "#####"
+                                      "##f##"
+                                      "#####"
+                                      "#####"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map (build-test-map ["#####"
+                                                    "#####"
+                                                    "#####"
+                                                    "#####"
+                                                    "####-"]))
+        (set-test-unit atoms/game-map "f" :fuel 20)
+        (let [unit (get-in @atoms/game-map [2 2 :contents])]
+          (fighter/process-fighter [2 2] unit)
+          ;; Fighter should have moved
+          (should-be-nil (get-in @atoms/game-map [2 2 :contents]))
+          ;; Find where fighter ended up
+          (let [result (get-test-unit atoms/game-map "f")
+                [fr fc] (:pos result)]
+            (should-not-be-nil result)
+            ;; Should have moved toward SE, not NW
+            (should (or (> fr 2) (> fc 2))))))))
 
   (describe "ignores non-computer fighters"
     (it "returns nil for player fighter"

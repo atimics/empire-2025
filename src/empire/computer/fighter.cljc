@@ -4,6 +4,7 @@
   (:require [empire.atoms :as atoms]
             [empire.computer.core :as core]
             [empire.player.combat :as combat]
+            [empire.pathfinding :as pathfinding]
             [empire.movement.visibility :as visibility]
             [empire.config :as config]))
 
@@ -92,47 +93,26 @@
         closest))))
 
 (defn- find-patrol-target
-  "Find something interesting to patrol toward."
+  "Find something interesting to patrol toward.
+   Uses BFS to find nearest unexplored territory without directional bias."
   [pos]
-  (let [player-units (core/find-visible-player-units)
-        passable (get-passable-neighbors pos)
-        ;; Cells that are themselves unexplored in computer-map
-        unexplored-passable (filter #(nil? (get-in @atoms/computer-map %)) passable)
-        ;; Or cells adjacent to unexplored
-        near-unexplored (filter core/adjacent-to-computer-unexplored? passable)]
-    (cond
-      (seq player-units)
+  (let [player-units (core/find-visible-player-units)]
+    (if (seq player-units)
       (apply min-key (partial distance-to pos) player-units)
-
-      (seq unexplored-passable)
-      (first unexplored-passable)
-
-      (seq near-unexplored)
-      (first near-unexplored)
-
-      :else nil)))
+      (pathfinding/find-nearest-unexplored pos :fighter))))
 
 (defn- do-patrol
-  "Execute one patrol step toward a target or unexplored area."
+  "Execute one patrol step toward a target or unexplored area.
+   Stays put if no target found (all territory explored, no enemies)."
   [pos]
-  (let [target (find-patrol-target pos)
-        passable (get-passable-neighbors pos)]
-    (if target
-      ;; Move toward target
-      (let [closest (core/move-toward pos target passable)]
-        (when closest
-          (core/move-unit-to pos closest)
-          (visibility/update-cell-visibility pos :computer)
-          (visibility/update-cell-visibility closest :computer)
-          closest))
-      ;; Random patrol - prefer unexplored edges
-      (let [frontier (filter core/adjacent-to-computer-unexplored? passable)
-            target (or (first frontier) (first passable))]
-        (when target
-          (core/move-unit-to pos target)
-          (visibility/update-cell-visibility pos :computer)
-          (visibility/update-cell-visibility target :computer)
-          target)))))
+  (when-let [target (find-patrol-target pos)]
+    (let [passable (get-passable-neighbors pos)
+          closest (core/move-toward pos target passable)]
+      (when closest
+        (core/move-unit-to pos closest)
+        (visibility/update-cell-visibility pos :computer)
+        (visibility/update-cell-visibility closest :computer)
+        closest))))
 
 (def ^:private fighter-speed 8)
 

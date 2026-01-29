@@ -95,25 +95,25 @@
           best)))))
 
 (defn- find-unload-position
-  "Find a sea cell adjacent to land near the target city.
+  "Find a sea cell adjacent to land near the target city, closest to transport.
    Excludes positions whose adjacent land is on the origin continent."
-  [target-city origin-continent]
+  [target-city origin-continent transport-pos]
   (let [game-map @atoms/game-map
-        [tr tc] target-city]
-    ;; Find sea cells within range that are adjacent to land
-    (first
-     (for [dr (range -3 4)
-           dc (range -3 4)
-           :let [pos [(+ tr dr) (+ tc dc)]
-                 cell (get-in game-map pos)]
-           :when (and cell
-                      (= :sea (:type cell))
-                      (adjacent-to-land? pos)
-                      (nil? (:contents cell))
-                      (or (nil? origin-continent)
-                          (let [adj-land (find-adjacent-land-pos pos)]
-                            (not (contains? origin-continent adj-land)))))]
-       pos))))
+        [tr tc] target-city
+        candidates (for [dr (range -3 4)
+                         dc (range -3 4)
+                         :let [pos [(+ tr dr) (+ tc dc)]
+                               cell (get-in game-map pos)]
+                         :when (and cell
+                                    (= :sea (:type cell))
+                                    (adjacent-to-land? pos)
+                                    (nil? (:contents cell))
+                                    (or (nil? origin-continent)
+                                        (let [adj-land (find-adjacent-land-pos pos)]
+                                          (not (contains? origin-continent adj-land)))))]
+                     pos)]
+    (when (seq candidates)
+      (apply min-key #(core/distance transport-pos %) candidates))))
 
 (defn- move-toward-position
   "Move transport one step toward target. Returns new position."
@@ -134,15 +134,10 @@
         closest))))
 
 (defn- explore-sea
-  "Move transport toward unexplored sea. Fallback when no cross-continent target exists."
+  "Move transport toward unexplored sea via BFS. Stays put if all sea is explored."
   [pos]
-  (let [passable (get-passable-sea-neighbors pos)
-        frontier (filter core/adjacent-to-computer-unexplored? passable)]
-    (when-let [target (or (first frontier) (first passable))]
-      (core/move-unit-to pos target)
-      (visibility/update-cell-visibility pos :computer)
-      (visibility/update-cell-visibility target :computer)
-      target)))
+  (when-let [target (pathfinding/find-nearest-unexplored pos :transport)]
+    (move-toward-position pos target)))
 
 (defn unload-armies
   "Unload armies onto adjacent land, excluding origin continent. Returns true if any unloaded."
@@ -191,7 +186,7 @@
   "Try to move toward a cross-continent unload target. If none, explore sea."
   [pos origin-continent]
   (if-let [target (find-unload-target origin-continent pos)]
-    (when-let [unload-pos (find-unload-position target origin-continent)]
+    (when-let [unload-pos (find-unload-position target origin-continent pos)]
       (move-toward-position pos unload-pos))
     (explore-sea pos)))
 
@@ -232,13 +227,7 @@
             (= current-mission :loading)
             (if-let [army-pos (find-nearest-army pos)]
               (move-toward-position pos army-pos)
-              ;; No armies found - patrol near coast
-              (let [passable (get-passable-sea-neighbors pos)
-                    coastal (filter adjacent-to-land? passable)]
-                (when-let [target (or (first coastal) (first passable))]
-                  (core/move-unit-to pos target)
-                  (visibility/update-cell-visibility pos :computer)
-                  (visibility/update-cell-visibility target :computer))))
+              (explore-sea pos))
 
             ;; Unloading transport - continue to target on different continent
             (= current-mission :unloading)

@@ -45,14 +45,41 @@
       ;; Ship should have moved toward unexplored
       (should= :patrol-boat (get-in @atoms/game-map [0 1 :contents :type])))
 
-    (it "moves to available sea cell when fully explored"
+    (it "stays put when all sea is explored"
       (reset! atoms/game-map [[{:type :sea :contents {:type :submarine :owner :computer :hits 2}}
                                 {:type :sea}
                                 {:type :land}]])
       (reset! atoms/computer-map @atoms/game-map)
       (ship/process-ship [0 0] :submarine)
-      ;; Ship should have moved to available sea
-      (should= :submarine (get-in @atoms/game-map [0 1 :contents :type]))))
+      ;; Ship stays put - no unexplored territory
+      (should= :submarine (get-in @atoms/game-map [0 0 :contents :type])))
+
+    (it "explores toward unexplored sea without NW bias"
+      ;; 5x5 all-sea map. Ship at center, unexplored in SE corner.
+      (let [game-map (build-test-map ["~~~~~"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~~~~"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map (build-test-map ["~~~~~"
+                                                    "~~~~~"
+                                                    "~~~~~"
+                                                    "~~~~~"
+                                                    "~~~~-"]))
+        (swap! atoms/game-map assoc-in [2 2 :contents]
+               {:type :destroyer :owner :computer :hits 3})
+        (ship/process-ship [2 2] :destroyer)
+        ;; Should have moved
+        (should-be-nil (:contents (get-in @atoms/game-map [2 2])))
+        ;; Find where ship moved
+        (let [new-pos (first (for [r (range 5) c (range 5)
+                                   :when (= :destroyer (get-in @atoms/game-map [r c :contents :type]))]
+                               [r c]))]
+          ;; Should move toward SE, not NW
+          (should-not= [1 1] new-pos)
+          (should (or (> (first new-pos) 2)
+                      (> (second new-pos) 2)))))))
 
   (describe "hunting behavior"
     (it "moves toward visible player ship"

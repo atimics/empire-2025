@@ -5,6 +5,7 @@
             [empire.player.combat :as combat]
             [empire.computer.core :as core]
             [empire.computer.threat :as threat]
+            [empire.pathfinding :as pathfinding]
             [empire.movement.visibility :as visibility]))
 
 (defn- get-passable-sea-neighbors
@@ -89,22 +90,17 @@
       closest)))
 
 (defn- explore-sea
-  "Move toward unexplored sea territory."
-  [pos]
-  (let [passable (get-passable-sea-neighbors pos)
-        frontier (filter core/adjacent-to-computer-unexplored? passable)
-        target (or (first frontier) (first passable))]
-    (when target
-      (core/move-unit-to pos target)
-      (visibility/update-cell-visibility pos :computer)
-      (visibility/update-cell-visibility target :computer)
-      target)))
+  "Move toward unexplored sea via BFS. Stays put if all sea is explored."
+  [pos ship-type]
+  (when-let [target (pathfinding/find-nearest-unexplored pos ship-type)]
+    (move-toward pos target)))
 
 (defn- find-player-ship-sighting
-  "Find a recently seen player ship position."
-  []
-  ;; Look in computer-map for player ships
-  (first (core/find-visible-player-units)))
+  "Find the nearest visible player ship position."
+  [pos]
+  (let [player-units (core/find-visible-player-units)]
+    (when (seq player-units)
+      (apply min-key (partial distance-to pos) player-units))))
 
 (defn- retreat-if-damaged
   "If damaged and under threat, retreat toward friendly city."
@@ -142,12 +138,12 @@
               (if (> (distance-to pos transport-pos) 2)
                 (move-toward pos transport-pos)
                 ;; Already close - patrol nearby
-                (explore-sea pos)))
+                (explore-sea pos ship-type)))
 
             ;; Priority 3: Hunt player ships
-            (if-let [enemy-sighting (find-player-ship-sighting)]
+            (if-let [enemy-sighting (find-player-ship-sighting pos)]
               (move-toward pos enemy-sighting)
 
               ;; Priority 4: Explore sea
-              (explore-sea pos)))))))
+              (explore-sea pos ship-type)))))))
   nil)

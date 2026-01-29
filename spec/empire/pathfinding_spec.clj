@@ -179,3 +179,76 @@
     ;; Path should now be nil since terrain changed
     (let [step (pathfinding/next-step [0 0] [0 2] :army)]
       (should-be-nil step))))
+
+(describe "find-nearest-unexplored"
+  (before (reset-all-atoms!))
+
+  (it "finds sea cell adjacent to unexplored territory"
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                            "~~~"
+                                            "~~~"]))
+    (reset! atoms/computer-map (build-test-map ["~~~"
+                                                "~~~"
+                                                "~~-"]))
+    (let [target (pathfinding/find-nearest-unexplored [0 0] :transport)]
+      (should-not-be-nil target)
+      ;; Target should be adjacent to the unexplored cell [2,2]
+      (should (some #{target} [[1 1] [1 2] [2 1]]))))
+
+  (it "returns nil when no unexplored territory exists"
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                            "~~~"]))
+    (reset! atoms/computer-map (build-test-map ["~~~"
+                                                "~~~"]))
+    (should-be-nil (pathfinding/find-nearest-unexplored [0 0] :transport)))
+
+  (it "does not exhibit northwest bias"
+    ;; Transport at center [2,2], unexplored only in SE corner
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                            "~~~~~"
+                                            "~~~~~"
+                                            "~~~~~"
+                                            "~~~~~"]))
+    (reset! atoms/computer-map (build-test-map ["~~~~~"
+                                                "~~~~~"
+                                                "~~~~~"
+                                                "~~~~~"
+                                                "~~~~-"]))
+    (let [target (pathfinding/find-nearest-unexplored [2 2] :transport)]
+      (should-not-be-nil target)
+      ;; Target should be south-east of start, not northwest
+      (should (>= (first target) 2))
+      (should (>= (second target) 2))))
+
+  (it "skips start position even if adjacent to unexplored"
+    (reset! atoms/game-map (build-test-map ["~~"
+                                            "~~"]))
+    (reset! atoms/computer-map (build-test-map ["~-"
+                                                "~~"]))
+    ;; Start [0,0] is adjacent to unexplored [0,1] on computer-map
+    ;; But [0,1] is sea on game-map, so BFS should find [0,1] as target
+    (let [target (pathfinding/find-nearest-unexplored [0 0] :transport)]
+      ;; Should find a cell adjacent to unexplored, but not start
+      (should-not-be-nil target)
+      (should-not= [0 0] target)))
+
+  (it "returns nil when only start is adjacent to unexplored"
+    ;; Only one sea cell, surrounded by land. Start is the only sea cell.
+    (reset! atoms/game-map (build-test-map ["#~#"]))
+    (reset! atoms/computer-map (build-test-map ["#~-"]))
+    ;; Start [0,1] is adjacent to unexplored [0,2] but [0,2] is not passable sea
+    ;; No other sea cells to explore toward
+    (should-be-nil (pathfinding/find-nearest-unexplored [0 1] :transport)))
+
+  (it "works with fighter unit type over all terrain"
+    ;; Fighter can traverse land and sea
+    (reset! atoms/game-map (build-test-map ["##~"
+                                            "#~~"
+                                            "~~~"]))
+    (reset! atoms/computer-map (build-test-map ["##~"
+                                                "#~~"
+                                                "~~-"]))
+    (let [target (pathfinding/find-nearest-unexplored [0 0] :fighter)]
+      (should-not-be-nil target)
+      ;; Should find a cell adjacent to [2,2]
+      (should (some #{target} [[1 1] [1 2] [2 1]])))))

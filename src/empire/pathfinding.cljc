@@ -82,6 +82,43 @@
                    new-closed
                    new-best-g)))))))
 
+(defn- adjacent-to-unexplored?
+  "Returns true if any neighbor of pos on the computer-map is nil (unexplored)."
+  [pos computer-map]
+  (let [[x y] pos
+        height (count computer-map)
+        width (count (first computer-map))]
+    (some (fn [[dx dy]]
+            (let [nx (+ x dx)
+                  ny (+ y dy)]
+              (and (>= nx 0) (< nx height)
+                   (>= ny 0) (< ny width)
+                   (nil? (get-in computer-map [nx ny])))))
+          neighbor-offsets)))
+
+(defn find-nearest-unexplored
+  "BFS from start over passable cells to find nearest cell adjacent to unexplored.
+   Returns the target position, or nil if none found.
+   Skips the start position so the result is a meaningful movement target.
+   unit-type determines which cells are passable (e.g. :transport for sea,
+   :fighter for all terrain)."
+  [start unit-type]
+  (let [game-map @atoms/game-map
+        computer-map @atoms/computer-map]
+    (loop [queue (conj clojure.lang.PersistentQueue/EMPTY start)
+           visited #{start}]
+      (when (seq queue)
+        (let [current (peek queue)
+              rest-queue (pop queue)]
+          (if (and (not= current start)
+                   (adjacent-to-unexplored? current computer-map))
+            current
+            (let [neighbors (remove visited
+                                    (get-passable-neighbors current unit-type game-map))
+                  new-visited (into visited neighbors)
+                  new-queue (into rest-queue neighbors)]
+              (recur new-queue new-visited))))))))
+
 (defn next-step
   "Returns the next step toward goal, or nil if unreachable or already at goal.
    This is the main function computer.cljc will call.

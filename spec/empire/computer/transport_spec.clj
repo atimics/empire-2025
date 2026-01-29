@@ -21,7 +21,7 @@
       ;; Transport should have moved toward army (to [0 1])
       (should= :transport (get-in @atoms/game-map [0 1 :contents :type])))
 
-    (it "patrols near coast when no armies"
+    (it "stays put when loading with no armies and no unexplored territory"
       (reset! atoms/game-map [[{:type :sea :contents {:type :transport :owner :computer
                                                        :transport-mission :loading
                                                        :army-count 0}}
@@ -29,8 +29,36 @@
                                 {:type :land}]])
       (reset! atoms/computer-map @atoms/game-map)
       (transport/process-transport [0 0])
-      ;; Transport should have moved to [0 1]
-      (should= :transport (get-in @atoms/game-map [0 1 :contents :type]))))
+      ;; Transport should stay put - no armies, no unexplored territory
+      (should= :transport (get-in @atoms/game-map [0 0 :contents :type])))
+
+    (it "explores toward unexplored territory when no armies"
+      ;; 5x5 all-sea map. Transport at center, unexplored in SE corner.
+      (let [game-map (build-test-map ["~~~~~"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~~~~"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map (build-test-map ["~~~~~"
+                                                    "~~~~~"
+                                                    "~~~~~"
+                                                    "~~~~~"
+                                                    "~~~~-"]))
+        (swap! atoms/game-map assoc-in [2 2 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :loading :army-count 0})
+        (transport/process-transport [2 2])
+        ;; Transport should have moved
+        (should-be-nil (:contents (get-in @atoms/game-map [2 2])))
+        ;; Find where transport moved
+        (let [new-pos (first (for [r (range 5) c (range 5)
+                                   :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
+                               [r c]))]
+          ;; Should move toward SE (unexplored), not NW
+          (should-not= [1 1] new-pos)
+          (should (or (> (first new-pos) 2)
+                      (> (second new-pos) 2)))))))
 
   (describe "unloading behavior"
     (it "unloads armies onto adjacent land"
@@ -79,8 +107,8 @@
                                 {:type :land}]])
       (reset! atoms/computer-map @atoms/game-map)
       (transport/process-transport [0 0])
-      ;; Should be in loading mode
-      (let [transport (:contents (get-in @atoms/game-map [0 1]))]
+      ;; Should be in loading mode (stays put since no unexplored territory)
+      (let [transport (:contents (get-in @atoms/game-map [0 0]))]
         (should= :loading (:transport-mission transport)))))
 
   (describe "ignores non-computer transports"
@@ -175,8 +203,9 @@
             (should (pos? other-armies)))))))
 
   (describe "explore-sea fallback"
-    (it "transport explores sea when no cross-continent target exists"
-      ;; All visible cities on origin continent. Transport should explore sea.
+    (it "transport stays put when no target and no unexplored territory"
+      ;; All visible cities on origin continent. No unexplored territory.
+      ;; Transport should stay put per VMS behavior.
       (let [game-map (build-test-map ["O##"
                                       "#X#"
                                       "~~~"
@@ -189,13 +218,36 @@
                 :transport-mission :loading :army-count 6
                 :origin-continent-pos [0 1]})
         (transport/process-transport [3 1])
-        ;; Transport should have moved somewhere (explored sea)
+        ;; Transport should stay put - no unexplored territory
+        (should= :transport (get-in @atoms/game-map [3 1 :contents :type]))))
+
+    (it "transport explores toward unexplored sea when no cross-continent target"
+      ;; All visible cities on origin continent. Unexplored sea to south.
+      (let [game-map (build-test-map ["O##"
+                                      "#X#"
+                                      "~~~"
+                                      "~~~"
+                                      "~~~"])]
+        (reset! atoms/game-map game-map)
+        ;; Computer map has unexplored cells in bottom row
+        (reset! atoms/computer-map (build-test-map ["O##"
+                                                    "#X#"
+                                                    "~~~"
+                                                    "~~~"
+                                                    "~--"]))
+        (swap! atoms/game-map assoc-in [3 1 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :loading :army-count 6
+                :origin-continent-pos [0 1]})
+        (transport/process-transport [3 1])
+        ;; Transport should have moved toward unexplored
         (should-be-nil (:contents (get-in @atoms/game-map [3 1])))
-        (let [moved (some (fn [[r c]]
-                            (when (= :transport (get-in @atoms/game-map [r c :contents :type]))
-                              [r c]))
-                          [[2 0] [2 1] [2 2] [3 0] [3 2] [4 0] [4 1] [4 2]])]
-          (should-not-be-nil moved))))
+        (let [moved (first (for [r (range 5) c (range 3)
+                                 :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
+                             [r c]))]
+          (should-not-be-nil moved)
+          ;; Should move south toward unexplored, not north
+          (should (>= (first moved) 3)))))
 
     (it "transport does NOT unload on same continent"
       ;; Integration test: full transport near origin continent, only city on origin continent
@@ -296,4 +348,19 @@
         (let [origin-continent (continent/flood-fill-continent [0 0])
               ;; Transport at row 1 is closer to city at row 2 than row 7
               target (transport/find-unload-target origin-continent [1 1])]
-          (should= [2 0] target))))))
+          (should= [2 0] target)))))
+
+  (describe "find-unload-position bias fix"
+    (it "picks sea cell closest to transport, not NW-biased"
+      ;; Target city at [0,3]. Only row 1 has sea adjacent to land.
+      ;; Transport at [2,6] - closest candidate is [1,6] (distance 1), not [1,0].
+      (let [game-map (build-test-map ["###O###"
+                                      "~~~~~~~"
+                                      "~~~~~~~"])]
+        (reset! atoms/game-map game-map)
+        (swap! atoms/game-map assoc-in [2 6 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :unloading :army-count 6})
+        (let [result (#'empire.computer.transport/find-unload-position [0 3] nil [2 6])]
+          ;; Should pick [1,6] (distance 1) not [1,0] (distance 7)
+          (should= [1 6] result))))))

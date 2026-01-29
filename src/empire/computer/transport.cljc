@@ -50,16 +50,29 @@
   [pos]
   (map-utils/adjacent-to-land? pos atoms/game-map))
 
-(defn- find-unload-target
-  "Find an enemy city to unload armies near."
-  []
+(defn- find-adjacent-land-pos
+  "Returns the first adjacent land or city position, or nil."
+  [pos]
+  (let [game-map @atoms/game-map]
+    (first (filter (fn [n]
+                     (let [cell (get-in game-map n)]
+                       (and cell (#{:land :city} (:type cell)))))
+                   (core/get-neighbors pos)))))
+
+(defn find-unload-target
+  "Find an enemy city to unload armies near, excluding cities on origin continent."
+  [origin-continent]
   (let [player-cities (core/find-visible-cities #{:player})
-        free-cities (core/find-visible-cities #{:free})]
-    (first (concat player-cities free-cities))))
+        free-cities (core/find-visible-cities #{:free})
+        all-targets (concat player-cities free-cities)]
+    (if origin-continent
+      (first (remove #(contains? origin-continent %) all-targets))
+      (first all-targets))))
 
 (defn- find-unload-position
-  "Find a sea cell adjacent to land near the target city."
-  [target-city]
+  "Find a sea cell adjacent to land near the target city.
+   Excludes positions whose adjacent land is on the origin continent."
+  [target-city origin-continent]
   (let [game-map @atoms/game-map
         [tr tc] target-city]
     ;; Find sea cells within range that are adjacent to land
@@ -71,7 +84,10 @@
            :when (and cell
                       (= :sea (:type cell))
                       (adjacent-to-land? pos)
-                      (nil? (:contents cell)))]
+                      (nil? (:contents cell))
+                      (or (nil? origin-continent)
+                          (let [adj-land (find-adjacent-land-pos pos)]
+                            (not (contains? origin-continent adj-land)))))]
        pos))))
 
 (defn- move-toward-position
@@ -92,9 +108,20 @@
         (visibility/update-cell-visibility closest :computer)
         closest))))
 
-(defn- unload-armies
-  "Unload armies onto adjacent land. Returns true if any unloaded."
+(defn- explore-sea
+  "Move transport toward unexplored sea. Fallback when no cross-continent target exists."
   [pos]
+  (let [passable (get-passable-sea-neighbors pos)
+        frontier (filter core/adjacent-to-computer-unexplored? passable)]
+    (when-let [target (or (first frontier) (first passable))]
+      (core/move-unit-to pos target)
+      (visibility/update-cell-visibility pos :computer)
+      (visibility/update-cell-visibility target :computer)
+      target)))
+
+(defn unload-armies
+  "Unload armies onto adjacent land, excluding origin continent. Returns true if any unloaded."
+  [pos origin-continent]
   (let [transport (get-in @atoms/game-map (conj pos :contents))
         army-count (:army-count transport 0)]
     (when (pos? army-count)
@@ -102,7 +129,9 @@
                                      (let [cell (get-in @atoms/game-map neighbor)]
                                        (and cell
                                             (#{:land :city} (:type cell))
-                                            (nil? (:contents cell)))))
+                                            (nil? (:contents cell))
+                                            (or (nil? origin-continent)
+                                                (not (contains? origin-continent neighbor))))))
                                    (core/get-neighbors pos))
             to-unload (min army-count (count land-neighbors))]
         (when (pos? to-unload)
@@ -113,9 +142,10 @@
             (visibility/update-cell-visibility land-pos :computer))
           ;; Update transport army count
           (swap! atoms/game-map update-in (conj pos :contents :army-count) - to-unload)
-          ;; If fully unloaded, change mission to loading
+          ;; If fully unloaded, change mission to loading and clear origin
           (when (<= (- army-count to-unload) 0)
-            (swap! atoms/game-map assoc-in (conj pos :contents :transport-mission) :loading))
+            (swap! atoms/game-map assoc-in (conj pos :contents :transport-mission) :loading)
+            (swap! atoms/game-map update-in (conj pos :contents) dissoc :origin-continent-pos))
           true)))))
 
 (defn- set-transport-mission
@@ -123,10 +153,28 @@
   [pos mission]
   (swap! atoms/game-map assoc-in (conj pos :contents :transport-mission) mission))
 
+(defn- record-origin-continent-pos
+  "When transport becomes full, record the nearest adjacent land position
+   as the origin continent reference point."
+  [pos transport]
+  (when-not (:origin-continent-pos transport)
+    (when-let [land-pos (find-adjacent-land-pos pos)]
+      (swap! atoms/game-map assoc-in
+             (conj pos :contents :origin-continent-pos) land-pos))))
+
+(defn- move-toward-unload-or-explore
+  "Try to move toward a cross-continent unload target. If none, explore sea."
+  [pos origin-continent]
+  (if-let [target (find-unload-target origin-continent)]
+    (when-let [unload-pos (find-unload-position target origin-continent)]
+      (move-toward-position pos unload-pos))
+    (explore-sea pos)))
+
 (defn process-transport
   "Processes a transport unit using VMS Empire style logic.
    Loading: move toward armies, collect them
-   Unloading: move toward enemy cities, drop armies"
+   Unloading: move toward enemy cities on OTHER continents, drop armies
+   Returns nil after processing - transports only move once per round."
   [pos]
   (let [cell (get-in @atoms/game-map pos)
         transport (:contents cell)]
@@ -142,22 +190,18 @@
 
         (let [current-mission (or (:transport-mission transport) :loading)]
           (cond
-            ;; Full transport - go unload
+            ;; Full transport - go unload on a different continent
             (>= army-count 6)
             (do
               (set-transport-mission pos :unloading)
-              (if (adjacent-to-land? pos)
-                ;; Try to unload
-                (if (unload-armies pos)
-                  pos
-                  ;; Can't unload here, move to better spot
-                  (when-let [target (find-unload-target)]
-                    (when-let [unload-pos (find-unload-position target)]
-                      (move-toward-position pos unload-pos))))
-                ;; Move toward unload position
-                (when-let [target (find-unload-target)]
-                  (when-let [unload-pos (find-unload-position target)]
-                    (move-toward-position pos unload-pos)))))
+              (record-origin-continent-pos pos transport)
+              (let [updated-transport (get-in @atoms/game-map (conj pos :contents))
+                    origin-continent (when-let [ocp (:origin-continent-pos updated-transport)]
+                                      (continent/flood-fill-continent ocp))]
+                (if (adjacent-to-land? pos)
+                  (when-not (unload-armies pos origin-continent)
+                    (move-toward-unload-or-explore pos origin-continent))
+                  (move-toward-unload-or-explore pos origin-continent))))
 
             ;; Loading transport - go get armies
             (= current-mission :loading)
@@ -169,20 +213,16 @@
                 (when-let [target (or (first coastal) (first passable))]
                   (core/move-unit-to pos target)
                   (visibility/update-cell-visibility pos :computer)
-                  (visibility/update-cell-visibility target :computer)
-                  target)))
+                  (visibility/update-cell-visibility target :computer))))
 
-            ;; Unloading transport - continue to target
+            ;; Unloading transport - continue to target on different continent
             (= current-mission :unloading)
-            (if (adjacent-to-land? pos)
-              (if (unload-armies pos)
-                pos
-                ;; No valid unload spots, move to find more
-                (when-let [target (find-unload-target)]
-                  (when-let [unload-pos (find-unload-position target)]
-                    (move-toward-position pos unload-pos))))
-              (when-let [target (find-unload-target)]
-                (when-let [unload-pos (find-unload-position target)]
-                  (move-toward-position pos unload-pos))))
+            (let [origin-continent (when-let [ocp (:origin-continent-pos transport)]
+                                     (continent/flood-fill-continent ocp))]
+              (if (adjacent-to-land? pos)
+                (when-not (unload-armies pos origin-continent)
+                  (move-toward-unload-or-explore pos origin-continent))
+                (move-toward-unload-or-explore pos origin-continent)))
 
-            :else nil))))))
+            :else nil)))))
+  nil)

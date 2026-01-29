@@ -2,6 +2,7 @@
   "Tests for VMS Empire style computer transport movement."
   (:require [speclj.core :refer :all]
             [empire.computer.transport :as transport]
+            [empire.computer.continent :as continent]
             [empire.atoms :as atoms]
             [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
 
@@ -16,9 +17,9 @@
                                 {:type :sea}
                                 {:type :land :contents {:type :army :owner :computer}}]])
       (reset! atoms/computer-map @atoms/game-map)
-      (let [result (transport/process-transport [0 0])]
-        ;; Transport should move toward army (to [0 1])
-        (should= [0 1] result)))
+      (transport/process-transport [0 0])
+      ;; Transport should have moved toward army (to [0 1])
+      (should= :transport (get-in @atoms/game-map [0 1 :contents :type])))
 
     (it "patrols near coast when no armies"
       (reset! atoms/game-map [[{:type :sea :contents {:type :transport :owner :computer
@@ -27,9 +28,9 @@
                                 {:type :sea}
                                 {:type :land}]])
       (reset! atoms/computer-map @atoms/game-map)
-      (let [result (transport/process-transport [0 0])]
-        ;; Transport should move somewhere
-        (should= [0 1] result))))
+      (transport/process-transport [0 0])
+      ;; Transport should have moved to [0 1]
+      (should= :transport (get-in @atoms/game-map [0 1 :contents :type]))))
 
   (describe "unloading behavior"
     (it "unloads armies onto adjacent land"
@@ -64,11 +65,11 @@
                                 {:type :land}
                                 {:type :city :city-status :player}]])
       (reset! atoms/computer-map @atoms/game-map)
-      (let [result (transport/process-transport [0 0])]
-        ;; Transport should move toward enemy city
-        (should= [0 1] result)
-        ;; Mission should change to unloading
-        (should= :unloading (:transport-mission (:contents (get-in @atoms/game-map [0 1])))))))
+      (transport/process-transport [0 0])
+      ;; Transport should have moved toward enemy city
+      (should= :transport (get-in @atoms/game-map [0 1 :contents :type]))
+      ;; Mission should change to unloading
+      (should= :unloading (get-in @atoms/game-map [0 1 :contents :transport-mission]))))
 
   (describe "mission transitions"
     (it "sets idle transport to loading"
@@ -90,4 +91,130 @@
 
     (it "returns nil for empty cell"
       (reset! atoms/game-map [[{:type :sea}]])
-      (should-be-nil (transport/process-transport [0 0])))))
+      (should-be-nil (transport/process-transport [0 0]))))
+
+  (describe "origin continent tracking"
+    (it "records origin-continent-pos when transport becomes full"
+      ;; Transport at [1,1] (sea) adjacent to land at [0,0..2]
+      ;; Player city on separate continent at [4,1]
+      (let [game-map (build-test-map ["###"
+                                      "~t~"
+                                      "~~~"
+                                      "~~~"
+                                      "~O~"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (swap! atoms/game-map assoc-in [1 1 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :loading :army-count 6})
+        (transport/process-transport [1 1])
+        ;; Transport may have moved; find it
+        (let [t (some (fn [[r c]]
+                        (let [contents (get-in @atoms/game-map [r c :contents])]
+                          (when (= :transport (:type contents)) contents)))
+                      (for [r (range 5) c (range 3)] [r c]))]
+          (should-not-be-nil (:origin-continent-pos t)))))
+
+    (it "clears origin-continent-pos after full unload"
+      (let [game-map (build-test-map ["#~"
+                                      "~t"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (swap! atoms/game-map assoc-in [1 1 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :unloading :army-count 1
+                :origin-continent-pos [5 5]})
+        (transport/process-transport [1 1])
+        (should= :army (:type (:contents (get-in @atoms/game-map [0 0]))))
+        (let [transport (:contents (get-in @atoms/game-map [1 1]))]
+          (should= :loading (:transport-mission transport))
+          (should-be-nil (:origin-continent-pos transport))))))
+
+  (describe "continent-aware unloading"
+    (it "find-unload-target excludes origin continent cities"
+      ;; Two continents separated by sea. Each has a player city.
+      ;; Origin continent A (rows 0-1), continent B (rows 4-5)
+      (let [game-map (build-test-map ["O##"
+                                      "###"
+                                      "~~~"
+                                      "~~~"
+                                      "###"
+                                      "O##"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (let [origin-continent (continent/flood-fill-continent [0 0])
+              target (transport/find-unload-target origin-continent)]
+          ;; Should return the city on continent B, not continent A
+          (should-not-be-nil target)
+          (should= [5 0] target))))
+
+    (it "unload-armies skips origin continent land"
+      ;; Transport at [1,1] in 1-wide sea channel between two continents
+      ;; Left continent (col 0), right continent (col 2)
+      (let [game-map (build-test-map ["#~#"
+                                      "#t#"
+                                      "#~#"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (swap! atoms/game-map assoc-in [1 1 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :unloading :army-count 2
+                :origin-continent-pos [0 0]})
+        (let [origin-continent (continent/flood-fill-continent [0 0])]
+          (transport/unload-armies [1 1] origin-continent)
+          ;; Armies should NOT appear on origin continent (col 0)
+          (let [origin-armies (count (for [r (range 3)
+                                          :let [cell (get-in @atoms/game-map [r 0])]
+                                          :when (= :army (:type (:contents cell)))]
+                                      true))
+                other-armies (count (for [r (range 3)
+                                         :let [cell (get-in @atoms/game-map [r 2])]
+                                         :when (= :army (:type (:contents cell)))]
+                                     true))]
+            (should= 0 origin-armies)
+            (should (pos? other-armies)))))))
+
+  (describe "explore-sea fallback"
+    (it "transport explores sea when no cross-continent target exists"
+      ;; All visible cities on origin continent. Transport should explore sea.
+      (let [game-map (build-test-map ["O##"
+                                      "#X#"
+                                      "~~~"
+                                      "~t~"
+                                      "~~~"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (swap! atoms/game-map assoc-in [3 1 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :loading :army-count 6
+                :origin-continent-pos [0 1]})
+        (transport/process-transport [3 1])
+        ;; Transport should have moved somewhere (explored sea)
+        (should-be-nil (:contents (get-in @atoms/game-map [3 1])))
+        (let [moved (some (fn [[r c]]
+                            (when (= :transport (get-in @atoms/game-map [r c :contents :type]))
+                              [r c]))
+                          [[2 0] [2 1] [2 2] [3 0] [3 2] [4 0] [4 1] [4 2]])]
+          (should-not-be-nil moved))))
+
+    (it "transport does NOT unload on same continent"
+      ;; Integration test: full transport near origin continent, only city on origin continent
+      ;; Transport should NOT unload, should explore instead
+      (let [game-map (build-test-map ["O##"
+                                      "###"
+                                      "~t~"
+                                      "~~~"
+                                      "~~~"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (swap! atoms/game-map assoc-in [2 1 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :loading :army-count 6
+                :origin-continent-pos [0 1]})
+        (transport/process-transport [2 1])
+        ;; No armies should be unloaded onto the origin continent
+        (let [armies-on-land (count (for [r (range 2) c (range 3)
+                                         :let [cell (get-in @atoms/game-map [r c])]
+                                         :when (= :army (:type (:contents cell)))]
+                                     true))]
+          (should= 0 armies-on-land))))))

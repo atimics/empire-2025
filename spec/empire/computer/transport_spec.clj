@@ -366,38 +366,68 @@
           (should= [1 6] result)))))
 
   (describe "global BFS unload (VMS-consistent)"
-    (it "transport finds unload position far from any city via global BFS"
-      ;; Origin continent at row 0. Target land at row 6 with no city nearby.
-      ;; Player city far away at row 10. Old ±3 search would fail; global BFS succeeds.
-      (let [game-map (build-test-map ["X##"
-                                      "###"
-                                      "~~~"
-                                      "~~~"
-                                      "~~~"
-                                      "~~~"
-                                      "###"
-                                      "###"
-                                      "~~~"
-                                      "~~~"
-                                      "O##"
-                                      "###"])]
+    (it "transport targets continent with enemy city via global BFS"
+      ;; Origin continent at row 0 (computer). Row 6 land has NO city.
+      ;; Player city at row 10 - transport should target row 10's continent.
+      ;; Map is 5 cols wide so sea channels exist around intermediate land.
+      (let [game-map (build-test-map ["X##~~"
+                                      "###~~"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~###"
+                                      "~~###"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~O##"
+                                      "~~###"])]
         (reset! atoms/game-map game-map)
         (reset! atoms/computer-map game-map)
-        (swap! atoms/game-map assoc-in [3 1 :contents]
+        (swap! atoms/game-map assoc-in [3 2 :contents]
                {:type :transport :owner :computer
                 :transport-mission :unloading :army-count 6
                 :origin-continent-pos [0 1]})
-        (transport/process-transport [3 1])
+        (transport/process-transport [3 2])
         ;; Transport should have moved (not stuck)
-        (let [transport-pos (first (for [r (range 12) c (range 3)
+        (let [transport-pos (first (for [r (range 12) c (range 5)
                                         :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
                                     [r c]))]
           (should-not-be-nil transport-pos)
-          ;; Should have moved toward the nearest off-continent land (row 6)
-          (should-not= [3 1] transport-pos))))
+          (should-not= [3 2] transport-pos))))
 
-    (it "transport explores when no off-continent land reachable"
-      ;; Only origin continent exists. No off-continent land at all.
+    (it "transport ignores continent with only computer cities"
+      ;; Origin at row 0. Computer city at row 6 (shifted right). Player city at row 10.
+      ;; Transport should head toward row 10 (player), not row 6 (computer).
+      ;; Extra sea rows ensure transport isn't adjacent to computer city land.
+      (let [game-map (build-test-map ["X##~~"
+                                      "###~~"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~~X#"
+                                      "~~~##"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~O##"
+                                      "~~###"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (swap! atoms/game-map assoc-in [3 2 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :unloading :army-count 6
+                :origin-continent-pos [0 1]})
+        (transport/process-transport [3 2])
+        (let [transport-pos (first (for [r (range 12) c (range 5)
+                                        :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
+                                    [r c]))]
+          (should-not-be-nil transport-pos)
+          ;; Should move south toward player city (row 10), not stay near computer city (row 6)
+          (should (> (first transport-pos) 3)))))
+
+    (it "transport explores when no enemy cities visible"
+      ;; Only origin continent and computer cities exist. No player/free cities.
       ;; Transport should fall back to explore-sea.
       (let [game-map (build-test-map ["X##"
                                       "###"
@@ -421,5 +451,4 @@
                                         :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
                                     [r c]))]
           (should-not-be-nil transport-pos)
-          ;; Should have moved toward unexplored territory
           (should-not= [2 1] transport-pos))))))

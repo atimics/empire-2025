@@ -183,11 +183,14 @@
              (conj pos :contents :origin-continent-pos) land-pos))))
 
 (defn- move-toward-unload-or-explore
-  "Try to move toward a cross-continent unload position via global BFS.
-   Falls back to explore-sea if no off-continent land is reachable."
+  "Pick an enemy/free city off the origin continent, then BFS for the nearest
+   sea cell adjacent to that city's continent. Falls back to explore-sea."
   [pos origin-continent]
-  (if-let [unload-pos (pathfinding/find-nearest-unload-position pos origin-continent)]
-    (move-toward-position pos unload-pos)
+  (if-let [target-city (find-unload-target origin-continent pos)]
+    (let [target-continent (continent/flood-fill-continent target-city)]
+      (if-let [unload-pos (pathfinding/find-nearest-unload-position pos target-continent)]
+        (move-toward-position pos unload-pos)
+        (explore-sea pos)))
     (explore-sea pos)))
 
 (defn process-transport

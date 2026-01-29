@@ -256,42 +256,41 @@
 (describe "find-nearest-unload-position"
   (before (reset-all-atoms!))
 
-  (it "finds nearest sea cell adjacent to off-continent land"
+  (it "finds nearest sea cell adjacent to target-continent land"
     ;; Two continents separated by sea
-    ;; Origin continent at rows 0-1, target continent at rows 4-5
+    ;; Target continent at rows 4-5
     (reset! atoms/game-map (build-test-map ["###"
                                             "###"
                                             "~~~"
                                             "~~~"
                                             "###"
                                             "###"]))
-    (let [origin-continent #{[0 0] [0 1] [0 2] [1 0] [1 1] [1 2]}
-          result (pathfinding/find-nearest-unload-position [2 1] origin-continent)]
+    (let [target-continent #{[4 0] [4 1] [4 2] [5 0] [5 1] [5 2]}
+          result (pathfinding/find-nearest-unload-position [2 1] target-continent)]
       ;; Should find a sea cell in row 3 adjacent to land in row 4
       (should-not-be-nil result)
       (should= 3 (first result))))
 
-  (it "returns nil when no off-continent land exists"
-    ;; Only one continent, all land is origin continent
+  (it "returns nil when target-continent land is unreachable"
+    ;; Target continent positions don't exist near any reachable sea
     (reset! atoms/game-map (build-test-map ["###"
                                             "~~~"
                                             "~~~"]))
-    (let [origin-continent #{[0 0] [0 1] [0 2]}
-          result (pathfinding/find-nearest-unload-position [1 1] origin-continent)]
+    (let [target-continent #{[10 10] [10 11]}
+          result (pathfinding/find-nearest-unload-position [1 1] target-continent)]
       (should-be-nil result)))
 
-  (it "skips sea cells adjacent only to origin continent"
-    ;; Transport between two continents, origin on top
-    ;; Row 1 sea is adjacent to origin continent - should skip
-    ;; Row 3 sea is adjacent to target continent - should find
+  (it "ignores non-target-continent land"
+    ;; Two landmasses: row 0 and row 4. Only row 4 is target.
+    ;; BFS should skip row 1 sea (adjacent to non-target row 0 land)
+    ;; and find row 3 sea (adjacent to target row 4 land).
     (reset! atoms/game-map (build-test-map ["###"
                                             "~~~"
                                             "~~~"
                                             "~~~"
                                             "###"]))
-    (let [origin-continent #{[0 0] [0 1] [0 2]}
-          result (pathfinding/find-nearest-unload-position [1 1] origin-continent)]
-      ;; Should find a cell in row 3 (adjacent to target continent at row 4)
+    (let [target-continent #{[4 0] [4 1] [4 2]}
+          result (pathfinding/find-nearest-unload-position [1 1] target-continent)]
       (should-not-be-nil result)
       (should= 3 (first result))))
 
@@ -302,36 +301,28 @@
                                             "~~~"
                                             "~d~"
                                             "###"]))
-    (let [origin-continent #{[0 0] [0 1] [0 2]}
-          result (pathfinding/find-nearest-unload-position [2 1] origin-continent)]
+    (let [target-continent #{[4 0] [4 1] [4 2]}
+          result (pathfinding/find-nearest-unload-position [2 1] target-continent)]
       ;; Should skip [3,1] (occupied) and find [3,0] or [3,2]
       (should-not-be-nil result)
       (should= 3 (first result))
       (should-not= [3 1] result)))
 
-  (it "finds globally nearest unload position (not limited to ±3 of a city)"
-    ;; City far from transport, but there's reachable off-continent land nearby
-    ;; Origin continent at row 0, target land at row 4, city at row 8
-    (reset! atoms/game-map (build-test-map ["###"
+  (it "finds globally nearest position on target continent"
+    ;; Target continent connected land at rows 4 and 8 (same continent via land).
+    ;; Transport at row 2 - should find row 3 (nearest to row 4 target land).
+    (reset! atoms/game-map (build-test-map ["~~~"
                                             "~~~"
                                             "~~~"
                                             "~~~"
+                                            "O##"
                                             "###"
-                                            "~~~"
-                                            "~~~"
-                                            "~~~"
-                                            "O##"]))
-    (let [origin-continent #{[0 0] [0 1] [0 2]}
-          result (pathfinding/find-nearest-unload-position [2 1] origin-continent)]
-      ;; Should find sea adjacent to row 4 land (much closer than row 8 city)
+                                            "###"
+                                            "###"
+                                            "###"]))
+    (let [target-continent #{[4 0] [4 1] [4 2] [5 0] [5 1] [5 2]
+                             [6 0] [6 1] [6 2] [7 0] [7 1] [7 2]
+                             [8 0] [8 1] [8 2]}
+          result (pathfinding/find-nearest-unload-position [2 1] target-continent)]
       (should-not-be-nil result)
-      (should= 3 (first result))))
-
-  (it "works with nil origin-continent (any land qualifies)"
-    (reset! atoms/game-map (build-test-map ["###"
-                                            "~~~"
-                                            "~~~"]))
-    (let [result (pathfinding/find-nearest-unload-position [2 1] nil)]
-      ;; With nil origin, any adjacent land qualifies
-      (should-not-be-nil result)
-      (should= 1 (first result)))))
+      (should= 3 (first result)))))

@@ -240,6 +240,23 @@
     ;; No other sea cells to explore toward
     (should-be-nil (pathfinding/find-nearest-unexplored [0 1] :transport)))
 
+  (it "detects {:type :unexplored} cells as unexplored (real game format)"
+    ;; In the actual game, computer-map cells are {:type :unexplored},
+    ;; not nil as in test maps built with build-test-map.
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                            "~~~"
+                                            "~~~"]))
+    (let [computer-map (vec (for [r (range 3)]
+                              (vec (for [c (range 3)]
+                                     (if (and (= r 2) (= c 2))
+                                       {:type :unexplored}
+                                       {:type :sea})))))]
+      (reset! atoms/computer-map computer-map)
+      (let [target (pathfinding/find-nearest-unexplored [0 0] :transport)]
+        (should-not-be-nil target)
+        ;; Target should be adjacent to the unexplored cell [2,2]
+        (should (some #{target} [[1 1] [1 2] [2 1]])))))
+
   (it "works with fighter unit type over all terrain"
     ;; Fighter can traverse land and sea
     (reset! atoms/game-map (build-test-map ["##~"

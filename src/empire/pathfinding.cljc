@@ -83,7 +83,8 @@
                    new-best-g)))))))
 
 (defn- adjacent-to-unexplored?
-  "Returns true if any neighbor of pos on the computer-map is nil (unexplored)."
+  "Returns true if any neighbor of pos on the computer-map is unexplored.
+   Handles both nil (test maps) and {:type :unexplored} (real game)."
   [pos computer-map]
   (let [[x y] pos
         height (count computer-map)
@@ -93,7 +94,9 @@
                   ny (+ y dy)]
               (and (>= nx 0) (< nx height)
                    (>= ny 0) (< ny width)
-                   (nil? (get-in computer-map [nx ny])))))
+                   (let [cell (get-in computer-map [nx ny])]
+                     (or (nil? cell)
+                         (= :unexplored (:type cell)))))))
           neighbor-offsets)))
 
 (defn find-nearest-unexplored

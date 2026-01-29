@@ -107,6 +107,17 @@
       (pos? (:free-cities continent-counts 0))
       (pos? (:player-cities continent-counts 0))))
 
+(defn find-all-objectives-on-continent
+  "Returns all attackable cities and unexplored cells on the continent."
+  [continent-positions]
+  (let [comp-map @atoms/computer-map]
+    (filter (fn [pos]
+              (let [cell (get-in comp-map pos)]
+                (or (nil? cell)
+                    (and (= :city (:type cell))
+                         (#{:free :player} (:city-status cell))))))
+            continent-positions)))
+
 (defn find-nearest-on-continent
   "Find the nearest position on the continent matching the predicate."
   [start-pos continent-positions pred]

@@ -43,15 +43,16 @@
       (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer}}
                                 {:type :land}
                                 {:type :land}]])
-      (let [result (army/process-army [0 0])]
-        ;; Army should have moved toward unexplored
-        (should= [0 1] result)))
+      (army/process-army [0 0])
+      ;; Army should have moved toward unexplored
+      (should= :army (get-in @atoms/game-map [0 1 :contents :type])))
 
     (it "moves toward free city on same continent"
       (reset! atoms/game-map (build-test-map ["a#+"]))
       (reset! atoms/computer-map (build-test-map ["a#+"]))
-      (let [result (army/process-army [0 0])]
-        (should= [0 1] result))))
+      (army/process-army [0 0])
+      ;; Army should have moved toward free city
+      (should= :army (get-in @atoms/game-map [0 1 :contents :type]))))
 
   (describe "transport boarding behavior"
     (it "boards adjacent loading transport"
@@ -75,9 +76,9 @@
                                                         :transport-mission :loading
                                                         :army-count 0}}]])
       (reset! atoms/computer-map @atoms/game-map)
-      (let [result (army/process-army [0 0])]
-        ;; Army should move toward transport (to [0 1])
-        (should= [0 1] result))))
+      (army/process-army [0 0])
+      ;; Army should have moved toward transport (to [0 1])
+      (should= :army (get-in @atoms/game-map [0 1 :contents :type]))))
 
   (describe "exploration behavior"
     (it "explores when nothing else to do"
@@ -95,6 +96,61 @@
       (reset! atoms/computer-map @atoms/game-map)
       (let [result (army/process-army [1 1])]
         (should-be-nil result))))
+
+  (describe "objective distribution"
+    (it "two armies on same continent target different free cities"
+      ;; Map layout (5 cols):
+      ;; Row 0: a # # # a    (armies at [0 0] and [0 4])
+      ;; Row 1: # # # # #    (land buffer)
+      ;; Row 2: + # # # +    (free cities at [2 0] and [2 4])
+      ;; Cities are not adjacent to armies, so find-land-objective is used
+      (let [land {:type :land}
+            army-cell (fn [] {:type :land :contents {:type :army :owner :computer}})
+            free-city {:type :city :city-status :free}]
+        (reset! atoms/game-map [[(army-cell) land land land (army-cell)]
+                                 [land land land land land]
+                                 [free-city land land land free-city]])
+        (reset! atoms/computer-map @atoms/game-map)
+        (reset! atoms/claimed-objectives #{})
+        ;; Process first army at [0 0] - should claim nearest city [2 0]
+        (army/process-army [0 0])
+        (should= #{[2 0]} @atoms/claimed-objectives)
+        ;; Reset game-map for second army (first has moved)
+        (reset! atoms/game-map [[land land land land (army-cell)]
+                                 [land land land land land]
+                                 [free-city land land land free-city]])
+        (reset! atoms/computer-map @atoms/game-map)
+        ;; Process second army at [0 4] - [2 4] is nearest, [2 0] is claimed
+        ;; Should claim [2 4] (unclaimed) not [2 0] (already claimed)
+        (army/process-army [0 4])
+        (should= #{[2 0] [2 4]} @atoms/claimed-objectives)))
+
+    (it "armies double up when all objectives claimed"
+      ;; One free city at [2 0], two armies far enough away to not be adjacent
+      (let [land {:type :land}
+            army-cell (fn [] {:type :land :contents {:type :army :owner :computer}})
+            free-city {:type :city :city-status :free}]
+        (reset! atoms/game-map [[(army-cell) land land]
+                                 [land land land]
+                                 [free-city land land]])
+        (reset! atoms/computer-map @atoms/game-map)
+        (reset! atoms/claimed-objectives #{})
+        ;; First army claims the city
+        (army/process-army [0 0])
+        (should= #{[2 0]} @atoms/claimed-objectives)
+        ;; Second army - all objectives claimed, should still target [2 0]
+        (reset! atoms/game-map [[land land (army-cell)]
+                                 [land land land]
+                                 [free-city land land]])
+        (reset! atoms/computer-map @atoms/game-map)
+        (army/process-army [0 2])
+        (should (contains? @atoms/claimed-objectives [2 0]))))
+
+    (it "claimed objectives reset between rounds"
+      (reset! atoms/claimed-objectives #{[1 0] [1 2]})
+      (should= #{[1 0] [1 2]} @atoms/claimed-objectives)
+      (reset! atoms/claimed-objectives #{})
+      (should= #{} @atoms/claimed-objectives)))
 
   (describe "ignores non-computer units"
     (it "returns nil for player army"

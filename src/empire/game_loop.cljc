@@ -5,6 +5,7 @@
             [empire.computer.production :as computer-production]
             [empire.config :as config]
             [empire.containers.ops :as container-ops]
+            [empire.move-log :as move-log]
             [empire.movement.coastline :as coastline]
             [empire.movement.explore :as explore]
             [empire.movement.movement :as movement]
@@ -289,6 +290,7 @@
   "Starts a new round by building player and computer items lists and updating game state."
   []
   (swap! atoms/round-number inc)
+  (move-log/log-round! @atoms/round-number)
   (pathfinding/clear-path-cache)
   (move-satellites)
   (consume-sentry-fighter-fuel)
@@ -299,6 +301,7 @@
   (reset-steps-remaining)
   (wake-airport-fighters)
   ;; Carrier fighters stay asleep until 'u' is pressed - do not auto-wake at round start
+  (reset! atoms/claimed-objectives #{})
   (reset! atoms/player-items (vec (build-player-items)))
   (reset! atoms/computer-items (vec (build-computer-items)))
   (reset! atoms/waiting-for-input false)

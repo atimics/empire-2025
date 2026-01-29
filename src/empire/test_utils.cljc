@@ -160,4 +160,5 @@
   (reset! atoms/reserved-beaches {})
   (reset! atoms/used-unloading-beaches #{})
   (reset! atoms/beach-army-orders {})
+  (reset! atoms/claimed-objectives #{})
   (pathfinding/clear-path-cache))

@@ -18,6 +18,15 @@
                      (#{:land :city} (:type cell)))))
             (core/get-neighbors pos))))
 
+(defn- get-empty-passable-neighbors
+  "Returns passable land neighbors with no unit occupying them."
+  [pos]
+  (let [game-map @atoms/game-map]
+    (filter (fn [neighbor]
+              (let [cell (get-in game-map neighbor)]
+                (nil? (:contents cell))))
+            (get-passable-neighbors pos))))
+
 (defn- find-adjacent-enemy
   "Finds an adjacent enemy unit or city to attack."
   [pos]
@@ -58,30 +67,38 @@
       :else nil)))
 
 (defn- find-land-objective
-  "Find a land objective (unexplored, free city, or player city) on same continent."
+  "Find a land objective not already claimed by another army.
+   VMS-style: distributes armies across different targets."
   [pos]
-  (let [cont-positions (continent/flood-fill-continent pos)]
-    (or (continent/find-free-city-on-continent pos cont-positions)
-        (continent/find-player-city-on-continent pos cont-positions)
-        (continent/find-unexplored-on-continent pos cont-positions))))
+  (let [cont-positions (continent/flood-fill-continent pos)
+        all-objectives (continent/find-all-objectives-on-continent cont-positions)]
+    (when (seq all-objectives)
+      (let [claimed @atoms/claimed-objectives
+            unclaimed (remove claimed all-objectives)
+            candidates (if (seq unclaimed) unclaimed all-objectives)
+            nearest (apply min-key #(core/distance pos %) candidates)]
+        (swap! atoms/claimed-objectives conj nearest)
+        nearest))))
+
+(defn- try-move
+  "Attempt to move army from pos to target. Returns target if moved, nil if blocked."
+  [pos target]
+  (when (core/move-unit-to pos target)
+    (visibility/update-cell-visibility pos :computer)
+    (visibility/update-cell-visibility target :computer)
+    target))
 
 (defn- move-toward-objective
-  "Move army one step toward objective. Returns new position."
+  "Move army one step toward objective. If preferred step is occupied,
+   try other empty neighbors sorted by distance to objective."
   [pos objective]
-  (if-let [next-step (pathfinding/next-step pos objective :army)]
-    (do
-      (core/move-unit-to pos next-step)
-      (visibility/update-cell-visibility pos :computer)
-      (visibility/update-cell-visibility next-step :computer)
-      next-step)
-    ;; No path - try direct movement
-    (let [passable (get-passable-neighbors pos)
-          closest (core/move-toward pos objective passable)]
-      (when closest
-        (core/move-unit-to pos closest)
-        (visibility/update-cell-visibility pos :computer)
-        (visibility/update-cell-visibility closest :computer)
-        closest))))
+  (let [preferred (pathfinding/next-step pos objective :army)]
+    (or (when preferred (try-move pos preferred))
+        ;; Preferred blocked or no path - try empty neighbors closest to objective
+        (let [empty-neighbors (get-empty-passable-neighbors pos)]
+          (when (seq empty-neighbors)
+            (let [sorted (sort-by #(core/distance % objective) empty-neighbors)]
+              (try-move pos (first sorted))))))))
 
 (defn- find-and-board-transport
   "Look for a loading transport and move toward/board it."
@@ -97,20 +114,20 @@
       (move-toward-objective pos transport-pos))))
 
 (defn- explore-randomly
-  "Move toward any unexplored territory adjacent to computer's explored area."
+  "Move toward any unexplored territory adjacent to computer's explored area.
+   Only considers empty cells. Randomizes to avoid all armies picking the same cell."
   [pos]
-  (let [passable (get-passable-neighbors pos)
-        ;; Prefer cells adjacent to unexplored
-        frontier (filter core/adjacent-to-computer-unexplored? passable)]
-    (when-let [target (or (first frontier) (first passable))]
-      (core/move-unit-to pos target)
-      (visibility/update-cell-visibility pos :computer)
-      (visibility/update-cell-visibility target :computer)
-      target)))
+  (let [empty (get-empty-passable-neighbors pos)
+        frontier (filter core/adjacent-to-computer-unexplored? empty)]
+    (when-let [target (if (seq frontier)
+                        (rand-nth frontier)
+                        (when (seq empty) (rand-nth empty)))]
+      (try-move pos target))))
 
 (defn process-army
   "Processes a computer army's turn using VMS Empire style logic.
-   Priority: Attack adjacent > Land objective > Board transport > Explore"
+   Priority: Attack adjacent > Land objective > Board transport > Explore
+   Returns nil after processing - armies only move once per round."
   [pos]
   (let [cell (get-in @atoms/game-map pos)
         unit (:contents cell)]
@@ -128,4 +145,5 @@
             (find-and-board-transport pos)
 
             ;; Priority 4: Explore randomly
-            (explore-randomly pos)))))))
+            (explore-randomly pos)))))
+    nil))

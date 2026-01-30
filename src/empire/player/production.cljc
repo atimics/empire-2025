@@ -43,7 +43,7 @@
     (assoc :turns-remaining config/satellite-turns)
 
     (= item :transport)
-    (assoc :transport-mission :idle :origin-beach nil)
+    (assoc :transport-mission :idle)
 
     (and (= item :transport) (= owner :computer))
     (assoc :transport-id (let [id @atoms/next-transport-id]

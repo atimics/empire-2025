@@ -35,13 +35,13 @@
       [i j])))
 
 (defn- find-nearest-army
-  "Find the nearest army to the transport. When origin-continent is provided,
+  "Find the nearest army to the transport. When pickup-continent is provided,
    only considers armies on that continent (so the transport doesn't re-load
    armies it just dropped off on an enemy continent)."
-  [transport-pos origin-continent]
+  [transport-pos pickup-continent]
   (let [armies (find-armies-to-load)
-        candidates (if origin-continent
-                     (filter #(contains? origin-continent %) armies)
+        candidates (if pickup-continent
+                     (filter #(contains? pickup-continent %) armies)
                      armies)]
     (when (seq candidates)
       (apply min-key
@@ -79,14 +79,14 @@
     (* dist continent-factor presence-penalty)))
 
 (defn find-unload-target
-  "Find best enemy city to unload near, excluding origin continent.
+  "Find best enemy city to unload near, excluding pickup continent.
    Prefers unclaimed targets to spread transports."
-  [origin-continent transport-pos]
+  [pickup-continent transport-pos]
   (let [player-cities (core/find-visible-cities #{:player})
         free-cities (core/find-visible-cities #{:free})
         all-targets (concat player-cities free-cities)
-        off-continent (if origin-continent
-                        (remove #(contains? origin-continent %) all-targets)
+        off-continent (if pickup-continent
+                        (remove #(contains? pickup-continent %) all-targets)
                         all-targets)]
     (when (seq off-continent)
       (let [claimed @atoms/claimed-transport-targets
@@ -101,8 +101,8 @@
 
 (defn- find-unload-position
   "Find a sea cell adjacent to land near the target city, closest to transport.
-   Excludes positions whose adjacent land is on the origin continent."
-  [target-city origin-continent transport-pos]
+   Excludes positions whose adjacent land is on the pickup continent."
+  [target-city pickup-continent transport-pos]
   (let [game-map @atoms/game-map
         [tr tc] target-city
         candidates (for [dr (range -3 4)
@@ -113,9 +113,9 @@
                                     (= :sea (:type cell))
                                     (adjacent-to-land? pos)
                                     (nil? (:contents cell))
-                                    (or (nil? origin-continent)
+                                    (or (nil? pickup-continent)
                                         (let [adj-land (find-adjacent-land-pos pos)]
-                                          (not (contains? origin-continent adj-land)))))]
+                                          (not (contains? pickup-continent adj-land)))))]
                      pos)]
     (when (seq candidates)
       (apply min-key #(core/distance transport-pos %) candidates))))
@@ -144,9 +144,48 @@
   (when-let [target (pathfinding/find-nearest-unexplored pos :transport)]
     (move-toward-position pos target)))
 
+(defn- find-next-pickup-continent-pos
+  "After unloading, find the nearest continent with >3 computer armies,
+   excluding the current unload continent. Returns an army position on
+   that continent, or nil if none qualifies."
+  [transport-pos current-continent]
+  (let [game-map @atoms/game-map
+        all-armies (for [i (range (count game-map))
+                         j (range (count (first game-map)))
+                         :let [cell (get-in game-map [i j])
+                               unit (:contents cell)]
+                         :when (and unit
+                                    (= :computer (:owner unit))
+                                    (= :army (:type unit))
+                                    (or (nil? current-continent)
+                                        (not (contains? current-continent [i j]))))]
+                     [i j])]
+    ;; Group armies by continent, avoiding redundant flood-fills
+    (loop [remaining all-armies
+           seen #{}
+           continents []]
+      (if (empty? remaining)
+        ;; Find nearest qualifying continent (>3 armies)
+        (let [qualifying (filter #(> (count (:armies %)) 3) continents)]
+          (when (seq qualifying)
+            (let [best (apply min-key
+                              (fn [{:keys [armies]}]
+                                (apply min (map #(core/distance transport-pos %) armies)))
+                              qualifying)]
+              ;; Return the nearest army position from the best continent
+              (apply min-key #(core/distance transport-pos %) (:armies best)))))
+        (let [army-pos (first remaining)]
+          (if (contains? seen army-pos)
+            (recur (rest remaining) seen continents)
+            (let [cont (continent/flood-fill-continent army-pos)
+                  cont-armies (filter #(contains? cont %) all-armies)]
+              (recur (rest remaining)
+                     (into seen cont)
+                     (conj continents {:continent cont :armies cont-armies})))))))))
+
 (defn unload-armies
-  "Unload armies onto adjacent land, excluding origin continent. Returns true if any unloaded."
-  [pos origin-continent]
+  "Unload armies onto adjacent land, excluding pickup continent. Returns true if any unloaded."
+  [pos pickup-continent]
   (let [transport (get-in @atoms/game-map (conj pos :contents))
         army-count (:army-count transport 0)]
     (when (pos? army-count)
@@ -155,8 +194,8 @@
                                        (and cell
                                             (#{:land :city} (:type cell))
                                             (nil? (:contents cell))
-                                            (or (nil? origin-continent)
-                                                (not (contains? origin-continent neighbor))))))
+                                            (or (nil? pickup-continent)
+                                                (not (contains? pickup-continent neighbor))))))
                                    (core/get-neighbors pos))
             to-unload (min army-count (count land-neighbors))]
         (when (pos? to-unload)
@@ -167,10 +206,14 @@
             (visibility/update-cell-visibility land-pos :computer))
           ;; Update transport army count
           (swap! atoms/game-map update-in (conj pos :contents :army-count) - to-unload)
-          ;; If fully unloaded, change mission to loading (keep origin-continent-pos
-          ;; so the transport returns to its home continent for more armies)
+          ;; If fully unloaded, change mission to loading and update pickup continent
           (when (<= (- army-count to-unload) 0)
-            (swap! atoms/game-map assoc-in (conj pos :contents :transport-mission) :loading))
+            (swap! atoms/game-map assoc-in (conj pos :contents :transport-mission) :loading)
+            (let [current-continent (when-let [land-pos (find-adjacent-land-pos pos)]
+                                     (continent/flood-fill-continent land-pos))
+                  next-pickup (find-next-pickup-continent-pos pos current-continent)]
+              (swap! atoms/game-map assoc-in
+                     (conj pos :contents :pickup-continent-pos) next-pickup)))
           true)))))
 
 (defn- set-transport-mission
@@ -178,20 +221,20 @@
   [pos mission]
   (swap! atoms/game-map assoc-in (conj pos :contents :transport-mission) mission))
 
-(defn- record-origin-continent-pos
+(defn- record-pickup-continent-pos
   "When transport becomes full, record the nearest adjacent land position
-   as the origin continent reference point."
+   as the pickup continent reference point."
   [pos transport]
-  (when-not (:origin-continent-pos transport)
+  (when-not (:pickup-continent-pos transport)
     (when-let [land-pos (find-adjacent-land-pos pos)]
       (swap! atoms/game-map assoc-in
-             (conj pos :contents :origin-continent-pos) land-pos))))
+             (conj pos :contents :pickup-continent-pos) land-pos))))
 
 (defn- move-toward-unload-or-explore
-  "Pick an enemy/free city off the origin continent, then BFS for the nearest
+  "Pick an enemy/free city off the pickup continent, then BFS for the nearest
    sea cell adjacent to that city's continent. Falls back to explore-sea."
-  [pos origin-continent]
-  (if-let [target-city (find-unload-target origin-continent pos)]
+  [pos pickup-continent]
+  (if-let [target-city (find-unload-target pickup-continent pos)]
     (let [target-continent (continent/flood-fill-continent target-city)]
       (if-let [unload-pos (pathfinding/find-nearest-unload-position pos target-continent)]
         (move-toward-position pos unload-pos)
@@ -222,31 +265,31 @@
             (>= army-count 6)
             (do
               (set-transport-mission pos :unloading)
-              (record-origin-continent-pos pos transport)
+              (record-pickup-continent-pos pos transport)
               (let [updated-transport (get-in @atoms/game-map (conj pos :contents))
-                    origin-continent (when-let [ocp (:origin-continent-pos updated-transport)]
+                    pickup-continent (when-let [ocp (:pickup-continent-pos updated-transport)]
                                       (continent/flood-fill-continent ocp))]
                 (if (adjacent-to-land? pos)
-                  (when-not (unload-armies pos origin-continent)
-                    (move-toward-unload-or-explore pos origin-continent))
-                  (move-toward-unload-or-explore pos origin-continent))))
+                  (when-not (unload-armies pos pickup-continent)
+                    (move-toward-unload-or-explore pos pickup-continent))
+                  (move-toward-unload-or-explore pos pickup-continent))))
 
-            ;; Loading transport - go get armies (only on origin continent if known)
+            ;; Loading transport - go get armies (only on pickup continent if known)
             (= current-mission :loading)
-            (let [origin-continent (when-let [ocp (:origin-continent-pos transport)]
+            (let [pickup-continent (when-let [ocp (:pickup-continent-pos transport)]
                                     (continent/flood-fill-continent ocp))]
-              (if-let [army-pos (find-nearest-army pos origin-continent)]
+              (if-let [army-pos (find-nearest-army pos pickup-continent)]
                 (move-toward-position pos army-pos)
                 (explore-sea pos)))
 
             ;; Unloading transport - continue to target on different continent
             (= current-mission :unloading)
-            (let [origin-continent (when-let [ocp (:origin-continent-pos transport)]
+            (let [pickup-continent (when-let [ocp (:pickup-continent-pos transport)]
                                      (continent/flood-fill-continent ocp))]
               (if (adjacent-to-land? pos)
-                (when-not (unload-armies pos origin-continent)
-                  (move-toward-unload-or-explore pos origin-continent))
-                (move-toward-unload-or-explore pos origin-continent)))
+                (when-not (unload-armies pos pickup-continent)
+                  (move-toward-unload-or-explore pos pickup-continent))
+                (move-toward-unload-or-explore pos pickup-continent)))
 
             :else nil)))))
   nil)

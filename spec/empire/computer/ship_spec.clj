@@ -285,4 +285,97 @@
                                                              :carrier-mode :holding}}
                            :else {:type :sea})))]
         (reset! atoms/game-map [cells])
-        (should= [0 52] (ship/find-carrier-position))))))
+        (should= [0 52] (ship/find-carrier-position)))))
+
+  (describe "carrier group escort behavior"
+    (it "seeking battleship adopts carrier with open slot"
+      ;; Battleship at [0,0] seeking, carrier at [0,3] holding with no BB
+      (reset! atoms/game-map [[{:type :sea :contents {:type :battleship :owner :computer :hits 8
+                                                       :escort-id 1 :escort-mode :seeking}}
+                                {:type :sea}
+                                {:type :sea}
+                                {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                       :carrier-id 1 :carrier-mode :holding
+                                                       :group-battleship-id nil
+                                                       :group-submarine-ids []}}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (ship/process-ship [0 0] :battleship)
+      ;; Battleship should have adopted carrier and moved toward it
+      (let [bb (get-in @atoms/game-map [0 1 :contents])
+            carrier (get-in @atoms/game-map [0 3 :contents])]
+        (should= :battleship (:type bb))
+        (should= :intercepting (:escort-mode bb))
+        (should= 1 (:escort-carrier-id bb))
+        (should= 1 (:group-battleship-id carrier))))
+
+    (it "intercepting escort transitions to orbiting when at radius 2"
+      ;; Battleship at [0,0], carrier at [0,2] (Chebyshev distance 2)
+      (reset! atoms/game-map [[{:type :sea :contents {:type :battleship :owner :computer :hits 8
+                                                       :escort-id 1 :escort-mode :intercepting
+                                                       :escort-carrier-id 1 :orbit-angle 0}}
+                                {:type :sea}
+                                {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                       :carrier-id 1 :carrier-mode :holding
+                                                       :group-battleship-id 1
+                                                       :group-submarine-ids []}}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (ship/process-ship [0 0] :battleship)
+      ;; Should transition to orbiting
+      (let [bb (get-in @atoms/game-map [0 0 :contents])]
+        (should= :orbiting (:escort-mode bb))))
+
+    (it "orbiting escort advances along ring"
+      ;; 5x5 all-sea map. Carrier at [2,2], battleship at [0,0] (orbit angle 0 = [-2,-2])
+      (let [game-map (build-test-map ["~~~~~"
+                                       "~~~~~"
+                                       "~~~~~"
+                                       "~~~~~"
+                                       "~~~~~"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (swap! atoms/game-map assoc-in [2 2 :contents]
+               {:type :carrier :owner :computer :hits 8
+                :carrier-id 1 :carrier-mode :holding
+                :group-battleship-id 1 :group-submarine-ids []})
+        (swap! atoms/game-map assoc-in [0 0 :contents]
+               {:type :battleship :owner :computer :hits 8
+                :escort-id 1 :escort-mode :orbiting
+                :escort-carrier-id 1 :orbit-angle 0})
+        (ship/process-ship [0 0] :battleship)
+        ;; Should have moved from [0,0] to next orbit position
+        ;; Orbit angle 0 = [-2,-2] = [0,0] relative to carrier at [2,2]
+        ;; Next valid angle 1 = [-2,-1] = [0,1]
+        (should-be-nil (:contents (get-in @atoms/game-map [0 0])))
+        (should= :battleship (get-in @atoms/game-map [0 1 :contents :type]))
+        (should= 1 (get-in @atoms/game-map [0 1 :contents :orbit-angle]))))
+
+    (it "escort reverts to seeking when carrier is destroyed"
+      ;; Battleship orbiting, no carrier on map
+      (reset! atoms/game-map [[{:type :sea :contents {:type :battleship :owner :computer :hits 8
+                                                       :escort-id 1 :escort-mode :orbiting
+                                                       :escort-carrier-id 99 :orbit-angle 3}}
+                                {:type :sea}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (ship/process-ship [0 0] :battleship)
+      (let [bb (get-in @atoms/game-map [0 0 :contents])]
+        (should= :seeking (:escort-mode bb))
+        (should-be-nil (:escort-carrier-id bb))))
+
+    (it "seeking submarine adopts carrier with open submarine slot"
+      ;; Submarine at [0,0], carrier at [0,3] with 0 subs
+      (reset! atoms/game-map [[{:type :sea :contents {:type :submarine :owner :computer :hits 2
+                                                       :escort-id 2 :escort-mode :seeking}}
+                                {:type :sea}
+                                {:type :sea}
+                                {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                       :carrier-id 1 :carrier-mode :holding
+                                                       :group-battleship-id nil
+                                                       :group-submarine-ids []}}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (ship/process-ship [0 0] :submarine)
+      (let [sub (get-in @atoms/game-map [0 1 :contents])
+            carrier (get-in @atoms/game-map [0 3 :contents])]
+        (should= :submarine (:type sub))
+        (should= :intercepting (:escort-mode sub))
+        (should= 1 (:escort-carrier-id sub))
+        (should= [2] (:group-submarine-ids carrier))))))

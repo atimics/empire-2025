@@ -169,6 +169,8 @@
   (reset! atoms/next-country-id 1)
   (reset! atoms/next-unload-event-id 1)
   (reset! atoms/next-destroyer-id 1)
+  (reset! atoms/next-carrier-id 1)
+  (reset! atoms/next-escort-id 1)
   (reset! atoms/claimed-objectives #{})
   (reset! atoms/claimed-transport-targets #{})
   (reset! atoms/coast-walkers-produced {})

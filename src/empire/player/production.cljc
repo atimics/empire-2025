@@ -67,10 +67,24 @@
     unit))
 
 (defn- apply-carrier-fields
-  "Stamps carrier-mode on computer carriers."
+  "Stamps carrier fields on computer carriers: mode, id, group slots."
   [unit item owner]
   (if (and (= item :carrier) (= owner :computer))
-    (assoc unit :carrier-mode :positioning)
+    (let [id @atoms/next-carrier-id]
+      (swap! atoms/next-carrier-id inc)
+      (assoc unit :carrier-mode :positioning
+                  :carrier-id id
+                  :group-battleship-id nil
+                  :group-submarine-ids []))
+    unit))
+
+(defn- apply-escort-fields
+  "Stamps escort fields on computer battleships and submarines."
+  [unit item owner]
+  (if (and (#{:battleship :submarine} item) (= owner :computer))
+    (let [id @atoms/next-escort-id]
+      (swap! atoms/next-escort-id inc)
+      (assoc unit :escort-id id :escort-mode :seeking))
     unit))
 
 (defn- apply-destroyer-fields
@@ -119,6 +133,7 @@
                  (apply-unit-type-attributes item owner)
                  (apply-destroyer-fields item owner)
                  (apply-carrier-fields item owner)
+                 (apply-escort-fields item owner)
                  (apply-country-id item cell)
                  (apply-patrol-fields item cell)
                  (apply-coast-walk-fields item cell coords)

@@ -261,6 +261,20 @@
                    (ship/find-carrier-position))
           :carrier)
 
+        ;; Battleship: global cap battleships <= carriers (coastal only)
+        (let [unit-counts (count-computer-units)]
+          (when (and coastal?
+                     (< (get unit-counts :battleship 0)
+                        (get unit-counts :carrier 0)))
+            :battleship))
+
+        ;; Submarine: global cap submarines <= 2 * carriers (coastal only)
+        (let [unit-counts (count-computer-units)]
+          (when (and coastal?
+                     (< (get unit-counts :submarine 0)
+                        (* 2 (get unit-counts :carrier 0))))
+            :submarine))
+
         ;; Ratio-based production
         (ratio-based-production city-pos coastal? country-id)
 

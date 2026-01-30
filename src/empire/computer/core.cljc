@@ -17,6 +17,11 @@
   [[x1 y1] [x2 y2]]
   (+ (Math/abs (- x2 x1)) (Math/abs (- y2 y1))))
 
+(defn chebyshev-distance
+  "Chebyshev distance between two positions."
+  [[r1 c1] [r2 c2]]
+  (max (Math/abs (- r2 r1)) (Math/abs (- c2 c1))))
+
 (defn attackable-target?
   "Returns true if the cell contains an attackable target for the computer."
   [cell]

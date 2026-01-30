@@ -132,8 +132,49 @@
         (<= (:hits new-a) 0) {:winner :defender :survivor new-d :log new-log}
         :else (recur new-a new-d new-log)))))
 
+(defn- clear-carrier-group-on-death
+  "When a carrier group member dies, update the group pairing."
+  [dead-unit]
+  (cond
+    ;; Dead battleship or submarine: remove from carrier's group
+    (and (#{:battleship :submarine} (:type dead-unit))
+         (:escort-carrier-id dead-unit))
+    (let [carrier-id (:escort-carrier-id dead-unit)
+          escort-id (:escort-id dead-unit)
+          game-map @atoms/game-map]
+      (doseq [i (range (count game-map))
+              j (range (count (first game-map)))
+              :let [cell (get-in game-map [i j])
+                    unit (:contents cell)]
+              :when (and unit
+                         (= :carrier (:type unit))
+                         (= carrier-id (:carrier-id unit)))]
+        (case (:type dead-unit)
+          :battleship
+          (swap! atoms/game-map update-in [i j :contents]
+                 assoc :group-battleship-id nil)
+          :submarine
+          (swap! atoms/game-map update-in [i j :contents]
+                 update :group-submarine-ids
+                 (fn [ids] (vec (remove #{escort-id} ids)))))))
+
+    ;; Dead carrier: release all escorts to seeking
+    (and (= :carrier (:type dead-unit))
+         (:carrier-id dead-unit))
+    (let [carrier-id (:carrier-id dead-unit)
+          game-map @atoms/game-map]
+      (doseq [i (range (count game-map))
+              j (range (count (first game-map)))
+              :let [cell (get-in game-map [i j])
+                    unit (:contents cell)]
+              :when (and unit
+                         (= carrier-id (:escort-carrier-id unit)))]
+        (swap! atoms/game-map update-in [i j :contents]
+               #(-> % (assoc :escort-mode :seeking)
+                    (dissoc :escort-carrier-id :orbit-angle)))))))
+
 (defn clear-escort-on-death
-  "When a destroyer or transport with escort pairing is destroyed, clear the partner's reference."
+  "When a unit with escort pairing is destroyed, clear the partner's reference."
   [dead-unit]
   (cond
     ;; Dead destroyer: clear transport's escort-destroyer-id
@@ -164,7 +205,9 @@
                          (= did (:destroyer-id unit)))]
         (swap! atoms/game-map update-in [i j :contents]
                #(-> % (assoc :escort-mode :seeking)
-                    (dissoc :escort-transport-id)))))))
+                    (dissoc :escort-transport-id))))))
+  ;; Also handle carrier group pairings
+  (clear-carrier-group-on-death dead-unit))
 
 (defn- drown-excess-cargo
   "After combat, if a container's cargo exceeds its effective capacity, kill excess."

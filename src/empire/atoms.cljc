@@ -127,6 +127,14 @@
   "An atom containing the next unique ID to assign to a computer destroyer."
   (atom 1))
 
+(def next-carrier-id
+  "An atom containing the next unique ID to assign to a computer carrier."
+  (atom 1))
+
+(def next-escort-id
+  "An atom containing the next unique ID to assign to carrier group escorts (battleships/submarines)."
+  (atom 1))
+
 ;; Debug atoms
 
 (def debug-drag-start

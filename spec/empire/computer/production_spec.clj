@@ -361,3 +361,78 @@
       (reset! atoms/game-map [cells])
       (reset! atoms/computer-map [cells])
       (should-not= :carrier (production/decide-production [0 22])))))
+
+(describe "battleship production gate"
+  (before (reset-all-atoms!))
+
+  (it "produces battleship when battleships < carriers"
+    ;; 12 cities, a carrier on the map, no battleships
+    (let [cells (vec (for [j (range 60)]
+                       (cond
+                         (and (even? j) (<= j 22)) {:type :city :city-status :computer}
+                         (<= j 22) {:type :land}
+                         (= j 48) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                          :carrier-id 1 :carrier-mode :holding
+                                                          :group-battleship-id nil
+                                                          :group-submarine-ids []}}
+                         :else {:type :sea})))]
+      (reset! atoms/game-map [cells])
+      (reset! atoms/computer-map [cells])
+      ;; Carrier gate won't fire because a carrier already exists at valid position
+      ;; and find-carrier-position returns nil when position [0,48] is occupied
+      ;; Actually - the carrier at [0,48] is a refueling site, so the next valid
+      ;; position would need to be >= 26 from it too. Let's skip carrier gate
+      ;; by setting 2 carrier productions
+      (reset! atoms/production {[0 0] {:item :carrier :remaining-rounds 10}
+                                [0 2] {:item :carrier :remaining-rounds 10}})
+      (should= :battleship (production/decide-production [0 22]))))
+
+  (it "does not produce battleship when battleships >= carriers"
+    ;; 12 cities, 1 carrier, 1 battleship - cap reached
+    (let [cells (vec (for [j (range 60)]
+                       (cond
+                         (and (even? j) (<= j 22)) {:type :city :city-status :computer}
+                         (<= j 22) {:type :land}
+                         (= j 30) {:type :sea :contents {:type :carrier :owner :computer :hits 8}}
+                         (= j 31) {:type :sea :contents {:type :battleship :owner :computer :hits 8}}
+                         :else {:type :sea})))]
+      (reset! atoms/game-map [cells])
+      (reset! atoms/computer-map [cells])
+      (reset! atoms/production {[0 0] {:item :carrier :remaining-rounds 10}
+                                [0 2] {:item :carrier :remaining-rounds 10}})
+      (should-not= :battleship (production/decide-production [0 22])))))
+
+(describe "submarine production gate"
+  (before (reset-all-atoms!))
+
+  (it "produces submarine when submarines < 2 * carriers"
+    ;; 12 cities, 1 carrier, 1 battleship (cap met), 0 submarines
+    (let [cells (vec (for [j (range 60)]
+                       (cond
+                         (and (even? j) (<= j 22)) {:type :city :city-status :computer}
+                         (<= j 22) {:type :land}
+                         (= j 30) {:type :sea :contents {:type :carrier :owner :computer :hits 8}}
+                         (= j 31) {:type :sea :contents {:type :battleship :owner :computer :hits 8}}
+                         :else {:type :sea})))]
+      (reset! atoms/game-map [cells])
+      (reset! atoms/computer-map [cells])
+      (reset! atoms/production {[0 0] {:item :carrier :remaining-rounds 10}
+                                [0 2] {:item :carrier :remaining-rounds 10}})
+      (should= :submarine (production/decide-production [0 22]))))
+
+  (it "does not produce submarine when submarines >= 2 * carriers"
+    ;; 12 cities, 1 carrier, 1 BB (cap met), 2 subs - cap reached
+    (let [cells (vec (for [j (range 60)]
+                       (cond
+                         (and (even? j) (<= j 22)) {:type :city :city-status :computer}
+                         (<= j 22) {:type :land}
+                         (= j 30) {:type :sea :contents {:type :carrier :owner :computer :hits 8}}
+                         (= j 31) {:type :sea :contents {:type :battleship :owner :computer :hits 8}}
+                         (= j 32) {:type :sea :contents {:type :submarine :owner :computer :hits 2}}
+                         (= j 33) {:type :sea :contents {:type :submarine :owner :computer :hits 2}}
+                         :else {:type :sea})))]
+      (reset! atoms/game-map [cells])
+      (reset! atoms/computer-map [cells])
+      (reset! atoms/production {[0 0] {:item :carrier :remaining-rounds 10}
+                                [0 2] {:item :carrier :remaining-rounds 10}})
+      (should-not= :submarine (production/decide-production [0 22])))))

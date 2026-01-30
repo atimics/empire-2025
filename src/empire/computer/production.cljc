@@ -3,7 +3,8 @@
   (:require [empire.atoms :as atoms]
             [empire.movement.map-utils :as map-utils]
             [empire.player.production :as production]
-            [empire.computer.continent :as continent]))
+            [empire.computer.continent :as continent]
+            [empire.computer.ship :as ship]))
 
 ;; Preserved utilities
 
@@ -194,6 +195,14 @@
 
       :else nil)))
 
+(defn- count-carrier-producers
+  "Counts computer cities currently producing carriers."
+  []
+  (count (filter (fn [[_coords prod]]
+                   (and (map? prod)
+                        (= :carrier (:item prod))))
+                 @atoms/production)))
+
 (defn- ratio-based-production
   "Choose unit with largest deficit based on production ratios."
   [city-pos coastal? country-id]
@@ -244,6 +253,13 @@
         (when (and coastal? country-id
                    (zero? (count-country-patrol-boats country-id)))
           :patrol-boat)
+
+        ;; Carrier: >10 cities, <2 producing, valid position exists
+        (when (and coastal?
+                   (> (count-computer-cities) 10)
+                   (< (count-carrier-producers) 2)
+                   (ship/find-carrier-position))
+          :carrier)
 
         ;; Ratio-based production
         (ratio-based-production city-pos coastal? country-id)

@@ -3,6 +3,7 @@
    Attack adjacent enemies, explore sea, protect transports, patrol."
   (:require [empire.atoms :as atoms]
             [empire.combat :as combat]
+            [empire.config :as config]
             [empire.computer.core :as core]
             [empire.computer.threat :as threat]
             [empire.movement.pathfinding :as pathfinding]
@@ -262,6 +263,89 @@
       ;; Default (including nil) - fall through to normal ship behavior
       nil)))
 
+;; --- Carrier positioning helpers ---
+
+(defn find-refueling-sites
+  "Returns positions of all computer cities and holding carriers."
+  []
+  (let [game-map @atoms/game-map]
+    (for [i (range (count game-map))
+          j (range (count (first game-map)))
+          :let [cell (get-in game-map [i j])]
+          :when (or (and (= :city (:type cell))
+                         (= :computer (:city-status cell)))
+                    (and (= :carrier (get-in cell [:contents :type]))
+                         (= :computer (get-in cell [:contents :owner]))
+                         (= :holding (get-in cell [:contents :carrier-mode]))))]
+      [i j])))
+
+(defn- valid-carrier-position?
+  "Returns true if pos is a valid carrier position: empty sea, within fuel range
+   of at least one refueling site, and at least carrier-spacing from all sites."
+  [pos sites]
+  (let [cell (get-in @atoms/game-map pos)]
+    (and (= :sea (:type cell))
+         (nil? (:contents cell))
+         (some #(<= (core/distance pos %) config/fighter-fuel) sites)
+         (every? #(>= (core/distance pos %) config/carrier-spacing) sites))))
+
+(defn find-carrier-position
+  "Finds the first valid carrier position on the map, or nil."
+  []
+  (let [sites (vec (find-refueling-sites))
+        game-map @atoms/game-map]
+    (when (seq sites)
+      (first (for [i (range (count game-map))
+                   j (range (count (first game-map)))
+                   :when (valid-carrier-position? [i j] sites)]
+               [i j])))))
+
+(defn- position-carrier-with-target
+  "Handles carrier in positioning mode that has a target."
+  [pos target]
+  (if (= pos target)
+    (swap! atoms/game-map update-in (conj pos :contents)
+           #(-> % (assoc :carrier-mode :holding) (dissoc :carrier-target)))
+    (move-toward pos target)))
+
+(defn- position-carrier-without-target
+  "Handles carrier in positioning mode without a target. Finds one or holds."
+  [pos]
+  (if-let [new-target (find-carrier-position)]
+    (do (swap! atoms/game-map assoc-in (conj pos :contents :carrier-target) new-target)
+        (move-toward pos new-target))
+    (swap! atoms/game-map update-in (conj pos :contents)
+           assoc :carrier-mode :holding)))
+
+(defn- reposition-carrier
+  "Handles carrier in repositioning mode. Finds new position or holds."
+  [pos]
+  (if-let [new-target (find-carrier-position)]
+    (do (swap! atoms/game-map update-in (conj pos :contents)
+               #(-> % (assoc :carrier-mode :positioning :carrier-target new-target)))
+        (move-toward pos new-target))
+    (swap! atoms/game-map update-in (conj pos :contents)
+           assoc :carrier-mode :holding)))
+
+(defn- process-carrier
+  "Processes a computer carrier based on its carrier-mode.
+   CC=5: case(3 branches + default) + if(target)."
+  [pos]
+  (let [unit (get-in @atoms/game-map (conj pos :contents))
+        mode (:carrier-mode unit)]
+    (case mode
+      :positioning
+      (let [target (:carrier-target unit)]
+        (if target
+          (position-carrier-with-target pos target)
+          (position-carrier-without-target pos)))
+
+      :holding nil
+
+      :repositioning (reposition-carrier pos)
+
+      nil)))
+
 (defn process-ship
   "Processes a computer ship using VMS Empire style logic.
    Priority: Retreat if damaged > Attack adjacent > Escort transports > Hunt enemies > Explore
@@ -277,6 +361,11 @@
       (if (and (= :patrol-boat ship-type)
                (:patrol-country-id unit))
         (process-patrol-boat pos)
+
+      ;; Carrier positioning behavior
+      (if (and (= :carrier ship-type)
+               (:carrier-mode unit))
+        (process-carrier pos)
 
       ;; Priority 0: Retreat if damaged and under threat
       (if-let [retreat-pos (retreat-if-damaged pos unit)]
@@ -307,5 +396,5 @@
                 (move-toward pos enemy-sighting)
 
                 ;; Priority 5: Explore sea
-                (explore-sea pos ship-type)))))))))
+                (explore-sea pos ship-type))))))))))
   nil)

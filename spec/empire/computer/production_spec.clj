@@ -311,3 +311,53 @@
     (swap! atoms/game-map assoc-in [0 16 :contents :patrol-country-id] 1)
     ;; 2 destroyers and 2 transports: cap reached (destroyers >= transports)
     (should-not= :destroyer (production/decide-production [0 1]))))
+
+(describe "carrier production gate"
+  (before (reset-all-atoms!))
+
+  (it "produces carrier when >10 cities, <2 producing, valid position exists"
+    ;; 12 computer cities at even positions 0-22, land at odd 1-21, sea from 23-59
+    ;; No country-id on test city, continent has no objectives
+    (let [cells (vec (for [j (range 60)]
+                       (cond
+                         (and (even? j) (<= j 22)) {:type :city :city-status :computer}
+                         (<= j 22) {:type :land}
+                         :else {:type :sea})))]
+      (reset! atoms/game-map [cells])
+      (reset! atoms/computer-map [cells])
+      (should= :carrier (production/decide-production [0 22]))))
+
+  (it "does not produce carrier when <=10 cities"
+    ;; 10 computer cities at even positions 0-18, land at odd 1-17, sea from 19-49
+    (let [cells (vec (for [j (range 50)]
+                       (cond
+                         (and (even? j) (<= j 18)) {:type :city :city-status :computer}
+                         (<= j 18) {:type :land}
+                         :else {:type :sea})))]
+      (reset! atoms/game-map [cells])
+      (reset! atoms/computer-map [cells])
+      (should-not= :carrier (production/decide-production [0 18]))))
+
+  (it "does not produce carrier when 2 already producing"
+    ;; 12 cities but 2 already producing carriers
+    (let [cells (vec (for [j (range 60)]
+                       (cond
+                         (and (even? j) (<= j 22)) {:type :city :city-status :computer}
+                         (<= j 22) {:type :land}
+                         :else {:type :sea})))]
+      (reset! atoms/game-map [cells])
+      (reset! atoms/computer-map [cells])
+      (reset! atoms/production {[0 0] {:item :carrier :remaining-rounds 10}
+                                [0 2] {:item :carrier :remaining-rounds 10}})
+      (should-not= :carrier (production/decide-production [0 22]))))
+
+  (it "does not produce carrier when no valid position exists"
+    ;; 12 cities but sea only extends 25 cells past last city (max distance 25 < 26)
+    (let [cells (vec (for [j (range 48)]
+                       (cond
+                         (and (even? j) (<= j 22)) {:type :city :city-status :computer}
+                         (<= j 22) {:type :land}
+                         :else {:type :sea})))]
+      (reset! atoms/game-map [cells])
+      (reset! atoms/computer-map [cells])
+      (should-not= :carrier (production/decide-production [0 22])))))

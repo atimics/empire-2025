@@ -215,4 +215,74 @@
       ;; Should revert to seeking
       (let [destroyer (get-in @atoms/game-map [0 0 :contents])]
         (should= :seeking (:escort-mode destroyer))
-        (should-be-nil (:escort-transport-id destroyer))))))
+        (should-be-nil (:escort-transport-id destroyer)))))
+
+  (describe "carrier positioning behavior"
+    (it "carrier in positioning mode moves toward target"
+      (reset! atoms/game-map [[{:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                       :carrier-mode :positioning :carrier-target [0 3]}}
+                                {:type :sea}
+                                {:type :sea}
+                                {:type :sea}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (ship/process-ship [0 0] :carrier)
+      (should= :carrier (get-in @atoms/game-map [0 1 :contents :type])))
+
+    (it "carrier transitions to holding when at target"
+      (reset! atoms/game-map [[{:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                       :carrier-mode :positioning :carrier-target [0 0]}}
+                                {:type :sea}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (ship/process-ship [0 0] :carrier)
+      (should= :holding (get-in @atoms/game-map [0 0 :contents :carrier-mode]))
+      (should-be-nil (get-in @atoms/game-map [0 0 :contents :carrier-target])))
+
+    (it "carrier in holding mode stays put"
+      (reset! atoms/game-map [[{:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                       :carrier-mode :holding}}
+                                {:type :sea}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (ship/process-ship [0 0] :carrier)
+      (should= :carrier (get-in @atoms/game-map [0 0 :contents :type]))
+      (should= :holding (get-in @atoms/game-map [0 0 :contents :carrier-mode])))
+
+    (it "positioning carrier without target finds valid position and moves"
+      (let [cells (vec (concat [{:type :city :city-status :computer}
+                                 {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                         :carrier-mode :positioning}}]
+                                (repeat 38 {:type :sea})))]
+        (reset! atoms/game-map [cells])
+        (reset! atoms/computer-map [cells])
+        (ship/process-ship [0 1] :carrier)
+        ;; Carrier should have moved from [0,1] to [0,2]
+        (should-be-nil (:contents (get-in @atoms/game-map [0 1])))
+        (should= :carrier (get-in @atoms/game-map [0 2 :contents :type]))
+        ;; Should have a carrier-target in valid range [26, 32] from city
+        (let [target (:carrier-target (get-in @atoms/game-map [0 2 :contents]))]
+          (should-not-be-nil target)
+          (should= 0 (first target))
+          (should (>= (second target) 26))
+          (should (<= (second target) 32))))))
+
+  (describe "find-carrier-position"
+    (it "finds valid position at correct spacing"
+      (let [cells (vec (concat [{:type :city :city-status :computer}]
+                                (repeat 39 {:type :sea})))]
+        (reset! atoms/game-map [cells])
+        (should= [0 26] (ship/find-carrier-position))))
+
+    (it "returns nil when no valid position exists"
+      (let [cells (vec (concat [{:type :city :city-status :computer}]
+                                (repeat 25 {:type :sea})))]
+        (reset! atoms/game-map [cells])
+        (should-be-nil (ship/find-carrier-position))))
+
+    (it "holding carrier counts as refueling site"
+      (let [cells (vec (for [j (range 60)]
+                         (cond
+                           (= j 0) {:type :city :city-status :computer}
+                           (= j 26) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                             :carrier-mode :holding}}
+                           :else {:type :sea})))]
+        (reset! atoms/game-map [cells])
+        (should= [0 52] (ship/find-carrier-position))))))

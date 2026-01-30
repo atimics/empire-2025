@@ -66,6 +66,13 @@
                 :patrol-mode :homing)
     unit))
 
+(defn- apply-carrier-fields
+  "Stamps carrier-mode on computer carriers."
+  [unit item owner]
+  (if (and (= item :carrier) (= owner :computer))
+    (assoc unit :carrier-mode :positioning)
+    unit))
+
 (defn- apply-destroyer-fields
   "Stamps destroyer-id and escort-mode on computer destroyers."
   [unit item owner]
@@ -111,6 +118,7 @@
         unit (-> (create-base-unit item owner)
                  (apply-unit-type-attributes item owner)
                  (apply-destroyer-fields item owner)
+                 (apply-carrier-fields item owner)
                  (apply-country-id item cell)
                  (apply-patrol-fields item cell)
                  (apply-coast-walk-fields item cell coords)

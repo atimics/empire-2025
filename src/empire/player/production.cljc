@@ -2,26 +2,6 @@
   (:require [empire.atoms :as atoms]
             [empire.config :as config]))
 
-(defn- find-beach-order-for-city
-  "Returns [beach-pos order] if city has a beach order, nil otherwise."
-  [city-pos]
-  (first (filter (fn [[_ order]] (= city-pos (:city-pos order)))
-                 @atoms/beach-army-orders)))
-
-(defn- apply-beach-order-to-army
-  "If city has a beach order, sets army target/mission and decrements order.
-   Returns the updated unit."
-  [unit city-pos]
-  (if-let [[beach-pos order] (find-beach-order-for-city city-pos)]
-    (do
-      (let [new-remaining (dec (:remaining order))]
-        (if (zero? new-remaining)
-          (swap! atoms/beach-army-orders dissoc beach-pos)
-          (swap! atoms/beach-army-orders assoc beach-pos
-                 (assoc order :remaining new-remaining))))
-      (assoc unit :target beach-pos :mission :loading))
-    unit))
-
 (defn set-city-production
   "Sets the production for a city at given coordinates to the specified item."
   [coords item]
@@ -65,11 +45,11 @@
 
     :else unit))
 
-(defn- apply-computer-army-beach-order
-  "Applies beach order to computer armies."
-  [unit item owner coords]
-  (if (and (= item :army) (= owner :computer))
-    (apply-beach-order-to-army unit coords)
+(defn- apply-country-id
+  "Assigns city's country-id to armies and transports."
+  [unit item cell]
+  (if (and (#{:army :transport} item) (:country-id cell))
+    (assoc unit :country-id (:country-id cell))
     unit))
 
 (defn- spawn-unit
@@ -80,8 +60,8 @@
         flight-path (:flight-path cell)
         unit (-> (create-base-unit item owner)
                  (apply-unit-type-attributes item owner)
-                 (apply-movement-orders item marching-orders flight-path)
-                 (apply-computer-army-beach-order item owner coords))]
+                 (apply-country-id item cell)
+                 (apply-movement-orders item marching-orders flight-path))]
     (swap! atoms/game-map assoc-in (conj coords :contents) unit)
     owner))
 

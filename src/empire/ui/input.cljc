@@ -2,7 +2,7 @@
   (:require [empire.atoms :as atoms]
             [empire.debug :as debug]
             [empire.player.attention :as attention]
-            [empire.player.combat :as combat]
+            [empire.combat :as combat]
             [empire.config :as config]
             [empire.containers.ops :as container-ops]
             [empire.game-loop :as game-loop]

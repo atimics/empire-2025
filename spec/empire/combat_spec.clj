@@ -1,11 +1,14 @@
-(ns empire.player.combat-spec
+(ns empire.combat-spec
   (:require [speclj.core :refer :all]
-            [empire.player.combat :as combat]
+            [empire.combat :as combat]
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.test-utils :refer [build-test-map get-test-city get-test-unit set-test-unit reset-all-atoms!]]
             [empire.units.dispatcher :as dispatcher]
-            [empire.containers.helpers :as uc]))
+            [empire.containers.helpers :as uc]
+            [empire.computer.core :as computer-core]
+            [empire.computer.production :as comp-production]
+            [empire.player.production :as production]))
 
 (describe "hostile-city?"
   (before (reset-all-atoms!))
@@ -502,8 +505,64 @@
         (let [unit (get-in @atoms/game-map [0 1 :contents])]
           (should= :computer (:owner unit))
           (should= :destroyer (:type unit)))
-        ;; Production should be cleared
-        (should-be-nil (get @atoms/production [0 1]))))))
+        ;; Old production should be replaced with auto-produced army
+        (should= :army (:item (get @atoms/production [0 1])))))))
+
+(describe "country-id on conquest"
+  (before (reset-all-atoms!))
+
+  (it "computer army with country-id assigns it to conquered city"
+    (with-redefs [rand (constantly 0.1)]
+      (reset! atoms/game-map (build-test-map ["aO"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      (swap! atoms/game-map assoc-in [0 0 :contents :country-id] 3)
+      (let [core (requiring-resolve 'empire.computer.core/attempt-conquest-computer)]
+        (core [0 0] [0 1])
+        (should= 3 (:country-id (get-in @atoms/game-map [0 1]))))))
+
+  (it "computer army with unload-event-id mints new country-id for conquered city"
+    (with-redefs [rand (constantly 0.1)]
+      (reset! atoms/game-map (build-test-map ["aO"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      (reset! atoms/next-country-id 5)
+      (swap! atoms/game-map assoc-in [0 0 :contents :unload-event-id] 7)
+      (let [core (requiring-resolve 'empire.computer.core/attempt-conquest-computer)]
+        (core [0 0] [0 1])
+        (should= 5 (:country-id (get-in @atoms/game-map [0 1])))
+        (should= 6 @atoms/next-country-id))))
+
+  (it "stamps new country-id on all armies with same unload-event-id"
+    (with-redefs [rand (constantly 0.1)]
+      (reset! atoms/game-map (build-test-map ["a#aO"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      (reset! atoms/next-country-id 10)
+      ;; Army at [0,0] conquers; armies at [0,0] and [0,2] share unload-event-id 7
+      (swap! atoms/game-map assoc-in [0 0 :contents :unload-event-id] 7)
+      (swap! atoms/game-map assoc-in [0 2 :contents :unload-event-id] 7)
+      (let [core (requiring-resolve 'empire.computer.core/attempt-conquest-computer)]
+        (core [0 0] [0 3])
+        ;; City gets new country-id 10
+        (should= 10 (:country-id (get-in @atoms/game-map [0 3])))
+        ;; Surviving army at [0,2] gets country-id 10 and loses unload-event-id
+        (let [army2 (:contents (get-in @atoms/game-map [0 2]))]
+          (should= 10 (:country-id army2))
+          (should-be-nil (:unload-event-id army2)))
+        ;; next-country-id incremented
+        (should= 11 @atoms/next-country-id))))
+
+  (it "does not stamp armies with different unload-event-id"
+    (with-redefs [rand (constantly 0.1)]
+      (reset! atoms/game-map (build-test-map ["a#aO"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      (reset! atoms/next-country-id 10)
+      (swap! atoms/game-map assoc-in [0 0 :contents :unload-event-id] 7)
+      (swap! atoms/game-map assoc-in [0 2 :contents :unload-event-id] 8)
+      (let [core (requiring-resolve 'empire.computer.core/attempt-conquest-computer)]
+        (core [0 0] [0 3])
+        ;; Army at [0,2] has different unload-event-id, should not be affected
+        (let [army2 (:contents (get-in @atoms/game-map [0 2]))]
+          (should= 8 (:unload-event-id army2))
+          (should-be-nil (:country-id army2)))))))
 
 (describe "cargo drowning after combat"
   (before (reset-all-atoms!))
@@ -573,3 +632,36 @@
           (should= :carrier (:type survivor))
           (should= 2 (:hits survivor))
           (should= 2 (:fighter-count survivor)))))))
+
+(describe "auto-produce armies on conquest"
+  (before (reset-all-atoms!))
+
+  (it "conquered city starts producing armies"
+    (with-redefs [rand (constantly 0.1)]
+      (reset! atoms/game-map (build-test-map ["aO"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      (swap! atoms/game-map assoc-in [0 0 :contents :country-id] 3)
+      (computer-core/attempt-conquest-computer [0 0] [0 1])
+      ;; City should be computer-owned
+      (should= :computer (get-in @atoms/game-map [0 1 :city-status]))
+      ;; Production should be set to :army
+      (let [prod (get @atoms/production [0 1])]
+        (should-not-be-nil prod)
+        (should= :army (:item prod)))))
+
+  (it "conquered city does not produce armies when country has 10+ armies"
+    (with-redefs [rand (constantly 0.1)]
+      ;; Build a wider map with room for 10 armies and the conquering army + city
+      (reset! atoms/game-map (build-test-map ["aaaaaaaaaaO"
+                                              "a##########"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      ;; Give all 11 armies the same country-id 3
+      (doseq [col (range 10)]
+        (swap! atoms/game-map assoc-in [0 col :contents :country-id] 3))
+      (swap! atoms/game-map assoc-in [1 0 :contents :country-id] 3)
+      ;; Army at [0 0] conquers city at [0 10]
+      (computer-core/attempt-conquest-computer [0 0] [0 10])
+      ;; City should be computer-owned
+      (should= :computer (get-in @atoms/game-map [0 10 :city-status]))
+      ;; Production should NOT be set (10 armies still alive after conquering army removed)
+      (should-be-nil (get @atoms/production [0 10])))))

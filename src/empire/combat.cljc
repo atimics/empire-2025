@@ -1,4 +1,4 @@
-(ns empire.player.combat
+(ns empire.combat
   (:require [clojure.string]
             [empire.atoms :as atoms]
             [empire.config :as config]
@@ -132,16 +132,6 @@
         (<= (:hits new-a) 0) {:winner :defender :survivor new-d :log new-log}
         :else (recur new-a new-d new-log)))))
 
-(defn- release-transport-beach-reservation
-  "Releases beach reservation if the destroyed unit is a computer transport."
-  [unit]
-  (when (and (= :transport (:type unit))
-             (= :computer (:owner unit))
-             (:transport-id unit))
-    (swap! atoms/reserved-beaches
-           (fn [reservations]
-             (into {} (remove (fn [[_ tid]] (= tid (:transport-id unit))) reservations))))))
-
 (defn- drown-excess-cargo
   "After combat, if a container's cargo exceeds its effective capacity, kill excess."
   [coords survivor]
@@ -172,10 +162,7 @@
             message (format-combat-log (:log result)
                                        (:type attacker)
                                        (:type defender)
-                                       (:winner result))
-            ;; Release beach reservation if a computer transport is destroyed
-            destroyed-unit (if (= :attacker (:winner result)) defender attacker)]
-        (release-transport-beach-reservation destroyed-unit)
+                                       (:winner result))]
         (swap! atoms/game-map assoc-in (conj attacker-coords :contents) nil)
         (if (= :attacker (:winner result))
           (swap! atoms/game-map assoc-in (conj target-coords :contents) (:survivor result))

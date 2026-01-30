@@ -1,7 +1,9 @@
 (ns empire.init
-  (:require [empire.movement.map-utils :as map-utils]
+  (:require [empire.config :as config]
+            [empire.movement.map-utils :as map-utils]
             [empire.atoms :as atoms]
-            [empire.movement.visibility :as visibility]))
+            [empire.movement.visibility :as visibility]
+            [empire.player.production :as production]))
 
 (defn smooth-cell
   "Calculates the smoothed value for a cell at position i j."
@@ -123,7 +125,7 @@
                 the-map
                 placed-cities)
 
-        (>= attempts 1000)                                  ; Prevent infinite loop by stopping placement
+        (>= attempts config/max-placement-attempts)          ; Prevent infinite loop by stopping placement
         (reduce (fn [m [i j]]
                   (assoc-in m [i j] {:type :city :contents nil :city-status :free}))
                 the-map
@@ -152,15 +154,19 @@
         sea-level (find-sea-level the-map land-fraction)
         finalized-map (finalize-map the-map sea-level)
         map-with-cities (generate-cities finalized-map number-of-cities min-city-distance)
-        min-surrounding-land 10
-        map-with-player-city (occupy-random-free-city map-with-cities :player nil min-surrounding-land)
+        map-with-player-city (occupy-random-free-city map-with-cities :player nil config/min-surrounding-land)
         [px py] (find-city-position map-with-player-city :player)
         min-start-distance (quot width 2)
-        map-with-computer-city (occupy-random-free-city map-with-player-city :computer [px py min-start-distance] min-surrounding-land)
+        map-with-computer-city (occupy-random-free-city map-with-player-city :computer [px py min-start-distance] config/min-surrounding-land)
         visibility-map (vec (for [_ (range width)]
                               (vec (for [_ (range height)]
                                      {:type :unexplored}))))]
     (reset! atoms/game-map map-with-computer-city)
+    ;; Assign country-id 1 to computer's starting city and begin army production
+    (when-let [computer-city-pos (find-city-position @atoms/game-map :computer)]
+      (swap! atoms/game-map assoc-in (conj computer-city-pos :country-id) 1)
+      (reset! atoms/next-country-id 2)
+      (production/set-city-production computer-city-pos :army))
     (reset! atoms/player-map visibility-map)
     (reset! atoms/computer-map visibility-map)
     ;; Initialize visibility around starting positions

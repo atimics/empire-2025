@@ -2,10 +2,10 @@
   "Computer ship module - VMS Empire style ship movement.
    Attack adjacent enemies, explore sea, protect transports, patrol."
   (:require [empire.atoms :as atoms]
-            [empire.player.combat :as combat]
+            [empire.combat :as combat]
             [empire.computer.core :as core]
             [empire.computer.threat :as threat]
-            [empire.pathfinding :as pathfinding]
+            [empire.movement.pathfinding :as pathfinding]
             [empire.movement.visibility :as visibility]))
 
 (defn- get-passable-sea-neighbors
@@ -66,17 +66,12 @@
                      (= :transport (:type unit)))]
       [i j])))
 
-(defn- distance-to
-  "Manhattan distance between two positions."
-  [[r1 c1] [r2 c2]]
-  (+ (Math/abs (- r1 r2)) (Math/abs (- c1 c2))))
-
 (defn- find-nearest-transport
   "Find the nearest computer transport."
   [pos]
   (let [transports (find-computer-transports)]
     (when (seq transports)
-      (apply min-key (partial distance-to pos) transports))))
+      (apply min-key (partial core/distance pos) transports))))
 
 (defn- move-toward
   "Move ship one step toward target."
@@ -100,7 +95,7 @@
   [pos]
   (let [player-units (core/find-visible-player-units)]
     (when (seq player-units)
-      (apply min-key (partial distance-to pos) player-units))))
+      (apply min-key (partial core/distance pos) player-units))))
 
 (defn- retreat-if-damaged
   "If damaged and under threat, retreat toward friendly city."
@@ -135,7 +130,7 @@
           (if (and (= :destroyer ship-type)
                    (find-nearest-transport pos))
             (let [transport-pos (find-nearest-transport pos)]
-              (if (> (distance-to pos transport-pos) 2)
+              (if (> (core/distance pos transport-pos) 2)
                 (move-toward pos transport-pos)
                 ;; Already close - patrol nearby
                 (explore-sea pos ship-type)))

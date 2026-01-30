@@ -269,3 +269,45 @@
     (doseq [row (range 5)
             col (range 5)]
       (should (get-in @atoms/player-map [row col])))))
+
+(describe "computer satellite direction-based movement"
+  (before (reset-all-atoms!))
+
+  (it "moves in straight line using :direction"
+    (reset! atoms/game-map (build-test-map ["#####"
+                                             "#####"
+                                             "##v##"
+                                             "#####"
+                                             "#####"]))
+    (set-test-unit atoms/game-map "v" :direction [1 1] :turns-remaining 50)
+    (reset! atoms/computer-map (make-initial-test-map 5 5 nil))
+    (move-satellite [2 2])
+    ;; Should move one step in direction [1 1] to [3 3]
+    (should (:contents (get-in @atoms/game-map [3 3])))
+    (should-be-nil (:contents (get-in @atoms/game-map [2 2])))
+    (should= [1 1] (:direction (:contents (get-in @atoms/game-map [3 3])))))
+
+  (it "stops at map edge"
+    (reset! atoms/game-map (build-test-map ["###"
+                                             "###"
+                                             "##v"]))
+    (set-test-unit atoms/game-map "v" :direction [1 1] :turns-remaining 50)
+    (reset! atoms/computer-map (make-initial-test-map 3 3 nil))
+    (move-satellite [2 2])
+    ;; At corner, direction [1 1] would go to [3 3] which is out of bounds
+    ;; Should stay in place
+    (should (:contents (get-in @atoms/game-map [2 2])))
+    (should= [2 2] (move-satellite [2 2])))
+
+  (it "player satellite without :direction uses target-based movement"
+    (reset! atoms/game-map (build-test-map ["#####"
+                                             "#V###"
+                                             "#####"
+                                             "#####"
+                                             "#####"]))
+    (set-test-unit atoms/game-map "V" :target [4 4] :turns-remaining 50)
+    (reset! atoms/player-map (make-initial-test-map 5 5 nil))
+    (move-satellite [1 1])
+    ;; Player satellite should use target-based movement, moving toward [4 4]
+    (should (:contents (get-in @atoms/game-map [2 2])))
+    (should-be-nil (:contents (get-in @atoms/game-map [1 1])))))

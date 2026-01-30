@@ -52,35 +52,56 @@
       :else
       [x y])))
 
+(defn- move-satellite-straight
+  "Moves a computer satellite one step in its fixed direction.
+   Stays in place at map edge."
+  [[x y]]
+  (let [cell (get-in @atoms/game-map [x y])
+        satellite (:contents cell)
+        [dx dy] (:direction satellite)
+        nx (+ x dx)
+        ny (+ y dy)
+        map-height (count @atoms/game-map)
+        map-width (count (first @atoms/game-map))]
+    (if (and (>= nx 0) (< nx map-height) (>= ny 0) (< ny map-width))
+      (do (swap! atoms/game-map assoc-in [x y :contents] nil)
+          (swap! atoms/game-map assoc-in [nx ny :contents] satellite)
+          (visibility/update-cell-visibility [nx ny] (:owner satellite))
+          [nx ny])
+      [x y])))
+
 (defn move-satellite
   "Moves a satellite one step toward its target.
+   Computer satellites with :direction move in a fixed straight line.
    When at target (always on boundary), calculates new target on opposite boundary.
    Satellites without a target don't move - they wait for user input."
   [[x y]]
   (let [cell (get-in @atoms/game-map [x y])
-        satellite (:contents cell)
-        target (:target satellite)]
-    (if-not target
-      ;; No target - satellite doesn't move, waits for user input
-      [x y]
-      (let [map-height (count @atoms/game-map)
-            map-width (count (first @atoms/game-map))
-            [tx ty] target
-            at-target? (and (= x tx) (= y ty))]
-        (if at-target?
-          ;; At target (on boundary) - bounce to opposite side
-          (let [new-target (calculate-new-satellite-target [x y] map-height map-width)
-                updated-satellite (assoc satellite :target new-target)]
-            (swap! atoms/game-map assoc-in [x y :contents] updated-satellite)
-            (visibility/update-cell-visibility [x y] (:owner satellite))
-            [x y])
-          ;; Not at target - move toward it
-          (let [dx (Integer/signum (- tx x))
-                dy (Integer/signum (- ty y))
-                new-pos [(+ x dx) (+ y dy)]]
-            ;; Remove from old position
-            (swap! atoms/game-map assoc-in [x y :contents] nil)
-            ;; Place at new position
-            (swap! atoms/game-map assoc-in (conj new-pos :contents) satellite)
-            (visibility/update-cell-visibility new-pos (:owner satellite))
-            new-pos))))))
+        satellite (:contents cell)]
+    (if (:direction satellite)
+      (move-satellite-straight [x y])
+      (let [target (:target satellite)]
+        (if-not target
+          ;; No target - satellite doesn't move, waits for user input
+          [x y]
+          (let [map-height (count @atoms/game-map)
+                map-width (count (first @atoms/game-map))
+                [tx ty] target
+                at-target? (and (= x tx) (= y ty))]
+            (if at-target?
+              ;; At target (on boundary) - bounce to opposite side
+              (let [new-target (calculate-new-satellite-target [x y] map-height map-width)
+                    updated-satellite (assoc satellite :target new-target)]
+                (swap! atoms/game-map assoc-in [x y :contents] updated-satellite)
+                (visibility/update-cell-visibility [x y] (:owner satellite))
+                [x y])
+              ;; Not at target - move toward it
+              (let [dx (Integer/signum (- tx x))
+                    dy (Integer/signum (- ty y))
+                    new-pos [(+ x dx) (+ y dy)]]
+                ;; Remove from old position
+                (swap! atoms/game-map assoc-in [x y :contents] nil)
+                ;; Place at new position
+                (swap! atoms/game-map assoc-in (conj new-pos :contents) satellite)
+                (visibility/update-cell-visibility new-pos (:owner satellite))
+                new-pos))))))))

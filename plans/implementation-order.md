@@ -2,7 +2,7 @@
 
 ## Status
 
-All 8 plans are unimplemented. The foundation is in place: country-id system, unload-event-id, basic production infrastructure, transport missions. No unit behavior plans have been started.
+Phase 1a (Satellite) is implemented. The remaining 7 plans are unimplemented. The foundation is in place: country-id system, unload-event-id, basic production infrastructure, transport missions.
 
 ## Dependencies
 

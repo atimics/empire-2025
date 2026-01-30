@@ -198,6 +198,11 @@
                       (* (count-computer-cities) 3)))
           :army)
 
+        ;; Satellite: max 1, requires >15 cities
+        (when (and (> (count-computer-cities) 15)
+                   (zero? (get (count-computer-units) :satellite 0)))
+          :satellite)
+
         ;; Ratio-based production
         (ratio-based-production city-pos coastal? country-id)
 

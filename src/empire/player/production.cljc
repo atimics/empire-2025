@@ -22,6 +22,9 @@
     (= item :satellite)
     (assoc :turns-remaining config/satellite-turns)
 
+    (and (= item :satellite) (= owner :computer))
+    (assoc :direction (rand-nth [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]]))
+
     (= item :transport)
     (assoc :transport-mission :idle)
 

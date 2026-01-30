@@ -177,6 +177,45 @@
     (reset! atoms/computer-map (build-test-map ["~X#"]))
     (should-not-be-nil (production/decide-production [0 1]))))
 
+(describe "satellite production gate"
+  (before (reset-all-atoms!))
+
+  (it "produces satellite when >15 cities and none alive"
+    ;; Build a map with 16 computer cities (need >15)
+    (let [city-row (vec (for [i (range 32)]
+                          (if (even? i)
+                            {:type :city :city-status :computer}
+                            {:type :land})))
+          game-map (vec [city-row])]
+      (reset! atoms/game-map game-map)
+      (reset! atoms/computer-map game-map)
+      ;; No live satellites, 16 cities
+      (should= :satellite (production/decide-production [0 0]))))
+
+  (it "does not produce satellite when one already alive"
+    ;; 16 computer cities but one live satellite on the map
+    (let [city-row (vec (for [i (range 32)]
+                          (if (even? i)
+                            {:type :city :city-status :computer}
+                            {:type :land})))
+          sat-row [{:type :land :contents {:type :satellite :owner :computer :direction [1 0] :turns-remaining 50}}
+                   {:type :land}]
+          game-map (vec [city-row sat-row])]
+      (reset! atoms/game-map game-map)
+      (reset! atoms/computer-map game-map)
+      (should-not= :satellite (production/decide-production [0 0]))))
+
+  (it "does not produce satellite when <=15 cities"
+    ;; Only 15 computer cities
+    (let [city-row (vec (for [i (range 30)]
+                          (if (even? i)
+                            {:type :city :city-status :computer}
+                            {:type :land})))
+          game-map (vec [city-row])]
+      (reset! atoms/game-map game-map)
+      (reset! atoms/computer-map game-map)
+      (should-not= :satellite (production/decide-production [0 0])))))
+
 (describe "process-computer-city"
   (before (reset-all-atoms!))
 

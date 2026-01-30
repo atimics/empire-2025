@@ -4,7 +4,8 @@
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.test-utils :refer [build-test-map get-test-city get-test-unit set-test-unit reset-all-atoms!]]
-            [empire.units.dispatcher :as dispatcher]))
+            [empire.units.dispatcher :as dispatcher]
+            [empire.containers.helpers :as uc]))
 
 (describe "hostile-city?"
   (before (reset-all-atoms!))
@@ -365,3 +366,210 @@
       (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
         (combat/attempt-attack [0 0] [0 1])
         (should= "c-3,S-1,c-3,c-3. Carrier destroyed." @atoms/line2-message)))))
+
+(describe "conquer-city-contents"
+  (before (reset-all-atoms!))
+
+  (it "flips a fighter at the city to new owner"
+    (reset! atoms/game-map (build-test-map ["X"]))
+    ;; Place computer fighter on the city
+    (swap! atoms/game-map assoc-in [0 0 :contents]
+           {:type :fighter :owner :computer :mode :moving :hits 1 :fuel 20 :target [5 5]})
+    (combat/conquer-city-contents [0 0] :player)
+    (let [unit (get-in @atoms/game-map [0 0 :contents])]
+      (should= :player (:owner unit))
+      (should= :fighter (:type unit))
+      (should= :awake (:mode unit))
+      (should-be-nil (:target unit))))
+
+  (it "flips a destroyer at the city to new owner"
+    (reset! atoms/game-map (build-test-map ["X"]))
+    (swap! atoms/game-map assoc-in [0 0 :contents]
+           {:type :destroyer :owner :computer :mode :moving :hits 3 :target [5 5]})
+    (combat/conquer-city-contents [0 0] :player)
+    (let [unit (get-in @atoms/game-map [0 0 :contents])]
+      (should= :player (:owner unit))
+      (should= :destroyer (:type unit))
+      (should= :awake (:mode unit))
+      (should-be-nil (:target unit))))
+
+  (it "kills army standing on the city"
+    (reset! atoms/game-map (build-test-map ["X"]))
+    (swap! atoms/game-map assoc-in [0 0 :contents]
+           {:type :army :owner :computer :mode :awake :hits 1})
+    (combat/conquer-city-contents [0 0] :player)
+    (should-be-nil (get-in @atoms/game-map [0 0 :contents])))
+
+  (it "kills armies inside a transport and flips the transport"
+    (reset! atoms/game-map (build-test-map ["X"]))
+    (swap! atoms/game-map assoc-in [0 0 :contents]
+           {:type :transport :owner :computer :mode :sentry :hits 1
+            :army-count 4 :awake-armies 2})
+    (combat/conquer-city-contents [0 0] :player)
+    (let [unit (get-in @atoms/game-map [0 0 :contents])]
+      (should= :player (:owner unit))
+      (should= :transport (:type unit))
+      (should= :awake (:mode unit))
+      (should= 0 (:army-count unit))
+      (should= 0 (:awake-armies unit))))
+
+  (it "kills fighters inside a carrier and flips the carrier"
+    (reset! atoms/game-map (build-test-map ["X"]))
+    (swap! atoms/game-map assoc-in [0 0 :contents]
+           {:type :carrier :owner :computer :mode :sentry :hits 8
+            :fighter-count 5 :awake-fighters 3})
+    (combat/conquer-city-contents [0 0] :player)
+    (let [unit (get-in @atoms/game-map [0 0 :contents])]
+      (should= :player (:owner unit))
+      (should= :carrier (:type unit))
+      (should= :awake (:mode unit))
+      (should= 0 (:fighter-count unit))
+      (should= 0 (:awake-fighters unit))))
+
+  (it "leaves satellites unchanged"
+    (reset! atoms/game-map (build-test-map ["X"]))
+    (swap! atoms/game-map assoc-in [0 0 :contents]
+           {:type :satellite :owner :computer :mode :moving :hits 1 :turns-remaining 30 :target [5 5]})
+    (combat/conquer-city-contents [0 0] :player)
+    (let [unit (get-in @atoms/game-map [0 0 :contents])]
+      (should= :computer (:owner unit))
+      (should= :satellite (:type unit))
+      (should= :moving (:mode unit))))
+
+  (it "clears city production on conquest"
+    (reset! atoms/game-map (build-test-map ["X"]))
+    (swap! atoms/production assoc [0 0] {:item :army :remaining-rounds 3})
+    (combat/conquer-city-contents [0 0] :player)
+    (should-be-nil (get @atoms/production [0 0])))
+
+  (it "clears marching-orders and flight-path on conquest"
+    (reset! atoms/game-map (build-test-map ["X"]))
+    (swap! atoms/game-map assoc-in [0 0 :marching-orders] [10 10])
+    (swap! atoms/game-map assoc-in [0 0 :flight-path] [20 20])
+    (combat/conquer-city-contents [0 0] :player)
+    (let [cell (get-in @atoms/game-map [0 0])]
+      (should-be-nil (:marching-orders cell))
+      (should-be-nil (:flight-path cell))))
+
+  (it "preserves airport fighter count for new owner"
+    (reset! atoms/game-map (build-test-map ["X"]))
+    (swap! atoms/game-map assoc-in [0 0 :fighter-count] 3)
+    (swap! atoms/game-map assoc-in [0 0 :awake-fighters] 1)
+    (combat/conquer-city-contents [0 0] :player)
+    (let [cell (get-in @atoms/game-map [0 0])]
+      (should= 3 (:fighter-count cell))
+      (should= 1 (:awake-fighters cell))))
+
+  (it "preserves shipyard ships for new owner"
+    (reset! atoms/game-map (build-test-map ["X"]))
+    (swap! atoms/game-map assoc-in [0 0 :shipyard]
+           [{:type :destroyer :hits 2} {:type :submarine :hits 1}])
+    (combat/conquer-city-contents [0 0] :player)
+    (let [cell (get-in @atoms/game-map [0 0])]
+      (should= 2 (count (:shipyard cell)))
+      (should= :destroyer (:type (first (:shipyard cell))))))
+
+  (it "player conquest calls conquer-city-contents"
+    (with-redefs [rand (constantly 0.1)]
+      (reset! atoms/game-map (build-test-map ["AX"]))
+      ;; Place a computer destroyer on the city
+      (swap! atoms/game-map assoc-in [0 1 :contents]
+             {:type :destroyer :owner :computer :mode :sentry :hits 3})
+      (swap! atoms/production assoc [0 1] {:item :fighter :remaining-rounds 5})
+      (combat/attempt-conquest [0 0] [0 1])
+      ;; City should be player-owned
+      (should= :player (get-in @atoms/game-map [0 1 :city-status]))
+      ;; Destroyer should be flipped to player
+      (let [unit (get-in @atoms/game-map [0 1 :contents])]
+        (should= :player (:owner unit))
+        (should= :destroyer (:type unit)))
+      ;; Production should be cleared
+      (should-be-nil (get @atoms/production [0 1]))))
+
+  (it "computer conquest applies same logic"
+    (with-redefs [rand (constantly 0.1)]
+      (reset! atoms/game-map (build-test-map ["aO"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      ;; Place a player destroyer on the city
+      (swap! atoms/game-map assoc-in [0 1 :contents]
+             {:type :destroyer :owner :player :mode :sentry :hits 3})
+      (swap! atoms/production assoc [0 1] {:item :army :remaining-rounds 2})
+      (let [core (requiring-resolve 'empire.computer.core/attempt-conquest-computer)]
+        (core [0 0] [0 1])
+        ;; City should be computer-owned
+        (should= :computer (get-in @atoms/game-map [0 1 :city-status]))
+        ;; Destroyer should be flipped to computer
+        (let [unit (get-in @atoms/game-map [0 1 :contents])]
+          (should= :computer (:owner unit))
+          (should= :destroyer (:type unit)))
+        ;; Production should be cleared
+        (should-be-nil (get @atoms/production [0 1]))))))
+
+(describe "cargo drowning after combat"
+  (before (reset-all-atoms!))
+
+  (it "drowns excess fighters when carrier wins with reduced capacity"
+    ;; Carrier at 8 hits with 6 fighters attacks army. Carrier wins but takes hits.
+    ;; Carrier ends at 4/8 hits -> capacity 4, so 2 fighters drown.
+    (reset! atoms/game-map (build-test-map ["Ca"]))
+    (set-test-unit atoms/game-map "C" :hits 8 :fighter-count 6 :awake-fighters 0)
+    (set-test-unit atoms/game-map "a" :hits 1)
+    ;; Rolls: 0.6(a hits C:7), 0.6(a hits C:6), 0.6(a hits C:5), 0.6(a hits C:4), 0.4(C hits a:0)
+    (let [rolls (atom [0.6 0.6 0.6 0.6 0.4])]
+      (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
+        (combat/attempt-attack [0 0] [0 1])
+        (let [survivor (:contents (get-in @atoms/game-map [0 1]))]
+          (should= :carrier (:type survivor))
+          (should= 4 (:hits survivor))
+          (should= 4 (:fighter-count survivor))))))
+
+  (it "does not drown when cargo within capacity"
+    ;; Carrier at 8 hits with 3 fighters attacks army. Carrier wins with 4 hits.
+    ;; Capacity 4 >= 3 fighters, no drowning.
+    (reset! atoms/game-map (build-test-map ["Ca"]))
+    (set-test-unit atoms/game-map "C" :hits 8 :fighter-count 3 :awake-fighters 0)
+    (set-test-unit atoms/game-map "a" :hits 1)
+    (let [rolls (atom [0.6 0.6 0.6 0.6 0.4])]
+      (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
+        (combat/attempt-attack [0 0] [0 1])
+        (let [survivor (:contents (get-in @atoms/game-map [0 1]))]
+          (should= 3 (:fighter-count survivor))))))
+
+  (it "caps awake-fighters at new fighter-count after drowning"
+    (reset! atoms/game-map (build-test-map ["Ca"]))
+    (set-test-unit atoms/game-map "C" :hits 8 :fighter-count 6 :awake-fighters 5)
+    (set-test-unit atoms/game-map "a" :hits 1)
+    ;; Carrier ends at 4 hits -> capacity 4
+    (let [rolls (atom [0.6 0.6 0.6 0.6 0.4])]
+      (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
+        (combat/attempt-attack [0 0] [0 1])
+        (let [survivor (:contents (get-in @atoms/game-map [0 1]))]
+          (should= 4 (:fighter-count survivor))
+          (should (<= (:awake-fighters survivor) 4))))))
+
+  (it "drowns cargo when defending carrier takes damage"
+    ;; Computer army attacks player carrier. Carrier wins but takes damage.
+    (reset! atoms/game-map (build-test-map ["aC"]))
+    (set-test-unit atoms/game-map "C" :hits 8 :fighter-count 6 :awake-fighters 0)
+    (set-test-unit atoms/game-map "a" :hits 1)
+    ;; Rolls: 0.6(C hits a:0) -> army dies immediately, carrier unhurt
+    ;; Need carrier to take damage. Army attacks carrier.
+    ;; Rolls: 0.6(C hits a, damage 1) -> a dies. But carrier takes no damage.
+    ;; Let me use a scenario where the attacker damages the defender before dying.
+    ;; Roll 0.4: attacker hits defender (army deals 1 damage to carrier -> 7 hits)
+    ;; Roll 0.6: defender (carrier) hits attacker (1 damage -> army dies)
+    ;; Carrier at 7 hits, capacity 7 >= 6, no drowning.
+    ;; Need more damage. Use a stronger attacker.
+    (reset! atoms/game-map (build-test-map ["sC"]))
+    (set-test-unit atoms/game-map "C" :hits 8 :fighter-count 7 :awake-fighters 0)
+    (set-test-unit atoms/game-map "s" :hits 2)
+    ;; Rolls: 0.4(sub hits C:5), 0.4(sub hits C:2), 0.6(C hits sub:1), 0.6(C hits sub:0)
+    (let [rolls (atom [0.4 0.4 0.6 0.6])]
+      (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
+        (combat/attempt-attack [0 0] [0 1])
+        ;; Carrier won (defender), now at 2/8 hits -> capacity 2
+        ;; 7 fighters should be reduced to 2
+        (let [survivor (:contents (get-in @atoms/game-map [0 1]))]
+          (should= :carrier (:type survivor))
+          (should= 2 (:hits survivor))
+          (should= 2 (:fighter-count survivor)))))))

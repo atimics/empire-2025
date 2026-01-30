@@ -13,6 +13,7 @@
             [empire.pathfinding :as pathfinding]
             [empire.player.production :as production]
             [empire.movement.satellite :as satellite]
+            [empire.units.dispatcher :as dispatcher]
             [empire.containers.helpers :as uc]))
 
 (defn update-player-map
@@ -112,7 +113,7 @@
           :let [cell (get-in @atoms/game-map [i j])
                 unit (:contents cell)]
           :when (and unit (= (:owner unit) :player))]
-    (let [steps (or (config/unit-speed (:type unit)) 1)]
+    (let [steps (or (dispatcher/effective-speed (:type unit) (:hits unit)) 1)]
       (swap! atoms/game-map assoc-in [i j :contents :steps-remaining] steps))))
 
 (defn wake-airport-fighters

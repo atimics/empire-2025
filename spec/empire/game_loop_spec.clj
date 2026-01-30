@@ -79,7 +79,13 @@
 
   (it "does not set steps-remaining for computer units"
     (game-loop/reset-steps-remaining)
-    (should-be-nil (:steps-remaining (:contents (get-in @atoms/game-map [1 0]))))))
+    (should-be-nil (:steps-remaining (:contents (get-in @atoms/game-map [1 0])))))
+
+  (it "scales steps-remaining by damage for multi-hit ships"
+    (reset! atoms/game-map (build-test-map ["D"]))
+    (set-test-unit atoms/game-map "D" :hits 1)  ; destroyer max=3, speed=2, at 1/3 -> speed 1
+    (game-loop/reset-steps-remaining)
+    (should= 1 (:steps-remaining (:contents (get-in @atoms/game-map [0 0]))))))
 
 (describe "wake-airport-fighters"
   (before (reset-all-atoms!))

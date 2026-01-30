@@ -108,6 +108,64 @@
       (should (dispatcher/needs-attention? {:type :transport :mode :sentry :awake-armies 1}))
       (should-not (dispatcher/needs-attention? {:type :transport :mode :sentry :awake-armies 0}))))
 
+  (describe "effective-speed"
+    (it "returns base speed at full health for all unit types"
+      (should= 1 (dispatcher/effective-speed :army 1))
+      (should= 8 (dispatcher/effective-speed :fighter 1))
+      (should= 10 (dispatcher/effective-speed :satellite 1))
+      (should= 2 (dispatcher/effective-speed :transport 1))
+      (should= 2 (dispatcher/effective-speed :carrier 8))
+      (should= 4 (dispatcher/effective-speed :patrol-boat 1))
+      (should= 2 (dispatcher/effective-speed :destroyer 3))
+      (should= 2 (dispatcher/effective-speed :submarine 2))
+      (should= 2 (dispatcher/effective-speed :battleship 10)))
+
+    (it "returns 1 for destroyer at 1/3 hits"
+      (should= 1 (dispatcher/effective-speed :destroyer 1)))
+
+    (it "returns 2 for destroyer at 2/3 hits"
+      (should= 2 (dispatcher/effective-speed :destroyer 2)))
+
+    (it "returns 1 for submarine at 1/2 hits"
+      (should= 1 (dispatcher/effective-speed :submarine 1)))
+
+    (it "returns 1 for battleship at 5/10 hits"
+      (should= 1 (dispatcher/effective-speed :battleship 5)))
+
+    (it "returns 1 for carrier at 4/8 hits"
+      (should= 1 (dispatcher/effective-speed :carrier 4)))
+
+    (it "returns 1 for carrier at 1/8 hits"
+      (should= 1 (dispatcher/effective-speed :carrier 1))))
+
+  (describe "capacity"
+    (it "returns correct capacity for container units"
+      (should= 6 (dispatcher/capacity :transport))
+      (should= 8 (dispatcher/capacity :carrier)))
+
+    (it "returns nil for non-container units"
+      (should-be-nil (dispatcher/capacity :army))
+      (should-be-nil (dispatcher/capacity :fighter))
+      (should-be-nil (dispatcher/capacity :destroyer))))
+
+  (describe "effective-capacity"
+    (it "returns base capacity at full health"
+      (should= 6 (dispatcher/effective-capacity :transport 1))
+      (should= 8 (dispatcher/effective-capacity :carrier 8)))
+
+    (it "returns 4 for carrier at 4/8 hits"
+      (should= 4 (dispatcher/effective-capacity :carrier 4)))
+
+    (it "returns 1 for carrier at 1/8 hits"
+      (should= 1 (dispatcher/effective-capacity :carrier 1)))
+
+    (it "scales carrier capacity linearly with hits"
+      (should= 7 (dispatcher/effective-capacity :carrier 7))
+      (should= 6 (dispatcher/effective-capacity :carrier 6))
+      (should= 5 (dispatcher/effective-capacity :carrier 5))
+      (should= 3 (dispatcher/effective-capacity :carrier 3))
+      (should= 2 (dispatcher/effective-capacity :carrier 2))))
+
   (describe "naval-unit?"
     (it "returns true for naval units"
       (should (dispatcher/naval-unit? :transport))

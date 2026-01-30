@@ -2,7 +2,8 @@
   "Shared utilities for computer AI modules."
   (:require [empire.atoms :as atoms]
             [empire.movement.map-utils :as map-utils]
-            [empire.movement.visibility :as visibility]))
+            [empire.movement.visibility :as visibility]
+            [empire.player.combat :as combat]))
 
 (defn get-neighbors
   "Returns valid neighbor coordinates for a position."
@@ -68,6 +69,7 @@
       (do
         (swap! atoms/game-map assoc-in army-pos (dissoc army-cell :contents))
         (swap! atoms/game-map assoc-in city-pos (assoc city-cell :city-status :computer))
+        (combat/conquer-city-contents city-pos :computer)
         (visibility/update-cell-visibility army-pos :computer)
         (visibility/update-cell-visibility city-pos :computer)
         nil)

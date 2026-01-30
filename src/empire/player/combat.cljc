@@ -5,6 +5,48 @@
             [empire.movement.visibility :as visibility]
             [empire.units.dispatcher :as dispatcher]))
 
+(def ^:private flippable-types
+  "Unit types that flip ownership on city conquest (ships and fighters)."
+  #{:fighter :transport :patrol-boat :destroyer :submarine :carrier :battleship})
+
+(defn conquer-city-contents
+  "Handles units at a conquered city per VMS Empire rules:
+   - Armies are killed
+   - Satellites are left unchanged
+   - Ships and fighters flip ownership, wake up, clear orders
+   - Transported armies and carried fighters are killed
+   - City production and standing orders are cleared"
+  [city-coords new-owner]
+  (let [cell (get-in @atoms/game-map city-coords)
+        contents (:contents cell)]
+    ;; Process the unit standing on the city
+    (when contents
+      (cond
+        ;; Kill armies
+        (= :army (:type contents))
+        (swap! atoms/game-map update-in city-coords dissoc :contents)
+
+        ;; Leave satellites unchanged
+        (= :satellite (:type contents))
+        nil
+
+        ;; Flip ships and fighters
+        (flippable-types (:type contents))
+        (let [flipped (-> contents
+                          (assoc :owner new-owner :mode :awake)
+                          (dissoc :target :reason))
+              ;; Kill cargo inside containers
+              flipped (cond-> flipped
+                        (= :transport (:type flipped))
+                        (assoc :army-count 0 :awake-armies 0)
+                        (= :carrier (:type flipped))
+                        (assoc :fighter-count 0 :awake-fighters 0))]
+          (swap! atoms/game-map assoc-in (conj city-coords :contents) flipped)))))
+  ;; Clear production
+  (swap! atoms/production dissoc city-coords)
+  ;; Clear standing orders
+  (swap! atoms/game-map update-in city-coords dissoc :marching-orders :flight-path))
+
 (defn hostile-city? [target-coords]
   (let [target-cell (get-in @atoms/game-map target-coords)]
     (and (= (:type target-cell) :city)
@@ -19,6 +61,7 @@
       (do
         (swap! atoms/game-map assoc-in army-coords (dissoc army-cell :contents))
         (swap! atoms/game-map assoc-in city-coords (assoc city-cell :city-status :player))
+        (conquer-city-contents city-coords :player)
         (visibility/update-cell-visibility city-coords :player))
       (do
         (swap! atoms/game-map assoc-in army-coords (dissoc army-cell :contents))
@@ -99,6 +142,22 @@
            (fn [reservations]
              (into {} (remove (fn [[_ tid]] (= tid (:transport-id unit))) reservations))))))
 
+(defn- drown-excess-cargo
+  "After combat, if a container's cargo exceeds its effective capacity, kill excess."
+  [coords survivor]
+  (when (#{:transport :carrier} (:type survivor))
+    (let [cap (dispatcher/effective-capacity (:type survivor) (:hits survivor))
+          [count-key awake-key] (if (= :transport (:type survivor))
+                                  [:army-count :awake-armies]
+                                  [:fighter-count :awake-fighters])
+          current-count (get survivor count-key 0)
+          excess (- current-count cap)]
+      (when (pos? excess)
+        (let [current-awake (get survivor awake-key 0)
+              new-awake (min current-awake cap)]
+          (swap! atoms/game-map update-in (conj coords :contents)
+                 assoc count-key cap awake-key new-awake))))))
+
 (defn attempt-attack
   "Attempts to attack an enemy unit at target-coords from attacker-coords.
    Returns true if attack was attempted, false otherwise."
@@ -121,5 +180,7 @@
         (if (= :attacker (:winner result))
           (swap! atoms/game-map assoc-in (conj target-coords :contents) (:survivor result))
           (swap! atoms/game-map assoc-in (conj target-coords :contents) (:survivor result)))
+        ;; Drown excess cargo if surviving container took damage
+        (drown-excess-cargo target-coords (:survivor result))
         (atoms/set-confirmation-message message Long/MAX_VALUE)
         true))))

@@ -15,7 +15,7 @@
   (let [cell (get-in @atoms/game-map transport-coords)
         unit (:contents cell)]
     (when (and (= (:type unit) :transport)
-               (not (uc/full? unit :army-count config/transport-capacity)))
+               (not (uc/full? unit :army-count (dispatcher/effective-capacity :transport (:hits unit)))))
       (let [[tx ty] transport-coords
             height (count @atoms/game-map)
             width (count (first @atoms/game-map))]
@@ -30,7 +30,7 @@
                            (= (:type adj-unit) :army)
                            (= (:mode adj-unit) :sentry)
                            (= (:owner adj-unit) (:owner transport))
-                           (not (uc/full? transport :army-count config/transport-capacity)))
+                           (not (uc/full? transport :army-count (dispatcher/effective-capacity :transport (:hits transport)))))
                   (swap! atoms/game-map assoc-in [nx ny] (dissoc adj-cell :contents))
                   (swap! atoms/game-map update-in (conj transport-coords :contents) uc/add-unit :army-count))))))
         ;; After loading, wake transport if at beach with armies
@@ -213,7 +213,7 @@
               :owner owner
               :hits (:hits ship-data)
               :mode :awake
-              :steps-remaining (dispatcher/speed (:type ship-data))}
+              :steps-remaining (dispatcher/effective-speed (:type ship-data) (:hits ship-data))}
         updated-city (uc/remove-ship-from-shipyard cell ship-index)]
     (swap! atoms/game-map assoc-in city-coords (assoc updated-city :contents ship))
     (visibility/update-cell-visibility city-coords owner)))

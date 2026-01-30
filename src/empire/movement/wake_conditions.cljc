@@ -57,7 +57,7 @@
     (and (= (:type unit) :fighter)
          (= (:type next-contents) :carrier)
          (= (:owner next-contents) (:owner unit))
-         (not (uc/full? next-contents :fighter-count config/carrier-capacity)))))
+         (not (uc/full? next-contents :fighter-count (dispatcher/effective-capacity :carrier (:hits next-contents)))))))
 
 (defn- blocking-wake-reason
   "Returns the wake reason if the unit is blocked, nil otherwise."

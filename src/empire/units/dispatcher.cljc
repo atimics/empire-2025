@@ -131,6 +131,31 @@
       :battleship (battleship/needs-attention? unit)
       false)))
 
+(defn effective-speed
+  "Calculates movement speed scaled by remaining hits (VMS ceiling division).
+   Units with 1 max hit always return base speed."
+  [unit-type current-hits]
+  (let [base-speed (speed unit-type)
+        max-hits (hits unit-type)]
+    (quot (+ (* base-speed current-hits) (dec max-hits)) max-hits)))
+
+(defn capacity
+  "Returns the base cargo capacity for container unit types."
+  [unit-type]
+  (case unit-type
+    :transport transport/capacity
+    :carrier carrier/capacity
+    nil))
+
+(defn effective-capacity
+  "Calculates cargo capacity scaled by remaining hits (VMS ceiling division).
+   Defaults to max hits if current-hits is nil."
+  [unit-type current-hits]
+  (let [base-cap (capacity unit-type)
+        max-h (hits unit-type)
+        cur-h (or current-hits max-h)]
+    (quot (+ (* base-cap cur-h) (dec max-h)) max-h)))
+
 ;; Naval unit check
 (def naval-units #{:transport :patrol-boat :destroyer :submarine :carrier :battleship})
 

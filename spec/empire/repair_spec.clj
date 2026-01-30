@@ -285,6 +285,15 @@
       (swap! atoms/game-map assoc-in [0 1 :shipyard] [{:type :battleship :hits 10}])
       (container-ops/launch-ship-from-shipyard [0 1] 0)
       (let [ship (get-in @atoms/game-map [0 1 :contents])]
-        (should= :computer (:owner ship))))))
+        (should= :computer (:owner ship)))))
+
+  (it "sets scaled speed for partially repaired ship"
+    (let [game-map (tu/build-test-map ["~O~"])]
+      (reset! atoms/game-map game-map)
+      ;; Battleship at 5/10 hits, speed=2 -> effective speed 1
+      (swap! atoms/game-map assoc-in [0 1 :shipyard] [{:type :battleship :hits 5}])
+      (container-ops/launch-ship-from-shipyard [0 1] 0)
+      (let [ship (get-in @atoms/game-map [0 1 :contents])]
+        (should= 1 (:steps-remaining ship))))))
 
 (run-specs)

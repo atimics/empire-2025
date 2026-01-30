@@ -120,7 +120,7 @@
          (= (:type unit) :fighter)
          (= (:type to-contents) :carrier)
          (= (:owner to-contents) (:owner unit))
-         (not (uc/full? to-contents :fighter-count config/carrier-capacity)))))
+         (not (uc/full? to-contents :fighter-count (dispatcher/effective-capacity :carrier (:hits to-contents)))))))
 
 (defn- classify-move [processed-unit to-cell _original-target _final-pos]
   (cond

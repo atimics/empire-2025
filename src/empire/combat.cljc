@@ -132,6 +132,40 @@
         (<= (:hits new-a) 0) {:winner :defender :survivor new-d :log new-log}
         :else (recur new-a new-d new-log)))))
 
+(defn clear-escort-on-death
+  "When a destroyer or transport with escort pairing is destroyed, clear the partner's reference."
+  [dead-unit]
+  (cond
+    ;; Dead destroyer: clear transport's escort-destroyer-id
+    (and (= :destroyer (:type dead-unit))
+         (:escort-transport-id dead-unit))
+    (let [tid (:escort-transport-id dead-unit)
+          game-map @atoms/game-map]
+      (doseq [i (range (count game-map))
+              j (range (count (first game-map)))
+              :let [cell (get-in game-map [i j])
+                    unit (:contents cell)]
+              :when (and unit
+                         (= :transport (:type unit))
+                         (= tid (:transport-id unit)))]
+        (swap! atoms/game-map update-in [i j :contents] dissoc :escort-destroyer-id)))
+
+    ;; Dead transport: set destroyer to seeking
+    (and (= :transport (:type dead-unit))
+         (:escort-destroyer-id dead-unit))
+    (let [did (:escort-destroyer-id dead-unit)
+          game-map @atoms/game-map]
+      (doseq [i (range (count game-map))
+              j (range (count (first game-map)))
+              :let [cell (get-in game-map [i j])
+                    unit (:contents cell)]
+              :when (and unit
+                         (= :destroyer (:type unit))
+                         (= did (:destroyer-id unit)))]
+        (swap! atoms/game-map update-in [i j :contents]
+               #(-> % (assoc :escort-mode :seeking)
+                    (dissoc :escort-transport-id)))))))
+
 (defn- drown-excess-cargo
   "After combat, if a container's cargo exceeds its effective capacity, kill excess."
   [coords survivor]
@@ -162,12 +196,15 @@
             message (format-combat-log (:log result)
                                        (:type attacker)
                                        (:type defender)
-                                       (:winner result))]
+                                       (:winner result))
+            dead-unit (if (= :attacker (:winner result)) defender attacker)]
         (swap! atoms/game-map assoc-in (conj attacker-coords :contents) nil)
         (if (= :attacker (:winner result))
           (swap! atoms/game-map assoc-in (conj target-coords :contents) (:survivor result))
           (swap! atoms/game-map assoc-in (conj target-coords :contents) (:survivor result)))
         ;; Drown excess cargo if surviving container took damage
         (drown-excess-cargo target-coords (:survivor result))
+        ;; Clear escort pairing if destroyer or transport died
+        (clear-escort-on-death dead-unit)
         (atoms/set-confirmation-message message Long/MAX_VALUE)
         true))))

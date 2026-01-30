@@ -123,6 +123,10 @@
   "An atom containing the next unique ID for transport unload cycles."
   (atom 1))
 
+(def next-destroyer-id
+  "An atom containing the next unique ID to assign to a computer destroyer."
+  (atom 1))
+
 ;; Debug atoms
 
 (def debug-drag-start

@@ -38,7 +38,8 @@
   [ship-pos enemy-pos]
   (let [attacker (get-in @atoms/game-map (conj ship-pos :contents))
         defender (get-in @atoms/game-map (conj enemy-pos :contents))
-        result (combat/resolve-combat attacker defender)]
+        result (combat/resolve-combat attacker defender)
+        dead-unit (if (= :attacker (:winner result)) defender attacker)]
     ;; Remove attacker from original position
     (swap! atoms/game-map update-in ship-pos dissoc :contents)
     (if (= :attacker (:winner result))
@@ -47,10 +48,12 @@
         (swap! atoms/game-map assoc-in (conj enemy-pos :contents) (:survivor result))
         (visibility/update-cell-visibility ship-pos :computer)
         (visibility/update-cell-visibility enemy-pos :computer)
+        (combat/clear-escort-on-death dead-unit)
         enemy-pos)
       ;; Attacker lost
       (do
         (visibility/update-cell-visibility ship-pos :computer)
+        (combat/clear-escort-on-death dead-unit)
         nil))))
 
 (defn- find-computer-transports
@@ -178,6 +181,87 @@
       (flee-from pos enemy-pos)
       (coastline-move pos))))
 
+;; --- Destroyer escort helpers ---
+
+(defn- find-unadopted-transport
+  "Finds the nearest computer transport without an escort-destroyer-id."
+  [pos]
+  (let [game-map @atoms/game-map
+        candidates (for [i (range (count game-map))
+                         j (range (count (first game-map)))
+                         :let [cell (get-in game-map [i j])
+                               unit (:contents cell)]
+                         :when (and unit
+                                    (= :computer (:owner unit))
+                                    (= :transport (:type unit))
+                                    (nil? (:escort-destroyer-id unit)))]
+                     [i j])]
+    (when (seq candidates)
+      (apply min-key (partial core/distance pos) candidates))))
+
+(defn- adopt-transport
+  "Pairs a destroyer at pos with a transport at transport-pos."
+  [pos transport-pos]
+  (let [destroyer (get-in @atoms/game-map (conj pos :contents))
+        transport (get-in @atoms/game-map (conj transport-pos :contents))
+        d-id (:destroyer-id destroyer)
+        t-id (:transport-id transport)]
+    (swap! atoms/game-map update-in (conj pos :contents)
+           #(assoc % :escort-transport-id t-id :escort-mode :intercepting))
+    (swap! atoms/game-map update-in (conj transport-pos :contents)
+           #(assoc % :escort-destroyer-id d-id))))
+
+(defn- find-transport-by-id
+  "Finds the position of a transport with the given transport-id."
+  [transport-id]
+  (let [game-map @atoms/game-map]
+    (first (for [i (range (count game-map))
+                 j (range (count (first game-map)))
+                 :let [cell (get-in game-map [i j])
+                       unit (:contents cell)]
+                 :when (and unit
+                            (= :transport (:type unit))
+                            (= transport-id (:transport-id unit)))]
+             [i j]))))
+
+(defn- process-escort-destroyer
+  "Processes a destroyer in escort mode."
+  [pos]
+  (let [unit (get-in @atoms/game-map (conj pos :contents))
+        mode (:escort-mode unit)]
+    (case mode
+      :seeking
+      (when-let [transport-pos (find-unadopted-transport pos)]
+        (adopt-transport pos transport-pos)
+        (move-toward pos transport-pos))
+
+      :intercepting
+      (if-let [transport-pos (find-transport-by-id (:escort-transport-id unit))]
+        (if (<= (core/distance pos transport-pos) 1)
+          ;; Adjacent - switch to escorting
+          (swap! atoms/game-map update-in (conj pos :contents)
+                 assoc :escort-mode :escorting)
+          (move-toward pos transport-pos))
+        ;; Transport gone - back to seeking
+        (do (swap! atoms/game-map update-in (conj pos :contents)
+                   #(-> % (assoc :escort-mode :seeking)
+                        (dissoc :escort-transport-id)))
+            nil))
+
+      :escorting
+      (if-let [transport-pos (find-transport-by-id (:escort-transport-id unit))]
+        ;; Stay adjacent - if already adjacent, stay put. If not, move closer.
+        (when (> (core/distance pos transport-pos) 1)
+          (move-toward pos transport-pos))
+        ;; Transport gone - back to seeking
+        (do (swap! atoms/game-map update-in (conj pos :contents)
+                   #(-> % (assoc :escort-mode :seeking)
+                        (dissoc :escort-transport-id)))
+            nil))
+
+      ;; Default (including nil) - fall through to normal ship behavior
+      nil)))
+
 (defn process-ship
   "Processes a computer ship using VMS Empire style logic.
    Priority: Retreat if damaged > Attack adjacent > Escort transports > Hunt enemies > Explore
@@ -205,19 +289,23 @@
         (if-let [enemy-pos (find-adjacent-enemy-ship pos)]
           (attack-enemy pos enemy-pos)
 
-          ;; Priority 2: Destroyers escort transports
-          (if (and (= :destroyer ship-type)
-                   (find-nearest-transport pos))
-            (let [transport-pos (find-nearest-transport pos)]
-              (if (> (core/distance pos transport-pos) 2)
-                (move-toward pos transport-pos)
-                ;; Already close - patrol nearby
-                (explore-sea pos ship-type)))
+          ;; Priority 2: Destroyers with escort mode
+          (if (and (= :destroyer ship-type) (:escort-mode unit))
+            (or (process-escort-destroyer pos)
+                (explore-sea pos ship-type))
 
-            ;; Priority 3: Hunt player ships
-            (if-let [enemy-sighting (find-player-ship-sighting pos)]
-              (move-toward pos enemy-sighting)
+            ;; Priority 3: Destroyers without escort - escort transports (legacy)
+            (if (and (= :destroyer ship-type)
+                     (find-nearest-transport pos))
+              (let [transport-pos (find-nearest-transport pos)]
+                (if (> (core/distance pos transport-pos) 2)
+                  (move-toward pos transport-pos)
+                  (explore-sea pos ship-type)))
 
-              ;; Priority 4: Explore sea
-              (explore-sea pos ship-type))))))))
+              ;; Priority 4: Hunt player ships
+              (if-let [enemy-sighting (find-player-ship-sighting pos)]
+                (move-toward pos enemy-sighting)
+
+                ;; Priority 5: Explore sea
+                (explore-sea pos ship-type)))))))))
   nil)

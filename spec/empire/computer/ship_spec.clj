@@ -143,6 +143,7 @@
                     (= :computer (:owner (:contents cell1)))))))
 
     (it "patrol boat flees from non-transport enemy"
+      ;; Note: This test must come before the destroyer escort tests
       ;; Patrol boat at [0 1], destroyer at [0 2] -- should move away to [0 0]
       (reset! atoms/game-map [[{:type :sea}
                                 {:type :sea :contents {:type :patrol-boat :owner :computer :hits 1
@@ -152,4 +153,66 @@
       (reset! atoms/computer-map @atoms/game-map)
       (ship/process-ship [0 1] :patrol-boat)
       ;; Patrol boat should have fled to [0 0] (away from destroyer at [0 2])
-      (should= :patrol-boat (get-in @atoms/game-map [0 0 :contents :type])))))
+      (should= :patrol-boat (get-in @atoms/game-map [0 0 :contents :type]))))
+
+  (describe "destroyer escort behavior"
+    (it "seeking destroyer adopts unadopted transport"
+      (reset! atoms/game-map [[{:type :sea :contents {:type :destroyer :owner :computer :hits 3
+                                                       :destroyer-id 1 :escort-mode :seeking}}
+                                {:type :sea}
+                                {:type :sea}
+                                {:type :sea :contents {:type :transport :owner :computer :hits 3
+                                                       :transport-id 1 :transport-mission :loading
+                                                       :army-count 0}}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (ship/process-ship [0 0] :destroyer)
+      ;; Destroyer should have adopted the transport and moved toward it
+      (let [destroyer (first (for [c (range 4)
+                                   :let [unit (get-in @atoms/game-map [0 c :contents])]
+                                   :when (= :destroyer (:type unit))]
+                               unit))
+            transport (get-in @atoms/game-map [0 3 :contents])]
+        (should= :intercepting (:escort-mode destroyer))
+        (should= 1 (:escort-transport-id destroyer))
+        (should= 1 (:escort-destroyer-id transport))))
+
+    (it "intercepting destroyer transitions to escorting when adjacent"
+      (reset! atoms/game-map [[{:type :sea :contents {:type :destroyer :owner :computer :hits 3
+                                                       :destroyer-id 1 :escort-mode :intercepting
+                                                       :escort-transport-id 1}}
+                                {:type :sea :contents {:type :transport :owner :computer :hits 3
+                                                       :transport-id 1 :escort-destroyer-id 1
+                                                       :transport-mission :loading :army-count 0}}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (ship/process-ship [0 0] :destroyer)
+      ;; Should transition to escorting (already adjacent)
+      (let [destroyer (get-in @atoms/game-map [0 0 :contents])]
+        (should= :escorting (:escort-mode destroyer))))
+
+    (it "escorting destroyer follows transport"
+      ;; Destroyer at [0 0] escorting, transport at [0 2] (not adjacent)
+      ;; Destroyer should move toward transport
+      (reset! atoms/game-map [[{:type :sea :contents {:type :destroyer :owner :computer :hits 3
+                                                       :destroyer-id 1 :escort-mode :escorting
+                                                       :escort-transport-id 1}}
+                                {:type :sea}
+                                {:type :sea :contents {:type :transport :owner :computer :hits 3
+                                                       :transport-id 1 :escort-destroyer-id 1
+                                                       :transport-mission :loading :army-count 0}}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (ship/process-ship [0 0] :destroyer)
+      ;; Should have moved toward transport
+      (should= :destroyer (get-in @atoms/game-map [0 1 :contents :type])))
+
+    (it "destroyer reverts to seeking when transport is destroyed"
+      ;; Destroyer escorting a transport that no longer exists
+      (reset! atoms/game-map [[{:type :sea :contents {:type :destroyer :owner :computer :hits 3
+                                                       :destroyer-id 1 :escort-mode :escorting
+                                                       :escort-transport-id 99}}
+                                {:type :sea}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (ship/process-ship [0 0] :destroyer)
+      ;; Should revert to seeking
+      (let [destroyer (get-in @atoms/game-map [0 0 :contents])]
+        (should= :seeking (:escort-mode destroyer))
+        (should-be-nil (:escort-transport-id destroyer))))))

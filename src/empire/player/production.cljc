@@ -66,6 +66,15 @@
                 :patrol-mode :homing)
     unit))
 
+(defn- apply-destroyer-fields
+  "Stamps destroyer-id and escort-mode on computer destroyers."
+  [unit item owner]
+  (if (and (= item :destroyer) (= owner :computer))
+    (let [id @atoms/next-destroyer-id]
+      (swap! atoms/next-destroyer-id inc)
+      (assoc unit :destroyer-id id :escort-mode :seeking))
+    unit))
+
 (defn- apply-coast-walk-fields
   "Stamps coast-walk mode on first 2 computer armies per country.
    First army gets clockwise, second gets counter-clockwise."
@@ -101,6 +110,7 @@
         flight-path (:flight-path cell)
         unit (-> (create-base-unit item owner)
                  (apply-unit-type-attributes item owner)
+                 (apply-destroyer-fields item owner)
                  (apply-country-id item cell)
                  (apply-patrol-fields item cell)
                  (apply-coast-walk-fields item cell coords)

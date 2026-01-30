@@ -156,22 +156,43 @@
                       (= country-id (:country-id cell))))))
         @atoms/production))
 
+(defn- country-has-unadopted-transport?
+  "Returns true if the country has a transport without an escort destroyer."
+  [country-id]
+  (some (fn [[i row]]
+          (some (fn [[j cell]]
+                  (let [unit (:contents cell)]
+                    (and unit
+                         (= :transport (:type unit))
+                         (= :computer (:owner unit))
+                         (= country-id (:country-id unit))
+                         (nil? (:escort-destroyer-id unit)))))
+                (map-indexed vector row)))
+        (map-indexed vector @atoms/game-map)))
+
 (defn- decide-country-production
   "Country-aware production decision. Returns unit type or nil to fall back to ratio-based."
   [city-pos country-id coastal?]
-  (cond
-    ;; Priority 1: Need transport (< 2 per country, coastal only, need 6+ armies first)
-    (and coastal?
-         (< (count-country-transports country-id) 2)
-         (>= (count-country-armies country-id) 6))
-    :transport
+  (let [unit-counts (count-computer-units)]
+    (cond
+      ;; Priority 1: Need transport (< 2 per country, coastal only, need 6+ armies first)
+      (and coastal?
+           (< (count-country-transports country-id) 2)
+           (>= (count-country-armies country-id) 6))
+      :transport
 
-    ;; Priority 2: Need army (< 10 per country, no other city producing armies)
-    (and (< (count-country-armies country-id) 10)
-         (not (country-city-producing-armies? city-pos country-id)))
-    :army
+      ;; Priority 2: Need army (< 10 per country, no other city producing armies)
+      (and (< (count-country-armies country-id) 10)
+           (not (country-city-producing-armies? city-pos country-id)))
+      :army
 
-    :else nil))
+      ;; Priority 3: Need destroyer escort (global cap: destroyers < transports, country has unadopted transport)
+      (and coastal?
+           (< (get unit-counts :destroyer 0) (get unit-counts :transport 0))
+           (country-has-unadopted-transport? country-id))
+      :destroyer
+
+      :else nil)))
 
 (defn- ratio-based-production
   "Choose unit with largest deficit based on production ratios."

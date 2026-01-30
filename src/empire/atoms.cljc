@@ -146,6 +146,11 @@
   "Per-round set of target cities already claimed by computer transports."
   (atom #{}))
 
+(def coast-walkers-produced
+  "Map of country-id -> count of coast-walk armies produced for that country.
+   First army gets clockwise, second gets counter-clockwise, 3+ get normal explore."
+  (atom {}))
+
 (def action-log
   "Circular buffer of recent game actions for debugging. Capped at 100 entries.
    Each entry is {:timestamp <ms> :action <vector describing the action>}."

@@ -152,6 +152,99 @@
       (reset! atoms/claimed-objectives #{})
       (should= #{} @atoms/claimed-objectives)))
 
+  (describe "coast-walk behavior"
+    (it "moves along coastline (land adjacent to sea)"
+      ;; Map: land strip with sea below
+      ;; a###
+      ;; ~~~~
+      ;; Army at [0 0] in coast-walk mode should move to [0 1] (land adjacent to sea)
+      (reset! atoms/game-map (build-test-map ["a###"
+                                               "~~~~"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      (swap! atoms/game-map assoc-in [0 0 :contents]
+             {:type :army :owner :computer :hits 1
+              :mode :coast-walk :coast-direction :clockwise
+              :coast-start [0 0] :coast-visited [[0 0]]})
+      (army/process-army [0 0])
+      ;; Army should have moved to an adjacent land cell that is also adjacent to sea
+      (should-be-nil (:contents (get-in @atoms/game-map [0 0])))
+      (should= :army (get-in @atoms/game-map [0 1 :contents :type])))
+
+    (it "terminates when no coast-adjacent moves available"
+      ;; 3x3 all-land map, army at center. No sea anywhere → no coast candidates → terminate
+      (reset! atoms/game-map (build-test-map ["###"
+                                               "#a#"
+                                               "###"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      (swap! atoms/game-map assoc-in [1 1 :contents]
+             {:type :army :owner :computer :hits 1
+              :mode :coast-walk :coast-direction :clockwise
+              :coast-start [0 0] :coast-visited [[0 0] [1 1]]})
+      (army/process-army [1 1])
+      ;; Should have terminated - switched to explore mode
+      (let [unit (get-in @atoms/game-map [1 1 :contents])]
+        (should= :explore (:mode unit))
+        (should-be-nil (:coast-direction unit))))
+
+    (it "terminates when returning to start position"
+      ;; ##~   Army at [0 0], only coast candidate is [0 1] which equals coast-start
+      ;; ~~~
+      (reset! atoms/game-map (build-test-map ["##~"
+                                               "~~~"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      (swap! atoms/game-map assoc-in [0 0 :contents]
+             {:type :army :owner :computer :hits 1
+              :mode :coast-walk :coast-direction :clockwise
+              :coast-start [0 1] :coast-visited [[0 0]]})
+      (army/process-army [0 0])
+      ;; Army should have moved to [0 1] (coast-start) and terminated
+      (let [unit (get-in @atoms/game-map [0 1 :contents])]
+        (should= :army (:type unit))
+        (should= :explore (:mode unit))
+        (should-be-nil (:coast-direction unit))))
+
+    (it "prefers unexplored territory"
+      ;; 2x5 map: land on top, sea on bottom. Army at [0 2].
+      ;; Computer-map has [0 0] and [0 1] unexplored (nil).
+      ;; Candidate [0 1] has unexplored neighbor [0 0], candidate [0 3] does not.
+      (reset! atoms/game-map (build-test-map ["#####"
+                                               "~~~~~"]))
+      (reset! atoms/computer-map [[nil nil {:type :land} {:type :land} {:type :land}]
+                                   [{:type :sea} {:type :sea} {:type :sea} {:type :sea} {:type :sea}]])
+      (swap! atoms/game-map assoc-in [0 2 :contents]
+             {:type :army :owner :computer :hits 1
+              :mode :coast-walk :coast-direction :clockwise
+              :coast-start [0 4] :coast-visited [[0 2]]})
+      (army/process-army [0 2])
+      ;; Should move toward [0 1] which has unexplored neighbor [0 0]
+      (should= :army (get-in @atoms/game-map [0 1 :contents :type])))
+
+    (it "avoids backtracking"
+      ;; Army at [0 1], visited includes [0 0], should prefer [0 2]
+      (reset! atoms/game-map (build-test-map ["###"
+                                               "~~~"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      (swap! atoms/game-map assoc-in [0 1 :contents]
+             {:type :army :owner :computer :hits 1
+              :mode :coast-walk :coast-direction :clockwise
+              :coast-start [0 0] :coast-visited [[0 0] [0 1]]})
+      (army/process-army [0 1])
+      ;; Should avoid [0 0] (in visited) and go to [0 2]
+      (should= :army (get-in @atoms/game-map [0 2 :contents :type])))
+
+    (it "attacks adjacent enemy even in coast-walk mode"
+      (reset! atoms/game-map (build-test-map ["aA#"
+                                               "~~~"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      (swap! atoms/game-map assoc-in [0 0 :contents]
+             {:type :army :owner :computer :hits 1
+              :mode :coast-walk :coast-direction :clockwise
+              :coast-start [0 0] :coast-visited [[0 0]]})
+      (army/process-army [0 0])
+      ;; Combat should have occurred
+      (should (or (nil? (:contents (get-in @atoms/game-map [0 0])))
+                  (= :computer (:owner (:contents (get-in @atoms/game-map [0 1]))))))))
+
   (describe "ignores non-computer units"
     (it "returns nil for player army"
       (reset! atoms/game-map (build-test-map ["A#"]))

@@ -66,6 +66,33 @@
                 :patrol-mode :homing)
     unit))
 
+(defn- apply-coast-walk-fields
+  "Stamps coast-walk mode on first 2 computer armies per country.
+   First army gets clockwise, second gets counter-clockwise."
+  [unit item cell coords]
+  (if (and (= item :army)
+           (= (:city-status cell) :computer)
+           (:country-id cell))
+    (let [country-id (:country-id cell)
+          produced (get @atoms/coast-walkers-produced country-id 0)]
+      (cond
+        (zero? produced)
+        (do (swap! atoms/coast-walkers-produced update country-id (fnil inc 0))
+            (assoc unit :mode :coast-walk
+                        :coast-direction :clockwise
+                        :coast-start coords
+                        :coast-visited [coords]))
+
+        (= produced 1)
+        (do (swap! atoms/coast-walkers-produced update country-id inc)
+            (assoc unit :mode :coast-walk
+                        :coast-direction :counter-clockwise
+                        :coast-start coords
+                        :coast-visited [coords]))
+
+        :else unit))
+    unit))
+
 (defn- spawn-unit
   "Creates and places a unit at the given city coordinates."
   [coords cell item]
@@ -76,6 +103,7 @@
                  (apply-unit-type-attributes item owner)
                  (apply-country-id item cell)
                  (apply-patrol-fields item cell)
+                 (apply-coast-walk-fields item cell coords)
                  (apply-movement-orders item marching-orders flight-path))]
     (swap! atoms/game-map assoc-in (conj coords :contents) unit)
     owner))

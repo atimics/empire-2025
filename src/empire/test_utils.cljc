@@ -170,4 +170,5 @@
   (reset! atoms/next-unload-event-id 1)
   (reset! atoms/claimed-objectives #{})
   (reset! atoms/claimed-transport-targets #{})
+  (reset! atoms/coast-walkers-produced {})
   (pathfinding/clear-path-cache))

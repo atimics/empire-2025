@@ -149,6 +149,51 @@
         (should= :awake (:mode unit))
         (should-be-nil (:explore-steps unit))))))
 
+(describe "coast-walk stamping"
+  (before
+    (reset-all-atoms!)
+    (reset! atoms/production {}))
+
+  (it "first computer army gets clockwise coast-walk"
+    (reset! atoms/game-map [[{:type :city :city-status :computer :country-id 1}
+                              {:type :sea}]])
+    (swap! atoms/production assoc [0 0] {:item :army :remaining-rounds 1})
+    (production/update-production)
+    (let [unit (get-in @atoms/game-map [0 0 :contents])]
+      (should= :coast-walk (:mode unit))
+      (should= :clockwise (:coast-direction unit))
+      (should= [0 0] (:coast-start unit))
+      (should= [[0 0]] (:coast-visited unit))))
+
+  (it "second computer army gets counter-clockwise coast-walk"
+    (reset! atoms/coast-walkers-produced {1 1})
+    (reset! atoms/game-map [[{:type :city :city-status :computer :country-id 1}
+                              {:type :sea}]])
+    (swap! atoms/production assoc [0 0] {:item :army :remaining-rounds 1})
+    (production/update-production)
+    (let [unit (get-in @atoms/game-map [0 0 :contents])]
+      (should= :coast-walk (:mode unit))
+      (should= :counter-clockwise (:coast-direction unit))))
+
+  (it "third computer army gets normal mode (no coast-walk)"
+    (reset! atoms/coast-walkers-produced {1 2})
+    (reset! atoms/game-map [[{:type :city :city-status :computer :country-id 1}
+                              {:type :sea}]])
+    (swap! atoms/production assoc [0 0] {:item :army :remaining-rounds 1})
+    (production/update-production)
+    (let [unit (get-in @atoms/game-map [0 0 :contents])]
+      (should= :awake (:mode unit))
+      (should-be-nil (:coast-direction unit))))
+
+  (it "player army does not get coast-walk"
+    (reset! atoms/game-map [[{:type :city :city-status :player :country-id 1}
+                              {:type :sea}]])
+    (swap! atoms/production assoc [0 0] {:item :army :remaining-rounds 1})
+    (production/update-production)
+    (let [unit (get-in @atoms/game-map [0 0 :contents])]
+      (should= :awake (:mode unit))
+      (should-be-nil (:coast-direction unit)))))
+
 (describe "set-city-production"
   (before
     (reset-all-atoms!)

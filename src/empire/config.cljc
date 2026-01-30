@@ -47,6 +47,10 @@
 (def explore-steps 50)
 (def coastline-steps 100)
 (def satellite-turns 50)    ; empire.units.satellite/turns
+(def max-sidesteps 10)
+(def bingo-fuel-divisor 4)
+(def max-placement-attempts 1000)
+(def min-surrounding-land 10)
 
 ;; Messages and reasons
 (def messages

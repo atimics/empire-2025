@@ -2,7 +2,7 @@
   (:require [speclj.core :refer :all]
             [empire.player.attention :as attention]
             [empire.atoms :as atoms]
-            [empire.player.combat :as combat]
+            [empire.combat :as combat]
             [empire.config :as config]
             [empire.game-loop :as game-loop]
             [empire.ui.input :as input]

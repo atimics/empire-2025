@@ -2,6 +2,7 @@
   "Continent detection using flood-fill on fog-of-war map.
    Implements VMS Empire style continent recognition that respects unexplored territory."
   (:require [empire.atoms :as atoms]
+            [empire.computer.core :as core]
             [empire.movement.map-utils :as map-utils]))
 
 (defn- get-terrain
@@ -127,11 +128,7 @@
                               (pred cell pos)))
                           continent-positions)]
     (when (seq candidates)
-      (apply min-key
-             (fn [[r c]]
-               (let [[sr sc] start-pos]
-                 (+ (Math/abs (- r sr)) (Math/abs (- c sc)))))
-             candidates))))
+      (apply min-key #(core/distance start-pos %) candidates))))
 
 (defn find-unexplored-on-continent
   "Find nearest unexplored cell on the continent."

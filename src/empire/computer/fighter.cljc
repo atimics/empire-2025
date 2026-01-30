@@ -3,8 +3,8 @@
    Attack adjacent enemies, patrol within fuel range, return to city."
   (:require [empire.atoms :as atoms]
             [empire.computer.core :as core]
-            [empire.player.combat :as combat]
-            [empire.pathfinding :as pathfinding]
+            [empire.combat :as combat]
+            [empire.movement.pathfinding :as pathfinding]
             [empire.movement.visibility :as visibility]
             [empire.config :as config]))
 

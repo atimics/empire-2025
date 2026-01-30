@@ -115,16 +115,13 @@
   "An atom containing the next unique ID to assign to a computer transport."
   (atom 1))
 
-(def reserved-beaches
-  "An atom mapping beach coordinates to the transport-id that reserved them.
-   Structure: {[beach-row beach-col] transport-id}"
-  (atom {}))
+(def next-country-id
+  "An atom containing the next unique country ID to assign."
+  (atom 1))
 
-(def beach-army-orders
-  "Tracks beaches needing army production.
-   When a transport departs, the nearest city produces 6 armies for the beach.
-   Structure: {beach-pos {:city-pos [r c], :remaining n}}"
-  (atom {}))
+(def next-unload-event-id
+  "An atom containing the next unique ID for transport unload cycles."
+  (atom 1))
 
 ;; Debug atoms
 

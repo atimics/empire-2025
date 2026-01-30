@@ -1,6 +1,6 @@
 (ns empire.movement.movement
   (:require [empire.atoms :as atoms]
-            [empire.player.combat :as combat]
+            [empire.combat :as combat]
             [empire.config :as config]
             [empire.containers.ops :as container-ops]
             [empire.movement.map-utils :as map-utils]
@@ -12,27 +12,17 @@
 
 ;; Core movement functions
 
-(defn is-computers?
-  "Returns true if the cell is owned by the computer."
-  [cell]
-  (or (= (:city-status cell) :computer)
-      (= (:owner (:contents cell)) :computer)))
-
 (defn next-step-pos [pos target]
   (let [[x y] pos
         [tx ty] target
-        dx (cond (zero? (- tx x)) 0
-                 (pos? (- tx x)) 1
-                 :else -1)
-        dy (cond (zero? (- ty y)) 0
-                 (pos? (- ty y)) 1
-                 :else -1)]
+        dx (Integer/signum (- tx x))
+        dy (Integer/signum (- ty y))]
     [(+ x dx) (+ y dy)]))
 
 (defn chebyshev-distance
   "Returns the Chebyshev (chessboard) distance between two positions."
   [[x1 y1] [x2 y2]]
-  (max (abs (- x2 x1)) (abs (- y2 y1))))
+  (max (Math/abs (- x2 x1)) (Math/abs (- y2 y1))))
 
 (defn- can-move-to?
   "Returns true if the unit type can move to the given cell.

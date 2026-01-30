@@ -605,26 +605,6 @@
         (should= {:type :land :contents {:type :army :owner :player :hits 1 :mode :awake :steps-remaining 0}} (get-in @atoms/game-map [4 6])))
       )
 
-    (describe "is-computers?"
-      (it "returns true for computer city"
-        (let [cell {:type :city :city-status :computer}]
-          (should (is-computers? cell))))
-
-      (it "returns true for cell with computer unit"
-        (let [cell {:type :land :contents {:type :army :owner :computer}}]
-          (should (is-computers? cell))))
-
-      (it "returns false for player city"
-        (let [cell {:type :city :city-status :player}]
-          (should-not (is-computers? cell))))
-
-      (it "returns false for cell with player unit"
-        (let [cell {:type :land :contents {:type :army :owner :player}}]
-          (should-not (is-computers? cell))))
-
-      (it "returns false for empty cell"
-        (let [cell {:type :land}]
-          (should-not (is-computers? cell)))))
 
     (describe "wake-before-move edge cases"
       (it "wakes unit when something is in the way"

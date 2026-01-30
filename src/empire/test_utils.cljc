@@ -1,12 +1,12 @@
 (ns empire.test-utils
   (:require [empire.atoms :as atoms]
-            [empire.pathfinding :as pathfinding]
+            [empire.movement.pathfinding :as pathfinding]
             [empire.units.dispatcher :as dispatcher]))
 
 (defn- make-unit [unit-type owner]
   {:type unit-type :owner owner :hits (dispatcher/hits unit-type)})
 
-(defn- char->cell [c]
+(defn char->cell [c]
   (case c
     \~ {:type :sea}
     \# {:type :land}
@@ -43,6 +43,15 @@
   (mapv (fn [row-str]
           (mapv char->cell row-str))
         strings))
+
+(defn build-sparse-test-map
+  "Builds a rows x cols map of unexplored (nil) cells, then overlays specific cells.
+   overlays is a map of [row col] -> character."
+  [rows cols overlays]
+  (let [base (vec (repeat rows (vec (repeat cols nil))))]
+    (reduce (fn [m [[r c] ch]]
+              (assoc-in m [r c] (char->cell ch)))
+            base overlays)))
 
 (def ^:private char->unit-type
   {\A :army      \a :army
@@ -157,8 +166,8 @@
   (reset! atoms/computer-items [])
   (reset! atoms/computer-turn false)
   (reset! atoms/next-transport-id 1)
-  (reset! atoms/reserved-beaches {})
-  (reset! atoms/beach-army-orders {})
+  (reset! atoms/next-country-id 1)
+  (reset! atoms/next-unload-event-id 1)
   (reset! atoms/claimed-objectives #{})
   (reset! atoms/claimed-transport-targets #{})
   (pathfinding/clear-path-cache))

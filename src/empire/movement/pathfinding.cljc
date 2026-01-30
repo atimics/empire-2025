@@ -1,22 +1,32 @@
-(ns empire.pathfinding
+(ns empire.movement.pathfinding
   "A* pathfinding for computer AI units.
    Provides efficient pathfinding that respects terrain constraints."
   (:require [empire.atoms :as atoms]
+            [empire.computer.core :as core]
             [empire.units.dispatcher :as dispatcher]))
 
 (def path-cache
   "Cache for computed paths: {[start goal unit-type] path-vector}"
   (atom {}))
 
+(def bfs-unexplored-cache
+  "Cache for BFS unexplored results: {unit-type result-pos-or-nil}"
+  (atom {}))
+
+(def bfs-unload-cache
+  "Cache for BFS unload results: {target-continent result-pos-or-nil}"
+  (atom {}))
+
 (defn clear-path-cache
   "Clears entire path cache. Called at start of each round."
   []
-  (reset! path-cache {}))
+  (reset! path-cache {})
+  (reset! bfs-unexplored-cache {})
+  (reset! bfs-unload-cache {}))
 
-(defn heuristic
+(def heuristic
   "Manhattan distance heuristic for A*."
-  [[x1 y1] [x2 y2]]
-  (+ (Math/abs (- x2 x1)) (Math/abs (- y2 y1))))
+  core/distance)
 
 (defn passable?
   "Returns true if unit-type can move through the cell."
@@ -100,6 +110,30 @@
                    new-came-from
                    new-counter)))))))
 
+(defn sea-reaches-edge?
+  "BFS flood-fill from pos over sea cells. Returns true if any
+   reachable sea cell is on the map edge. Short-circuits on first edge hit."
+  [pos]
+  (let [game-map @atoms/game-map
+        rows (count game-map)
+        cols (count (first game-map))]
+    (loop [queue (conj clojure.lang.PersistentQueue/EMPTY pos)
+           visited #{pos}]
+      (if (empty? queue)
+        false
+        (let [[r c] (peek queue)]
+          (if (or (zero? r) (zero? c) (= r (dec rows)) (= c (dec cols)))
+            true
+            (let [neighbors (for [[dr dc] neighbor-offsets
+                                  :let [nr (+ r dr) nc (+ c dc)]
+                                  :when (and (>= nr 0) (< nr rows)
+                                             (>= nc 0) (< nc cols)
+                                             (not (visited [nr nc]))
+                                             (= :sea (:type (get-in game-map [nr nc]))))]
+                              [nr nc])
+                  new-visited (into visited neighbors)]
+              (recur (into (pop queue) neighbors) new-visited))))))))
+
 (defn- adjacent-to-unexplored?
   "Returns true if any neighbor of pos on the computer-map is unexplored.
    Handles both nil (test maps) and {:type :unexplored} (real game)."
@@ -117,12 +151,10 @@
                          (= :unexplored (:type cell)))))))
           neighbor-offsets)))
 
-(defn find-nearest-unexplored
+(defn- find-nearest-unexplored-uncached
   "BFS from start over passable cells to find nearest cell adjacent to unexplored.
    Returns the target position, or nil if none found.
-   Skips the start position so the result is a meaningful movement target.
-   unit-type determines which cells are passable (e.g. :transport for sea,
-   :fighter for all terrain)."
+   Skips the start position so the result is a meaningful movement target."
   [start unit-type]
   (let [game-map @atoms/game-map
         computer-map @atoms/computer-map]
@@ -140,6 +172,20 @@
                   new-queue (into rest-queue neighbors)]
               (recur new-queue new-visited))))))))
 
+(defn find-nearest-unexplored
+  "BFS from start over passable cells to find nearest cell adjacent to unexplored.
+   Returns the target position, or nil if none found.
+   Caches result per unit-type so all units of the same type share one BFS per round.
+   unit-type determines which cells are passable (e.g. :transport for sea,
+   :fighter for all terrain)."
+  [start unit-type]
+  (let [cache @bfs-unexplored-cache]
+    (if (contains? cache unit-type)
+      (get cache unit-type)
+      (let [result (find-nearest-unexplored-uncached start unit-type)]
+        (swap! bfs-unexplored-cache assoc unit-type result)
+        result))))
+
 (defn- adjacent-to-target-continent-land?
   "Returns true if any neighbor of pos is land/city on target-continent."
   [pos target-continent game-map]
@@ -153,9 +199,9 @@
                    (contains? target-continent [nx ny]))))
           neighbor-offsets)))
 
-(defn find-nearest-unload-position
+(defn- find-nearest-unload-uncached
   "BFS from start over sea cells to find nearest empty sea cell
-   adjacent to land on target-continent. VMS-style global search."
+   adjacent to land on target-continent."
   [start target-continent]
   (let [game-map @atoms/game-map]
     (loop [queue (conj clojure.lang.PersistentQueue/EMPTY start)
@@ -174,6 +220,19 @@
                   new-visited (into visited new-neighbors)
                   new-queue (into rest-queue new-neighbors)]
               (recur new-queue new-visited))))))))
+
+(defn find-nearest-unload-position
+  "BFS from start over sea cells to find nearest empty sea cell
+   adjacent to land on target-continent. VMS-style global search.
+   Caches result per target-continent so all transports heading to the same
+   continent share one BFS per round."
+  [start target-continent]
+  (let [cache @bfs-unload-cache]
+    (if (contains? cache target-continent)
+      (get cache target-continent)
+      (let [result (find-nearest-unload-uncached start target-continent)]
+        (swap! bfs-unload-cache assoc target-continent result)
+        result))))
 
 (defn- cache-sub-paths!
   "Caches all sub-paths of a computed path so subsequent steps are O(1) lookups."

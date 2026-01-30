@@ -2,10 +2,10 @@
   "Computer army module - VMS Empire style army movement.
    Priority: Attack adjacent enemies > Find land objective > Board transport > Explore"
   (:require [empire.atoms :as atoms]
-            [empire.player.combat :as combat]
+            [empire.combat :as combat]
             [empire.computer.core :as core]
             [empire.computer.continent :as continent]
-            [empire.pathfinding :as pathfinding]
+            [empire.movement.pathfinding :as pathfinding]
             [empire.movement.visibility :as visibility]))
 
 (defn- get-passable-neighbors

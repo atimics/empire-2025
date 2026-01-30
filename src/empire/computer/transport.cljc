@@ -5,7 +5,7 @@
   (:require [empire.atoms :as atoms]
             [empire.computer.core :as core]
             [empire.computer.continent :as continent]
-            [empire.pathfinding :as pathfinding]
+            [empire.movement.pathfinding :as pathfinding]
             [empire.movement.visibility :as visibility]
             [empire.movement.map-utils :as map-utils]))
 
@@ -44,11 +44,7 @@
                      (filter #(contains? pickup-continent %) armies)
                      armies)]
     (when (seq candidates)
-      (apply min-key
-             (fn [[r c]]
-               (let [[tr tc] transport-pos]
-                 (+ (Math/abs (- r tr)) (Math/abs (- c tc)))))
-             candidates))))
+      (apply min-key #(core/distance transport-pos %) candidates))))
 
 (defn- adjacent-to-land?
   "Returns true if position has adjacent land cell."
@@ -200,10 +196,12 @@
             to-unload (min army-count (count land-neighbors))]
         (when (pos? to-unload)
           ;; Unload armies onto land cells
-          (doseq [land-pos (take to-unload land-neighbors)]
-            (swap! atoms/game-map assoc-in (conj land-pos :contents)
-                   {:type :army :owner :computer :mode :awake :hits 1})
-            (visibility/update-cell-visibility land-pos :computer))
+          (let [unload-eid (:unload-event-id transport)]
+            (doseq [land-pos (take to-unload land-neighbors)]
+              (swap! atoms/game-map assoc-in (conj land-pos :contents)
+                     (cond-> {:type :army :owner :computer :mode :awake :hits 1}
+                       unload-eid (assoc :unload-event-id unload-eid)))
+              (visibility/update-cell-visibility land-pos :computer)))
           ;; Update transport army count
           (swap! atoms/game-map update-in (conj pos :contents :army-count) - to-unload)
           ;; If fully unloaded, change mission to loading and update pickup continent
@@ -220,6 +218,15 @@
   "Set the transport's mission state."
   [pos mission]
   (swap! atoms/game-map assoc-in (conj pos :contents :transport-mission) mission))
+
+(defn- mint-unload-event-id
+  "Mint a new unload-event-id when transport transitions to unloading."
+  [pos transport]
+  (when-not (:unload-event-id transport)
+    (let [id @atoms/next-unload-event-id]
+      (swap! atoms/next-unload-event-id inc)
+      (swap! atoms/game-map assoc-in
+             (conj pos :contents :unload-event-id) id))))
 
 (defn- record-pickup-continent-pos
   "When transport becomes full, record the nearest adjacent land position
@@ -265,6 +272,7 @@
             (>= army-count 6)
             (do
               (set-transport-mission pos :unloading)
+              (mint-unload-event-id pos transport)
               (record-pickup-continent-pos pos transport)
               (let [updated-transport (get-in @atoms/game-map (conj pos :contents))
                     pickup-continent (when-let [ocp (:pickup-continent-pos updated-transport)]

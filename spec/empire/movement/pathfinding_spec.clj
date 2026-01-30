@@ -1,6 +1,6 @@
-(ns empire.pathfinding-spec
+(ns empire.movement.pathfinding-spec
   (:require [speclj.core :refer :all]
-            [empire.pathfinding :as pathfinding]
+            [empire.movement.pathfinding :as pathfinding]
             [empire.atoms :as atoms]
             [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
 
@@ -278,6 +278,74 @@
       (should-not-be-nil target)
       ;; Should find a cell adjacent to [2,2]
       (should (some #{target} [[1 1] [1 2] [2 1]])))))
+
+(describe "BFS cache behavior"
+  (before
+    (reset-all-atoms!)
+    (pathfinding/clear-path-cache))
+
+  (it "caches unexplored BFS result for same unit-type"
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                            "~~~"
+                                            "~~~"]))
+    (reset! atoms/computer-map (build-test-map ["~~~"
+                                                "~~~"
+                                                "~~-"]))
+    ;; Two calls with different starts but same unit-type return same result
+    (let [result1 (pathfinding/find-nearest-unexplored [0 0] :transport)
+          result2 (pathfinding/find-nearest-unexplored [0 2] :transport)]
+      (should-not-be-nil result1)
+      (should= result1 result2)))
+
+  (it "caches unload BFS result for same target-continent"
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                            "~~~"
+                                            "~~~"
+                                            "###"]))
+    (let [target-continent #{[3 0] [3 1] [3 2]}
+          result1 (pathfinding/find-nearest-unload-position [0 0] target-continent)
+          result2 (pathfinding/find-nearest-unload-position [0 2] target-continent)]
+      (should-not-be-nil result1)
+      (should= result1 result2)))
+
+  (it "clear-path-cache also clears BFS caches"
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                            "~~~"
+                                            "~~~"]))
+    (reset! atoms/computer-map (build-test-map ["~~~"
+                                                "~~~"
+                                                "~~-"]))
+    ;; Populate cache
+    (pathfinding/find-nearest-unexplored [0 0] :transport)
+    ;; Clear caches
+    (pathfinding/clear-path-cache)
+    ;; Change the map so a fresh BFS would give a different result
+    (reset! atoms/computer-map (build-test-map ["-~~"
+                                                "~~~"
+                                                "~~~"]))
+    ;; After clearing, fresh BFS runs and finds new target
+    (let [result (pathfinding/find-nearest-unexplored [1 1] :transport)]
+      (should-not-be-nil result)
+      ;; Should be adjacent to [0,0] now (the new unexplored cell)
+      (should (some #{result} [[0 1] [1 0] [1 1]]))))
+
+  (it "different unit-types get independent cache entries"
+    (reset! atoms/game-map (build-test-map ["##~"
+                                            "#~~"
+                                            "~~~"]))
+    (reset! atoms/computer-map (build-test-map ["##~"
+                                                "#~~"
+                                                "~~-"]))
+    ;; Transport can only traverse sea; fighter can traverse all
+    (let [transport-result (pathfinding/find-nearest-unexplored [0 2] :transport)
+          fighter-result (pathfinding/find-nearest-unexplored [0 0] :fighter)]
+      (should-not-be-nil transport-result)
+      (should-not-be-nil fighter-result)
+      ;; They should be independently cached (may differ since transport
+      ;; BFS only covers sea cells while fighter covers all)
+      ;; Key assertion: fighter result should not be the transport cached value
+      ;; when called from a different start position on land
+      (should (some #{fighter-result} [[1 1] [1 2] [2 1]])))))
 
 (describe "find-nearest-unload-position"
   (before (reset-all-atoms!))

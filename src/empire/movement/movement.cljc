@@ -12,12 +12,6 @@
 
 ;; Core movement functions
 
-(defn is-players?
-  "Returns true if the cell is owned by the player."
-  [cell]
-  (or (= (:city-status cell) :player)
-      (= (:owner (:contents cell)) :player)))
-
 (defn is-computers?
   "Returns true if the cell is owned by the computer."
   [cell]

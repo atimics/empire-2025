@@ -1,6 +1,5 @@
 (ns empire.computer.threat
   (:require [empire.atoms :as atoms]
-            [empire.movement.map-utils :as map-utils]
             [empire.units.dispatcher :as dispatcher]))
 
 (defn unit-threat

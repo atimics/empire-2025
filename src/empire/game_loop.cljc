@@ -12,7 +12,6 @@
             [empire.movement.wake-conditions :as wake]
             [empire.pathfinding :as pathfinding]
             [empire.player.production :as production]
-            [empire.profiling :as profiling]
             [empire.movement.satellite :as satellite]
             [empire.containers.helpers :as uc]))
 
@@ -291,19 +290,19 @@
   []
   (swap! atoms/round-number inc)
   (pathfinding/clear-path-cache)
-  (profiling/profile "satellites" (move-satellites))
-  (profiling/profile "sentry-fuel" (consume-sentry-fighter-fuel))
-  (profiling/profile "wake-sentries" (wake-sentries-seeing-enemy))
-  (profiling/profile "remove-dead" (remove-dead-units))
-  (profiling/profile "production" (production/update-production))
-  (profiling/profile "repair-ships" (repair-damaged-ships))
-  (profiling/profile "reset-steps" (reset-steps-remaining))
-  (profiling/profile "wake-airport" (wake-airport-fighters))
+  (move-satellites)
+  (consume-sentry-fighter-fuel)
+  (wake-sentries-seeing-enemy)
+  (remove-dead-units)
+  (production/update-production)
+  (repair-damaged-ships)
+  (reset-steps-remaining)
+  (wake-airport-fighters)
   ;; Carrier fighters stay asleep until 'u' is pressed - do not auto-wake at round start
   (reset! atoms/claimed-objectives #{})
   (reset! atoms/claimed-transport-targets #{})
-  (profiling/profile "build-player-items" (reset! atoms/player-items (vec (build-player-items))))
-  (profiling/profile "build-computer-items" (reset! atoms/computer-items (vec (build-computer-items))))
+  (reset! atoms/player-items (vec (build-player-items)))
+  (reset! atoms/computer-items (vec (build-computer-items)))
   (reset! atoms/waiting-for-input false)
   (reset! atoms/message "")
   (reset! atoms/cells-needing-attention []))
@@ -394,7 +393,7 @@
         has-computer-unit? (= (:owner (:contents cell)) :computer)]
     ;; Handle city production if this is a computer city
     (when is-computer-city?
-      (profiling/profile "cpu-production" (computer-production/process-computer-city coords)))
+      (computer-production/process-computer-city coords))
     ;; Process unit movement if there's a computer unit here
     (if has-computer-unit?
       (let [new-coords (computer/process-computer-unit coords)]
@@ -452,11 +451,11 @@
 
     ;; Player items to process
     (seq @atoms/player-items)
-    (profiling/profile "player-batch" (process-player-items-batch))
+    (process-player-items-batch)
 
     ;; Computer items to process
     :else
-    (profiling/profile "computer-batch" (process-computer-items))))
+    (process-computer-items)))
 
 (defn toggle-pause
   "Toggles pause state. If running, requests pause at end of round.

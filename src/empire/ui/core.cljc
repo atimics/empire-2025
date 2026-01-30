@@ -3,7 +3,6 @@
             [empire.config :as config]
             [empire.game-loop :as game-loop]
             [empire.init :as init]
-            [empire.profiling :as profiling]
             [empire.ui.input :as input]
             [empire.ui.rendering :as rendering]
             [quil.core :as q]
@@ -57,10 +56,10 @@
 (defn update-state
   "Update the game state."
   [state]
-  (profiling/profile "update-player-map" (game-loop/update-player-map))
-  (profiling/profile "update-computer-map" (game-loop/update-computer-map))
-  (profiling/profile "advance-game" (game-loop/advance-game))
-  (profiling/profile "update-hover" (rendering/update-hover-status))
+  (game-loop/update-player-map)
+  (game-loop/update-computer-map)
+  (game-loop/advance-game)
+  (rendering/update-hover-status)
   state)
 
 (defn draw-state
@@ -71,10 +70,9 @@
                   :player-map @atoms/player-map
                   :computer-map @atoms/computer-map
                   :actual-map @atoms/game-map)]
-    (profiling/profile "draw-map" (rendering/draw-map the-map))
+    (rendering/draw-map the-map)
     (rendering/draw-debug-selection-rectangle)
-    (profiling/profile "draw-messages" (rendering/draw-message-area)))
-  (profiling/end-frame!))
+    (rendering/draw-message-area)))
 
 (defn key-pressed [state _]
   (let [k (q/key-as-keyword)]

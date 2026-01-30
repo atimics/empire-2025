@@ -147,14 +147,18 @@
     (should-not= :transport (production/decide-production [1 1])))
 
   (it "produces army when country has fewer than 10"
-    ;; City with country-id 1, 2 transports (priority met), 2 armies (below 10)
-    (reset! atoms/game-map (build-test-map ["~X~~tt~aa"]))
-    (reset! atoms/computer-map (build-test-map ["~X~~tt~aa"]))
+    ;; City with country-id 1, 2 transports (priority met), 1 patrol boat (priority met), 2 armies (below 10)
+    ;; Map: ~ X ~ ~ t t ~ a a ~ p
+    ;; Idx: 0 1 2 3 4 5 6 7 8 9 10
+    (reset! atoms/game-map (build-test-map ["~X~~tt~aa~p"]))
+    (reset! atoms/computer-map (build-test-map ["~X~~tt~aa~p"]))
     (swap! atoms/game-map assoc-in [0 1 :country-id] 1)
     (swap! atoms/game-map assoc-in [0 4 :contents :country-id] 1)
     (swap! atoms/game-map assoc-in [0 5 :contents :country-id] 1)
     (swap! atoms/game-map assoc-in [0 7 :contents :country-id] 1)
     (swap! atoms/game-map assoc-in [0 8 :contents :country-id] 1)
+    ;; Patrol boat with matching patrol-country-id
+    (swap! atoms/game-map assoc-in [0 10 :contents :patrol-country-id] 1)
     (should= :army (production/decide-production [0 1])))
 
   (it "does not produce army when another city in country is already producing armies"
@@ -232,3 +236,40 @@
     (reset! atoms/production {[0 0] {:item :fighter :remaining-rounds 10}})
     (production/process-computer-city [0 0])
     (should= :fighter (:item (get @atoms/production [0 0])))))
+
+(describe "patrol boat production"
+  (before (reset-all-atoms!))
+
+  (it "produces patrol boat when country has none"
+    ;; Coastal computer city with country-id 1, no patrol boats on map
+    ;; Give 2 transports and 10 armies so transport/army priorities are met
+    ;; Map: ~ X # a a a a a a a a a a t t
+    ;; Idx: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14
+    (reset! atoms/game-map (build-test-map ["~X#aaaaaaaaaatt"]))
+    (reset! atoms/computer-map (build-test-map ["~X#aaaaaaaaaatt"]))
+    (swap! atoms/game-map assoc-in [0 1 :country-id] 1)
+    ;; Assign country-id to armies (positions 3-12)
+    (doseq [col (range 3 13)]
+      (swap! atoms/game-map assoc-in [0 col :contents :country-id] 1))
+    ;; Assign country-id to transports (positions 13-14)
+    (swap! atoms/game-map assoc-in [0 13 :contents :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 14 :contents :country-id] 1)
+    (should= :patrol-boat (production/decide-production [0 1])))
+
+  (it "does not produce patrol boat when country already has one"
+    ;; Coastal computer city with country-id 1, one patrol boat with matching patrol-country-id
+    ;; Give 2 transports and 10 armies so transport/army priorities are met
+    ;; Map: ~ X # a a a a a a a a a a t t ~ p
+    ;; Idx: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
+    (reset! atoms/game-map (build-test-map ["~X#aaaaaaaaaatt~p"]))
+    (reset! atoms/computer-map (build-test-map ["~X#aaaaaaaaaatt~p"]))
+    (swap! atoms/game-map assoc-in [0 1 :country-id] 1)
+    ;; Assign country-id to armies (positions 3-12)
+    (doseq [col (range 3 13)]
+      (swap! atoms/game-map assoc-in [0 col :contents :country-id] 1))
+    ;; Assign country-id to transports (positions 13-14)
+    (swap! atoms/game-map assoc-in [0 13 :contents :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 14 :contents :country-id] 1)
+    ;; Give patrol boat matching patrol-country-id (position 16)
+    (swap! atoms/game-map assoc-in [0 16 :contents :patrol-country-id] 1)
+    (should-not= :patrol-boat (production/decide-production [0 1]))))

@@ -55,6 +55,17 @@
     (assoc unit :country-id (:country-id cell))
     unit))
 
+(defn- apply-patrol-fields
+  "Stamps patrol boat fields on computer patrol boats spawned from a country city."
+  [unit item cell]
+  (if (and (= item :patrol-boat)
+           (= (:city-status cell) :computer)
+           (:country-id cell))
+    (assoc unit :patrol-country-id (:country-id cell)
+                :patrol-direction :clockwise
+                :patrol-mode :homing)
+    unit))
+
 (defn- spawn-unit
   "Creates and places a unit at the given city coordinates."
   [coords cell item]
@@ -64,6 +75,7 @@
         unit (-> (create-base-unit item owner)
                  (apply-unit-type-attributes item owner)
                  (apply-country-id item cell)
+                 (apply-patrol-fields item cell)
                  (apply-movement-orders item marching-orders flight-path))]
     (swap! atoms/game-map assoc-in (conj coords :contents) unit)
     owner))

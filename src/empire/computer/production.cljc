@@ -130,6 +130,19 @@
                           (= country-id (:country-id unit)))]
            true)))
 
+(defn- count-country-patrol-boats
+  "Counts live computer patrol boats belonging to the given country-id."
+  [country-id]
+  (count (for [i (range (count @atoms/game-map))
+               j (range (count (first @atoms/game-map)))
+               :let [cell (get-in @atoms/game-map [i j])
+                     unit (:contents cell)]
+               :when (and unit
+                          (= :computer (:owner unit))
+                          (= :patrol-boat (:type unit))
+                          (= country-id (:patrol-country-id unit)))]
+           true)))
+
 (defn- country-city-producing-armies?
   "Returns true if any other computer city in this country is already producing armies."
   [city-pos country-id]
@@ -169,7 +182,10 @@
         ratio (get-production-ratio city-count)
         target-total (max 10 (* 2 (inc total-units)))
         ;; Country cities exclude army/transport (managed by country system)
-        excluded (if country-id #{:army :transport} #{})
+        ;; Also exclude patrol-boat if country already has one
+        excluded (cond-> (if country-id #{:army :transport} #{})
+                   (and country-id (pos? (count-country-patrol-boats country-id)))
+                   (conj :patrol-boat))
         all-types (if coastal?
                     [:army :transport :patrol-boat :fighter :destroyer :submarine :battleship]
                     [:army :fighter])
@@ -202,6 +218,11 @@
         (when (and (> (count-computer-cities) 15)
                    (zero? (get (count-computer-units) :satellite 0)))
           :satellite)
+
+        ;; Patrol boat: 1 per country, coastal only
+        (when (and coastal? country-id
+                   (zero? (count-country-patrol-boats country-id)))
+          :patrol-boat)
 
         ;; Ratio-based production
         (ratio-based-production city-pos coastal? country-id)

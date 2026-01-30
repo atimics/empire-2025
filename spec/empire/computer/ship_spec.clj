@@ -3,7 +3,7 @@
   (:require [speclj.core :refer :all]
             [empire.computer.ship :as ship]
             [empire.atoms :as atoms]
-            [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
+            [empire.test-utils :refer [build-test-map reset-all-atoms! set-test-unit]]))
 
 (describe "process-ship"
   (before (reset-all-atoms!))
@@ -99,4 +99,57 @@
 
     (it "returns nil for wrong ship type"
       (reset! atoms/game-map [[{:type :sea :contents {:type :destroyer :owner :computer :hits 3}}]])
-      (should-be-nil (ship/process-ship [0 0] :patrol-boat)))))
+      (should-be-nil (ship/process-ship [0 0] :patrol-boat))))
+
+  (describe "patrol boat behavior"
+    (it "patrol boat moves along coastline"
+      ;; 3x3 map: land in center, sea around it. Patrol boat at [0 1] (sea, adjacent to land).
+      ;; It should move to another sea cell that is also adjacent to land.
+      (reset! atoms/game-map (build-test-map ["~~~"
+                                               "~#~"
+                                               "~~~"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      (swap! atoms/game-map assoc-in [0 1 :contents]
+             {:type :patrol-boat :owner :computer :hits 1
+              :patrol-country-id 1 :patrol-direction :clockwise :patrol-mode :patrolling})
+      (ship/process-ship [0 1] :patrol-boat)
+      ;; Patrol boat should have moved
+      (should-be-nil (:contents (get-in @atoms/game-map [0 1])))
+      ;; Find where it moved
+      (let [new-pos (first (for [r (range 3) c (range 3)
+                                 :when (= :patrol-boat (get-in @atoms/game-map [r c :contents :type]))]
+                             [r c]))
+            ;; The new position should be sea and adjacent to land [1 1]
+            adj-to-land? (some (fn [[dr dc]]
+                                 (let [nr (+ (first new-pos) dr)
+                                       nc (+ (second new-pos) dc)]
+                                   (= :land (:type (get-in @atoms/game-map [nr nc])))))
+                               [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]])]
+        (should-not-be-nil new-pos)
+        (should adj-to-land?)))
+
+    (it "patrol boat attacks adjacent transport"
+      ;; Patrol boat next to a player transport - should attack it
+      (reset! atoms/game-map [[{:type :sea :contents {:type :patrol-boat :owner :computer :hits 1
+                                                       :patrol-country-id 1 :patrol-direction :clockwise
+                                                       :patrol-mode :patrolling}}
+                                {:type :sea :contents {:type :transport :owner :player :hits 3}}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (ship/process-ship [0 0] :patrol-boat)
+      ;; Combat should have occurred - either patrol boat moved to [0 1] or died
+      (let [cell0 (get-in @atoms/game-map [0 0])
+            cell1 (get-in @atoms/game-map [0 1])]
+        (should (or (nil? (:contents cell0))
+                    (= :computer (:owner (:contents cell1)))))))
+
+    (it "patrol boat flees from non-transport enemy"
+      ;; Patrol boat at [0 1], destroyer at [0 2] -- should move away to [0 0]
+      (reset! atoms/game-map [[{:type :sea}
+                                {:type :sea :contents {:type :patrol-boat :owner :computer :hits 1
+                                                       :patrol-country-id 1 :patrol-direction :clockwise
+                                                       :patrol-mode :patrolling}}
+                                {:type :sea :contents {:type :destroyer :owner :player :hits 3}}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (ship/process-ship [0 1] :patrol-boat)
+      ;; Patrol boat should have fled to [0 0] (away from destroyer at [0 2])
+      (should= :patrol-boat (get-in @atoms/game-map [0 0 :contents :type])))))

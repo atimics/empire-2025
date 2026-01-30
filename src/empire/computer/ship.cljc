@@ -104,6 +104,80 @@
     (let [passable (get-passable-sea-neighbors pos)]
       (threat/retreat-move pos unit @atoms/computer-map passable))))
 
+;; --- Patrol boat helpers ---
+
+(defn- find-adjacent-player-transport
+  "Finds an adjacent player transport to attack."
+  [pos]
+  (let [game-map @atoms/game-map]
+    (first (filter (fn [neighbor]
+                     (let [cell (get-in game-map neighbor)
+                           unit (:contents cell)]
+                       (and unit
+                            (= :player (:owner unit))
+                            (= :transport (:type unit)))))
+                   (core/get-neighbors pos)))))
+
+(defn- find-adjacent-non-transport-enemy
+  "Finds an adjacent player unit that is not a transport."
+  [pos]
+  (let [game-map @atoms/game-map]
+    (first (filter (fn [neighbor]
+                     (let [cell (get-in game-map neighbor)
+                           unit (:contents cell)]
+                       (and unit
+                            (= :player (:owner unit))
+                            (not= :transport (:type unit)))))
+                   (core/get-neighbors pos)))))
+
+(defn- adjacent-to-land?
+  "Returns true if the given position has at least one adjacent land or city cell."
+  [pos]
+  (let [game-map @atoms/game-map]
+    (some (fn [neighbor]
+            (let [cell (get-in game-map neighbor)]
+              (and cell (#{:land :city} (:type cell)))))
+          (core/get-neighbors pos))))
+
+(defn- flee-from
+  "Move patrol boat away from the given enemy position."
+  [pos enemy-pos]
+  (let [passable (get-passable-sea-neighbors pos)
+        empty-passable (filter (fn [n]
+                                 (nil? (:contents (get-in @atoms/game-map n))))
+                               passable)]
+    (when (seq empty-passable)
+      (let [farthest (apply max-key (partial core/distance enemy-pos) empty-passable)]
+        (core/move-unit-to pos farthest)
+        (visibility/update-cell-visibility pos :computer)
+        (visibility/update-cell-visibility farthest :computer)
+        farthest))))
+
+(defn- coastline-move
+  "Move patrol boat to an adjacent sea cell that is also adjacent to land."
+  [pos]
+  (let [passable (get-passable-sea-neighbors pos)
+        empty-passable (filter (fn [n]
+                                 (nil? (:contents (get-in @atoms/game-map n))))
+                               passable)
+        coastal-cells (filter adjacent-to-land? empty-passable)]
+    (when (seq coastal-cells)
+      (let [target (rand-nth coastal-cells)]
+        (core/move-unit-to pos target)
+        (visibility/update-cell-visibility pos :computer)
+        (visibility/update-cell-visibility target :computer)
+        target))))
+
+(defn- process-patrol-boat
+  "Processes a computer patrol boat with patrol-specific behavior.
+   Priority: Attack adjacent transport > Flee non-transport enemy > Coastline patrol."
+  [pos]
+  (if-let [transport-pos (find-adjacent-player-transport pos)]
+    (attack-enemy pos transport-pos)
+    (if-let [enemy-pos (find-adjacent-non-transport-enemy pos)]
+      (flee-from pos enemy-pos)
+      (coastline-move pos))))
+
 (defn process-ship
   "Processes a computer ship using VMS Empire style logic.
    Priority: Retreat if damaged > Attack adjacent > Escort transports > Hunt enemies > Explore
@@ -114,6 +188,11 @@
     (when (and unit
                (= :computer (:owner unit))
                (= ship-type (:type unit)))
+
+      ;; Patrol boat special behavior (when it has patrol fields)
+      (if (and (= :patrol-boat ship-type)
+               (:patrol-country-id unit))
+        (process-patrol-boat pos)
 
       ;; Priority 0: Retreat if damaged and under threat
       (if-let [retreat-pos (retreat-if-damaged pos unit)]
@@ -140,5 +219,5 @@
               (move-toward pos enemy-sighting)
 
               ;; Priority 4: Explore sea
-              (explore-sea pos ship-type)))))))
+              (explore-sea pos ship-type))))))))
   nil)

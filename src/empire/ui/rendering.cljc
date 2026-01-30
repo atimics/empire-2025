@@ -2,7 +2,6 @@
   (:require [clojure.string :as str]
             [empire.atoms :as atoms]
             [empire.config :as config]
-            [empire.debug :as debug]
             [empire.movement.map-utils :as map-utils]
             [empire.ui.rendering-util :as ru]
             [quil.core :as q]))

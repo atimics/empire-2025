@@ -158,7 +158,6 @@
   (reset! atoms/computer-turn false)
   (reset! atoms/next-transport-id 1)
   (reset! atoms/reserved-beaches {})
-  (reset! atoms/used-unloading-beaches #{})
   (reset! atoms/beach-army-orders {})
   (reset! atoms/claimed-objectives #{})
   (reset! atoms/claimed-transport-targets #{})

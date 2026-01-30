@@ -134,15 +134,3 @@
                           (= :loading (:transport-mission unit))
                           (< (:army-count unit 0) 6))))
                  (get-neighbors pos))))
-
-(defn army-should-board-transport?
-  "Returns true if army should move toward a loading transport.
-   Only returns true if there are loading transports AND no land route to targets."
-  [army-pos pathfinding-next-step-fn]
-  (when (find-loading-transport)  ; Only check if there's a transport to board
-    (let [free-cities (find-visible-cities #{:free})
-          player-cities (find-visible-cities #{:player})
-          all-targets (concat free-cities player-cities)]
-      ;; Board transport if no cities reachable by land
-      (and (seq all-targets)
-           (not-any? #(pathfinding-next-step-fn army-pos % :army) all-targets)))))

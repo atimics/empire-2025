@@ -11,18 +11,6 @@
             [empire.units.submarine :as submarine]
             [empire.units.battleship :as battleship]))
 
-;; Unit type to module mapping
-(def unit-modules
-  {:army army/initial-state
-   :fighter fighter/initial-state
-   :satellite satellite/initial-state
-   :transport transport/initial-state
-   :carrier carrier/initial-state
-   :patrol-boat patrol-boat/initial-state
-   :destroyer destroyer/initial-state
-   :submarine submarine/initial-state
-   :battleship battleship/initial-state})
-
 ;; Configuration accessors
 (defn speed [unit-type]
   (case unit-type

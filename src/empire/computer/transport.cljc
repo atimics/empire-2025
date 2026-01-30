@@ -35,15 +35,20 @@
       [i j])))
 
 (defn- find-nearest-army
-  "Find the nearest army to the transport."
-  [transport-pos]
-  (let [armies (find-armies-to-load)]
-    (when (seq armies)
+  "Find the nearest army to the transport. When origin-continent is provided,
+   only considers armies on that continent (so the transport doesn't re-load
+   armies it just dropped off on an enemy continent)."
+  [transport-pos origin-continent]
+  (let [armies (find-armies-to-load)
+        candidates (if origin-continent
+                     (filter #(contains? origin-continent %) armies)
+                     armies)]
+    (when (seq candidates)
       (apply min-key
              (fn [[r c]]
                (let [[tr tc] transport-pos]
                  (+ (Math/abs (- r tr)) (Math/abs (- c tc)))))
-             armies))))
+             candidates))))
 
 (defn- adjacent-to-land?
   "Returns true if position has adjacent land cell."
@@ -162,10 +167,10 @@
             (visibility/update-cell-visibility land-pos :computer))
           ;; Update transport army count
           (swap! atoms/game-map update-in (conj pos :contents :army-count) - to-unload)
-          ;; If fully unloaded, change mission to loading and clear origin
+          ;; If fully unloaded, change mission to loading (keep origin-continent-pos
+          ;; so the transport returns to its home continent for more armies)
           (when (<= (- army-count to-unload) 0)
-            (swap! atoms/game-map assoc-in (conj pos :contents :transport-mission) :loading)
-            (swap! atoms/game-map update-in (conj pos :contents) dissoc :origin-continent-pos))
+            (swap! atoms/game-map assoc-in (conj pos :contents :transport-mission) :loading))
           true)))))
 
 (defn- set-transport-mission
@@ -226,11 +231,13 @@
                     (move-toward-unload-or-explore pos origin-continent))
                   (move-toward-unload-or-explore pos origin-continent))))
 
-            ;; Loading transport - go get armies
+            ;; Loading transport - go get armies (only on origin continent if known)
             (= current-mission :loading)
-            (if-let [army-pos (find-nearest-army pos)]
-              (move-toward-position pos army-pos)
-              (explore-sea pos))
+            (let [origin-continent (when-let [ocp (:origin-continent-pos transport)]
+                                    (continent/flood-fill-continent ocp))]
+              (if-let [army-pos (find-nearest-army pos origin-continent)]
+                (move-toward-position pos army-pos)
+                (explore-sea pos)))
 
             ;; Unloading transport - continue to target on different continent
             (= current-mission :unloading)

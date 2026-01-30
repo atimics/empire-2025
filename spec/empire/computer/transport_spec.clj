@@ -32,6 +32,72 @@
       ;; Transport should stay put - no armies, no unexplored territory
       (should= :transport (get-in @atoms/game-map [0 0 :contents :type])))
 
+    (it "does not pick up armies on non-origin continent"
+      ;; Two continents: origin (rows 0-1) and other (rows 4-5).
+      ;; Armies only on the other continent. Transport in loading mode
+      ;; with origin-continent-pos set to origin continent.
+      ;; Transport should NOT target those armies.
+      (let [game-map (build-test-map ["###"
+                                      "~~~"
+                                      "~t~"
+                                      "~~~"
+                                      "a#a"
+                                      "###"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (swap! atoms/game-map assoc-in [2 1 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :loading :army-count 0
+                :origin-continent-pos [0 1]})
+        (transport/process-transport [2 1])
+        ;; Transport should NOT have moved toward armies on the other continent.
+        ;; With no armies on origin continent, it should fall back to explore-sea
+        ;; or stay put. It should NOT pick up the non-origin armies.
+        (let [transport-pos (first (for [r (range 6) c (range 3)
+                                        :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
+                                    [r c]))]
+          ;; Armies on other continent should still be there (not picked up)
+          (should= :army (get-in @atoms/game-map [4 0 :contents :type]))
+          (should= :army (get-in @atoms/game-map [4 2 :contents :type]))
+          ;; Transport should not have moved toward row 4
+          (should (< (first transport-pos) 4)))))
+
+    (it "picks up armies on origin continent"
+      ;; Origin continent (rows 0-1) has an army. Transport in loading mode
+      ;; with origin-continent-pos set. Should move toward that army.
+      (let [game-map (build-test-map ["a##"
+                                      "~t~"
+                                      "~~~"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (swap! atoms/game-map assoc-in [1 1 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :loading :army-count 0
+                :origin-continent-pos [0 1]})
+        (transport/process-transport [1 1])
+        ;; Transport should have moved toward the army on origin continent
+        (should= :transport (get-in @atoms/game-map [1 0 :contents :type]))))
+
+    (it "picks up any army when no origin-continent-pos"
+      ;; No origin-continent-pos set — first load cycle.
+      ;; Should find nearest army regardless of continent.
+      (let [game-map (build-test-map ["###"
+                                      "~~~"
+                                      "~t~"
+                                      "~~~"
+                                      "a##"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (swap! atoms/game-map assoc-in [2 1 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :loading :army-count 0})
+        (transport/process-transport [2 1])
+        ;; Transport should have moved toward the army (south)
+        (let [transport-pos (first (for [r (range 5) c (range 3)
+                                        :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
+                                    [r c]))]
+          (should (> (first transport-pos) 2)))))
+
     (it "explores toward unexplored territory when no armies"
       ;; 5x5 all-sea map. Transport at center, unexplored in SE corner.
       (let [game-map (build-test-map ["~~~~~"
@@ -143,7 +209,7 @@
                       (for [r (range 5) c (range 3)] [r c]))]
           (should-not-be-nil (:origin-continent-pos t)))))
 
-    (it "clears origin-continent-pos after full unload"
+    (it "keeps origin-continent-pos after full unload"
       (let [game-map (build-test-map ["#~"
                                       "~t"])]
         (reset! atoms/game-map game-map)
@@ -156,7 +222,7 @@
         (should= :army (:type (:contents (get-in @atoms/game-map [0 0]))))
         (let [transport (:contents (get-in @atoms/game-map [1 1]))]
           (should= :loading (:transport-mission transport))
-          (should-be-nil (:origin-continent-pos transport))))))
+          (should= [5 5] (:origin-continent-pos transport))))))
 
   (describe "continent-aware unloading"
     (it "find-unload-target excludes origin continent cities"

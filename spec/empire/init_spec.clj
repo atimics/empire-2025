@@ -3,6 +3,7 @@
     [empire.atoms :as atoms]
     [empire.init :refer :all]
     [empire.test-utils :refer [reset-all-atoms!]]
+    [empire.config :as config]
     [speclj.core :refer :all]))
 
 (describe "smooth-map"
@@ -61,6 +62,27 @@
                               [i j]))]
       (should (>= city-count 2))
       (should (<= city-count 6))))                          ;; Allow up to num-cities + occupied
+
+  (it "assigns country-id 1 to computer starting city"
+    (let [game-map @initial-map
+          computer-city-pos (find-city-position game-map :computer)]
+      (when computer-city-pos
+        (should= 1 (:country-id (get-in game-map computer-city-pos))))))
+
+  (it "sets next-country-id to 2 after init"
+    (let [game-map @initial-map
+          computer-city-pos (find-city-position game-map :computer)]
+      (when computer-city-pos
+        (should= 2 @atoms/next-country-id))))
+
+  (it "sets army production on computer starting city"
+    (let [game-map @initial-map
+          computer-city-pos (find-city-position game-map :computer)]
+      (when computer-city-pos
+        (let [prod (get @atoms/production computer-city-pos)]
+          (should-not-be-nil prod)
+          (should= :army (:item prod))
+          (should= (config/item-cost :army) (:remaining-rounds prod))))))
 
   (it "places cities with minimum distance"
     (let [city-positions (for [i (range (count @initial-map))

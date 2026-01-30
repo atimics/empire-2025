@@ -106,6 +106,77 @@
     (let [unit-type (production/decide-production [0 0])]
       (should-not-be-nil unit-type))))
 
+(describe "country-aware production"
+  (before (reset-all-atoms!))
+
+  (it "coastal city produces transport when country has fewer than 2 and at least 6 armies"
+    ;; Coastal city with country-id 1, no transports, 6 armies on map
+    (reset! atoms/game-map (build-test-map ["~X#aaaaaa"]))
+    (reset! atoms/computer-map (build-test-map ["~X#aaaaaa"]))
+    (swap! atoms/game-map assoc-in [0 1 :country-id] 1)
+    (doseq [col (range 3 9)]
+      (swap! atoms/game-map assoc-in [0 col :contents :country-id] 1))
+    (should= :transport (production/decide-production [0 1])))
+
+  (it "coastal city does not produce transport when country has fewer than 6 armies"
+    ;; Coastal city with country-id 1, no transports, only 5 armies
+    (reset! atoms/game-map (build-test-map ["~X#aaaaa"]))
+    (reset! atoms/computer-map (build-test-map ["~X#aaaaa"]))
+    (swap! atoms/game-map assoc-in [0 1 :country-id] 1)
+    (doseq [col (range 3 8)]
+      (swap! atoms/game-map assoc-in [0 col :contents :country-id] 1))
+    (should-not= :transport (production/decide-production [0 1])))
+
+  (it "does not produce transport when country already has 2"
+    ;; Coastal city with country-id 1, two transports with same country-id on map
+    (reset! atoms/game-map (build-test-map ["~X~~tt"]))
+    (reset! atoms/computer-map (build-test-map ["~X~~tt"]))
+    (swap! atoms/game-map assoc-in [0 1 :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 4 :contents :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 5 :contents :country-id] 1)
+    (should-not= :transport (production/decide-production [0 1])))
+
+  (it "landlocked city does not produce transport even when country needs one"
+    (reset! atoms/game-map (build-test-map ["###"
+                                             "#X#"
+                                             "###"]))
+    (reset! atoms/computer-map (build-test-map ["###"
+                                                 "#X#"
+                                                 "###"]))
+    (swap! atoms/game-map assoc-in [1 1 :country-id] 1)
+    (should-not= :transport (production/decide-production [1 1])))
+
+  (it "produces army when country has fewer than 10"
+    ;; City with country-id 1, 2 transports (priority met), 2 armies (below 10)
+    (reset! atoms/game-map (build-test-map ["~X~~tt~aa"]))
+    (reset! atoms/computer-map (build-test-map ["~X~~tt~aa"]))
+    (swap! atoms/game-map assoc-in [0 1 :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 4 :contents :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 5 :contents :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 7 :contents :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 8 :contents :country-id] 1)
+    (should= :army (production/decide-production [0 1])))
+
+  (it "does not produce army when another city in country is already producing armies"
+    ;; City 1 at [0,1] already producing army, city 2 at [0,3] should not also produce army
+    (reset! atoms/game-map (build-test-map ["~X~X~"]))
+    (reset! atoms/computer-map (build-test-map ["~X~X~"]))
+    (swap! atoms/game-map assoc-in [0 1 :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 3 :country-id] 1)
+    ;; Give 2 transports so transport priority is met
+    (swap! atoms/game-map assoc-in [0 0 :contents]
+           {:type :transport :owner :computer :country-id 1})
+    (swap! atoms/game-map assoc-in [0 4 :contents]
+           {:type :transport :owner :computer :country-id 1})
+    (reset! atoms/production {[0 1] {:item :army :remaining-rounds 3}})
+    (should-not= :army (production/decide-production [0 3])))
+
+  (it "falls back to ratio-based for non-country city"
+    ;; City with no country-id falls back to existing logic
+    (reset! atoms/game-map (build-test-map ["~X#"]))
+    (reset! atoms/computer-map (build-test-map ["~X#"]))
+    (should-not-be-nil (production/decide-production [0 1]))))
+
 (describe "process-computer-city"
   (before (reset-all-atoms!))
 

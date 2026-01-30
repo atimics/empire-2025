@@ -5,7 +5,8 @@
             [empire.computer.army :as army]
             [empire.computer.fighter :as fighter]
             [empire.computer.ship :as ship]
-            [empire.computer.transport :as transport]))
+            [empire.computer.transport :as transport]
+            [empire.profiling :as profiling]))
 
 ;; Main dispatch function
 
@@ -17,10 +18,10 @@
         unit (:contents cell)]
     (when (and unit (= (:owner unit) :computer))
       (case (:type unit)
-        :army (army/process-army pos)
-        :fighter (fighter/process-fighter pos unit)
-        :transport (transport/process-transport pos)
+        :army (profiling/profile "cpu-army" (army/process-army pos))
+        :fighter (profiling/profile "cpu-fighter" (fighter/process-fighter pos unit))
+        :transport (profiling/profile "cpu-transport" (transport/process-transport pos))
         (:destroyer :submarine :patrol-boat :carrier :battleship)
-        (ship/process-ship pos (:type unit))
+        (profiling/profile "cpu-ship" (ship/process-ship pos (:type unit)))
         ;; Satellite - no processing needed
         nil))))

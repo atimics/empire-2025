@@ -11,6 +11,7 @@
             [empire.movement.map-utils :as map-utils]
             [empire.movement.movement :as movement]
             [empire.player.production :as production]
+            [empire.profiling :as profiling]
             [empire.containers.helpers :as uc]
             [empire.units.dispatcher :as dispatcher]
             [empire.movement.waypoint :as waypoint]
@@ -507,6 +508,7 @@
       (= k (keyword "`")) (reset! atoms/backtick-pressed true)
       (= k :P) (game-loop/toggle-pause)
       (and (= k :space) @atoms/paused) (game-loop/step-one-round)
+      (= k :=) (profiling/toggle!)
       (= k :+) (swap! atoms/map-to-display {:player-map :computer-map
                                             :computer-map :actual-map
                                             :actual-map :player-map})

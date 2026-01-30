@@ -6,6 +6,7 @@
             [empire.computer.core :as core]
             [empire.computer.continent :as continent]
             [empire.pathfinding :as pathfinding]
+            [empire.profiling :as profiling]
             [empire.movement.visibility :as visibility]
             [empire.movement.map-utils :as map-utils]))
 
@@ -118,7 +119,7 @@
 (defn- move-toward-position
   "Move transport one step toward target. Returns new position."
   [pos target]
-  (if-let [next-step (pathfinding/next-step pos target :transport)]
+  (if-let [next-step (profiling/profile "tp-pathfind" (pathfinding/next-step pos target :transport))]
     (do
       (core/move-unit-to pos next-step)
       (visibility/update-cell-visibility pos :computer)
@@ -136,7 +137,7 @@
 (defn- explore-sea
   "Move transport toward unexplored sea via BFS. Stays put if all sea is explored."
   [pos]
-  (when-let [target (pathfinding/find-nearest-unexplored pos :transport)]
+  (when-let [target (profiling/profile "tp-find-unexplored" (pathfinding/find-nearest-unexplored pos :transport))]
     (move-toward-position pos target)))
 
 (defn unload-armies
@@ -186,9 +187,9 @@
   "Pick an enemy/free city off the origin continent, then BFS for the nearest
    sea cell adjacent to that city's continent. Falls back to explore-sea."
   [pos origin-continent]
-  (if-let [target-city (find-unload-target origin-continent pos)]
-    (let [target-continent (continent/flood-fill-continent target-city)]
-      (if-let [unload-pos (pathfinding/find-nearest-unload-position pos target-continent)]
+  (if-let [target-city (profiling/profile "tp-find-unload-target" (find-unload-target origin-continent pos))]
+    (let [target-continent (profiling/profile "tp-flood-fill" (continent/flood-fill-continent target-city))]
+      (if-let [unload-pos (profiling/profile "tp-find-unload-pos" (pathfinding/find-nearest-unload-position pos target-continent))]
         (move-toward-position pos unload-pos)
         (explore-sea pos)))
     (explore-sea pos)))
@@ -220,7 +221,7 @@
               (record-origin-continent-pos pos transport)
               (let [updated-transport (get-in @atoms/game-map (conj pos :contents))
                     origin-continent (when-let [ocp (:origin-continent-pos updated-transport)]
-                                      (continent/flood-fill-continent ocp))]
+                                      (profiling/profile "tp-flood-fill" (continent/flood-fill-continent ocp)))]
                 (if (adjacent-to-land? pos)
                   (when-not (unload-armies pos origin-continent)
                     (move-toward-unload-or-explore pos origin-continent))
@@ -235,7 +236,7 @@
             ;; Unloading transport - continue to target on different continent
             (= current-mission :unloading)
             (let [origin-continent (when-let [ocp (:origin-continent-pos transport)]
-                                     (continent/flood-fill-continent ocp))]
+                                     (profiling/profile "tp-flood-fill" (continent/flood-fill-continent ocp)))]
               (if (adjacent-to-land? pos)
                 (when-not (unload-armies pos origin-continent)
                   (move-toward-unload-or-explore pos origin-continent))

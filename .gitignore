@@ -11,4 +11,4 @@
 /Empire-for-VMS/
 /Empire-for-VMS/*
 debug-*.txt
-move-log-*.txt
+profile.txt

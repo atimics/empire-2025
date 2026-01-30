@@ -39,48 +39,66 @@
                 (passable? unit-type cell)))
             (map (fn [[dx dy]] [(+ x dx) (+ y dy)]) neighbor-offsets))))
 
+(defn- reconstruct-path
+  "Walks came-from map from goal back to start, returns path vector [start ... goal]."
+  [came-from start goal]
+  (loop [pos goal
+         path (list goal)]
+    (if (= pos start)
+      (vec path)
+      (let [prev (came-from pos)]
+        (recur prev (cons prev path))))))
+
 (defn a-star
   "Finds shortest path from start to goal for unit-type.
    Returns vector of positions from start to goal (inclusive), or nil if no path.
-   Uses standard A* with priority queue implemented via sorted-set."
+   Uses A* with came-from map for path reconstruction and a counter for
+   tiebreaking in the sorted-set priority queue."
   [start goal unit-type game-map]
   (if (= start goal)
     [start]
-    (loop [open-set (sorted-set [(heuristic start goal) 0 start [start]])
+    (loop [open-set (sorted-set [(heuristic start goal) 0 0 start])
            closed-set #{}
-           best-g {start 0}]
-      (when-let [[_f g current path] (first open-set)]
+           best-g {start 0}
+           came-from {}
+           counter 1]
+      (when-let [[_f g _cnt current] (first open-set)]
         (cond
           ;; Reached goal
           (= current goal)
-          path
+          (reconstruct-path came-from start goal)
 
           ;; Already processed this node with better cost
           (closed-set current)
-          (recur (disj open-set (first open-set)) closed-set best-g)
+          (recur (disj open-set (first open-set)) closed-set best-g came-from counter)
 
           :else
           (let [new-closed (conj closed-set current)
                 neighbors (get-passable-neighbors current unit-type game-map)
                 valid-neighbors (remove closed-set neighbors)
                 new-g (inc g)
-                ;; Only add neighbors if this path is better than any we've found
-                {better-entries :better new-best-g :best-g}
-                (reduce (fn [{:keys [better best-g]} n]
-                          (let [existing-g (get best-g n Long/MAX_VALUE)]
+                {:keys [better new-best-g new-came-from new-counter]}
+                (reduce (fn [{:keys [better new-best-g new-came-from new-counter]} n]
+                          (let [existing-g (get new-best-g n Long/MAX_VALUE)]
                             (if (< new-g existing-g)
-                              {:better (conj better n)
-                               :best-g (assoc best-g n new-g)}
+                              {:better (conj better [n new-counter])
+                               :new-best-g (assoc new-best-g n new-g)
+                               :new-came-from (assoc new-came-from n current)
+                               :new-counter (inc new-counter)}
                               {:better better
-                               :best-g best-g})))
-                        {:better [] :best-g best-g}
+                               :new-best-g new-best-g
+                               :new-came-from new-came-from
+                               :new-counter new-counter})))
+                        {:better [] :new-best-g best-g :new-came-from came-from :new-counter counter}
                         valid-neighbors)
-                new-entries (for [n better-entries
+                new-entries (for [[n cnt] better
                                   :let [new-f (+ new-g (heuristic n goal))]]
-                              [new-f new-g n (conj path n)])]
+                              [new-f new-g cnt n])]
             (recur (into (disj open-set (first open-set)) new-entries)
                    new-closed
-                   new-best-g)))))))
+                   new-best-g
+                   new-came-from
+                   new-counter)))))))
 
 (defn- adjacent-to-unexplored?
   "Returns true if any neighbor of pos on the computer-map is unexplored.
@@ -157,19 +175,28 @@
                   new-queue (into rest-queue new-neighbors)]
               (recur new-queue new-visited))))))))
 
+(defn- cache-sub-paths!
+  "Caches all sub-paths of a computed path so subsequent steps are O(1) lookups."
+  [path goal unit-type]
+  (loop [remaining path]
+    (when (>= (count remaining) 2)
+      (swap! path-cache assoc [(first remaining) goal unit-type] remaining)
+      (recur (subvec remaining 1)))))
+
 (defn next-step
   "Returns the next step toward goal, or nil if unreachable or already at goal.
    This is the main function computer.cljc will call.
-   Uses caching to avoid recomputing paths."
+   Uses caching to avoid recomputing paths. Caches sub-paths so that
+   subsequent steps along the same path are O(1) lookups."
   [start goal unit-type]
   (if (= start goal)
     nil
     (let [cache-key [start goal unit-type]
           cached (get @path-cache cache-key)]
       (if cached
-        (second cached)  ; Return second element (first step after start)
+        (second cached)
         (let [game-map @atoms/game-map
               path (a-star start goal unit-type game-map)]
           (when path
-            (swap! path-cache assoc cache-key path)
+            (cache-sub-paths! path goal unit-type)
             (second path)))))))

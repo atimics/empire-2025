@@ -1,7 +1,6 @@
 (ns empire.computer.core
   "Shared utilities for computer AI modules."
   (:require [empire.atoms :as atoms]
-            [empire.move-log :as move-log]
             [empire.movement.map-utils :as map-utils]
             [empire.movement.visibility :as visibility]))
 
@@ -55,7 +54,6 @@
     (if (:contents to-cell)
       nil
       (do
-        (move-log/log-move! from-pos to-pos (:type unit) (:owner unit) "computer-ai")
         (swap! atoms/game-map assoc-in from-pos (dissoc from-cell :contents))
         (swap! atoms/game-map assoc-in (conj to-pos :contents) unit)
         to-pos))))

@@ -178,7 +178,16 @@
     (reset! atoms/game-map (build-test-map ["a~#"]))
     ;; Path should now be nil since terrain changed
     (let [step (pathfinding/next-step [0 0] [0 2] :army)]
-      (should-be-nil step))))
+      (should-be-nil step)))
+
+  (it "caches sub-paths for intermediate positions"
+    (reset! atoms/game-map (build-test-map ["a####"]))
+    (pathfinding/clear-path-cache)
+    ;; Compute path from [0 0] to [0 4]
+    (pathfinding/next-step [0 0] [0 4] :army)
+    ;; Now [0 1] to [0 4] should be cached as a sub-path
+    (let [step (pathfinding/next-step [0 1] [0 4] :army)]
+      (should= [0 2] step))))
 
 (describe "find-nearest-unexplored"
   (before (reset-all-atoms!))

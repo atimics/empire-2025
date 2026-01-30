@@ -3,7 +3,7 @@
             [empire.config :as config]
             [empire.game-loop :as game-loop]
             [empire.init :as init]
-            [empire.move-log :as move-log]
+            [empire.profiling :as profiling]
             [empire.ui.input :as input]
             [empire.ui.rendering :as rendering]
             [quil.core :as q]
@@ -48,7 +48,6 @@
 (defn setup
   "Initial setup for the game state."
   []
-  (move-log/init-log!)
   (create-fonts)
   (calculate-screen-dimensions)
   (init/make-initial-map @atoms/map-size config/smooth-count config/land-fraction config/number-of-cities config/min-city-distance)
@@ -58,8 +57,10 @@
 (defn update-state
   "Update the game state."
   [state]
-  (game-loop/update-map)
-  (rendering/update-hover-status)
+  (profiling/profile "update-player-map" (game-loop/update-player-map))
+  (profiling/profile "update-computer-map" (game-loop/update-computer-map))
+  (profiling/profile "advance-game" (game-loop/advance-game))
+  (profiling/profile "update-hover" (rendering/update-hover-status))
   state)
 
 (defn draw-state
@@ -70,9 +71,10 @@
                   :player-map @atoms/player-map
                   :computer-map @atoms/computer-map
                   :actual-map @atoms/game-map)]
-    (rendering/draw-map the-map)
+    (profiling/profile "draw-map" (rendering/draw-map the-map))
     (rendering/draw-debug-selection-rectangle)
-    (rendering/draw-message-area)))
+    (profiling/profile "draw-messages" (rendering/draw-message-area)))
+  (profiling/end-frame!))
 
 (defn key-pressed [state _]
   (let [k (q/key-as-keyword)]

@@ -42,31 +42,40 @@
     (reset! atoms/game-map (build-test-map ["O+X"]))
     (should= 1 (production/count-computer-cities))))
 
-(describe "get-production-ratio"
-  (it "returns ratio-1-2 for 1 city"
-    (let [ratio (production/get-production-ratio 1)]
-      (should= 60 (:army ratio))
-      (should= 0 (:fighter ratio))))
+(describe "priority-based production"
+  (before (reset-all-atoms!))
 
-  (it "returns ratio-1-2 for 2 cities"
-    (let [ratio (production/get-production-ratio 2)]
-      (should= 60 (:army ratio))))
+  (it "non-country city produces army when continent has objectives"
+    (reset! atoms/game-map (build-test-map ["~X+"]))
+    (reset! atoms/computer-map (build-test-map ["~X+"]))
+    (should= :army (production/decide-production [0 1])))
 
-  (it "returns ratio-3-4 for 3 cities"
-    (let [ratio (production/get-production-ratio 3)]
-      (should= 50 (:army ratio))
-      (should= 10 (:fighter ratio))))
+  (it "country city produces fighter when all per-country and global caps met"
+    ;; Coastal city with country-id 1, 2 transports (with escorts), 10 armies, 1 patrol boat
+    ;; All per-country priorities met. No carriers, so global priorities don't fire.
+    (reset! atoms/game-map (build-test-map ["~X#aaaaaaaaaattdd~p"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (swap! atoms/game-map assoc-in [0 1 :country-id] 1)
+    (doseq [col (range 3 13)]
+      (swap! atoms/game-map assoc-in [0 col :contents :country-id] 1))
+    (swap! atoms/game-map assoc-in [0 13 :contents :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 13 :contents :transport-id] 1)
+    (swap! atoms/game-map assoc-in [0 13 :contents :escort-destroyer-id] 1)
+    (swap! atoms/game-map assoc-in [0 14 :contents :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 14 :contents :transport-id] 2)
+    (swap! atoms/game-map assoc-in [0 14 :contents :escort-destroyer-id] 2)
+    (swap! atoms/game-map assoc-in [0 18 :contents :patrol-country-id] 1)
+    (should= :fighter (production/decide-production [0 1])))
 
-  (it "returns ratio-5-9 for 5 cities"
-    (let [ratio (production/get-production-ratio 5)]
-      (should= 40 (:army ratio))
-      (should= 10 (:destroyer ratio))))
-
-  (it "returns ratio-10-plus for 10 cities"
-    (let [ratio (production/get-production-ratio 10)]
-      (should= 30 (:army ratio))
-      (should= 15 (:fighter ratio))
-      (should= 10 (:battleship ratio)))))
+  (it "inland country city skips coastal priorities and produces army"
+    ;; Landlocked city with country-id 1, 2 transports (elsewhere), 5 armies
+    ;; Transport priority needs coastal. Army priority: < 10 armies, no other producing.
+    (reset! atoms/game-map (build-test-map ["###"
+                                             "#X#"
+                                             "###"]))
+    (reset! atoms/computer-map @atoms/game-map)
+    (swap! atoms/game-map assoc-in [1 1 :country-id] 1)
+    (should= :army (production/decide-production [1 1]))))
 
 (describe "decide-production"
   (before (reset-all-atoms!))
@@ -175,11 +184,11 @@
     (reset! atoms/production {[0 1] {:item :army :remaining-rounds 3}})
     (should-not= :army (production/decide-production [0 3])))
 
-  (it "falls back to ratio-based for non-country city"
-    ;; City with no country-id falls back to existing logic
+  (it "non-country city without objectives falls through to global priorities"
+    ;; City with no country-id and no objectives on continent falls to global (fighter fallback)
     (reset! atoms/game-map (build-test-map ["~X#"]))
     (reset! atoms/computer-map (build-test-map ["~X#"]))
-    (should-not-be-nil (production/decide-production [0 1]))))
+    (should= :fighter (production/decide-production [0 1]))))
 
 (describe "satellite production gate"
   (before (reset-all-atoms!))

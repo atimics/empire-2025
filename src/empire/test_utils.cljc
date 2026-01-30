@@ -173,5 +173,6 @@
   (reset! atoms/next-escort-id 1)
   (reset! atoms/claimed-objectives #{})
   (reset! atoms/claimed-transport-targets #{})
+  (reset! atoms/fighter-leg-records {})
   (reset! atoms/coast-walkers-produced {})
   (pathfinding/clear-path-cache))

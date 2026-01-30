@@ -158,6 +158,11 @@
   "Per-round set of target cities already claimed by computer transports."
   (atom #{}))
 
+(def fighter-leg-records
+  "Global map tracking fighter coverage legs between refueling sites.
+   Key is a set of two positions (unordered pair), value is {:last-flown round-number}."
+  (atom {}))
+
 (def coast-walkers-produced
   "Map of country-id -> count of coast-walk armies produced for that country.
    First army gets clockwise, second gets counter-clockwise, 3+ get normal explore."

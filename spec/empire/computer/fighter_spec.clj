@@ -4,7 +4,8 @@
             [empire.computer.fighter :as fighter]
             [empire.atoms :as atoms]
             [empire.config :as config]
-            [empire.test-utils :refer [build-test-map set-test-unit
+            [empire.test-utils :refer [build-test-map build-sparse-test-map
+                                       set-test-unit
                                        get-test-unit reset-all-atoms!]]))
 
 (describe "process-fighter"
@@ -163,4 +164,109 @@
     (it "returns nil for non-fighter"
       (reset! atoms/game-map (build-test-map ["a"]))
       (let [unit (:contents (get-in @atoms/game-map [0 0]))]
-        (should-be-nil (fighter/process-fighter [0 0] unit))))))
+        (should-be-nil (fighter/process-fighter [0 0] unit)))))
+
+  (describe "leg-based coverage"
+    (it "picks unflown leg target over previously flown leg"
+      ;; 20x20 map: city at [10,10], carrier A at [0,10] (north), carrier B at [10,0] (west)
+      (let [land-row (apply str (repeat 20 \#))
+            row-0 (str (apply str (repeat 10 \#)) "~" (apply str (repeat 9 \#)))
+            row-10 (str "~" (apply str (repeat 9 \#)) "X" (apply str (repeat 9 \#)))
+            rows (-> (vec (repeat 20 land-row))
+                     (assoc 0 row-0)
+                     (assoc 10 row-10))]
+        (reset! atoms/game-map (build-test-map rows))
+        ;; Place carriers in holding mode
+        (swap! atoms/game-map assoc-in [0 10 :contents]
+               {:type :carrier :owner :computer :hits 8 :carrier-mode :holding})
+        (swap! atoms/game-map assoc-in [10 0 :contents]
+               {:type :carrier :owner :computer :hits 8 :carrier-mode :holding})
+        ;; Place fighter on city
+        (swap! atoms/game-map assoc-in [10 10 :contents]
+               {:type :fighter :owner :computer :hits 1 :fuel 32})
+        (reset! atoms/computer-map @atoms/game-map)
+        ;; North leg is flown, west leg is unflown
+        (reset! atoms/fighter-leg-records
+                {#{[10 10] [0 10]} {:last-flown 5}})
+        (let [unit (get-in @atoms/game-map [10 10 :contents])]
+          (fighter/process-fighter [10 10] unit)
+          ;; Fighter should have moved west (toward unflown leg target [10,0])
+          (let [result (get-test-unit atoms/game-map "f")]
+            (should-not-be-nil result)
+            (let [[r c] (:pos result)]
+              ;; Moved west: col < 10
+              (should (< c 10))
+              ;; Did not move north significantly: row >= 8
+              (should (>= r 8)))))))
+
+    (it "picks oldest flown leg when all legs are flown"
+      ;; Same map setup: city at [10,10], carrier A at [0,10] (north), carrier B at [10,0] (west)
+      (let [land-row (apply str (repeat 20 \#))
+            row-0 (str (apply str (repeat 10 \#)) "~" (apply str (repeat 9 \#)))
+            row-10 (str "~" (apply str (repeat 9 \#)) "X" (apply str (repeat 9 \#)))
+            rows (-> (vec (repeat 20 land-row))
+                     (assoc 0 row-0)
+                     (assoc 10 row-10))]
+        (reset! atoms/game-map (build-test-map rows))
+        (swap! atoms/game-map assoc-in [0 10 :contents]
+               {:type :carrier :owner :computer :hits 8 :carrier-mode :holding})
+        (swap! atoms/game-map assoc-in [10 0 :contents]
+               {:type :carrier :owner :computer :hits 8 :carrier-mode :holding})
+        (swap! atoms/game-map assoc-in [10 10 :contents]
+               {:type :fighter :owner :computer :hits 1 :fuel 32})
+        (reset! atoms/computer-map @atoms/game-map)
+        ;; Both legs flown; west leg is older (lower round number)
+        (reset! atoms/fighter-leg-records
+                {#{[10 10] [0 10]} {:last-flown 10}
+                 #{[10 10] [10 0]} {:last-flown 3}})
+        (let [unit (get-in @atoms/game-map [10 10 :contents])]
+          (fighter/process-fighter [10 10] unit)
+          ;; Fighter should move toward older leg target [10,0] (west)
+          (let [result (get-test-unit atoms/game-map "f")]
+            (should-not-be-nil result)
+            (let [[r c] (:pos result)]
+              (should (< c 10))
+              (should (>= r 8)))))))
+
+    (it "records leg on arrival at target city"
+      (reset! atoms/game-map (build-test-map ["X#####fX"]))
+      (set-test-unit atoms/game-map "f" :fuel 20
+                     :flight-target-site [0 7]
+                     :flight-origin-site [0 0])
+      (reset! atoms/computer-map @atoms/game-map)
+      (reset! atoms/round-number 42)
+      (let [unit (get-in @atoms/game-map [0 6 :contents])]
+        (fighter/process-fighter [0 6] unit)
+        ;; Leg should be recorded with current round number
+        (should= 42 (:last-flown (get @atoms/fighter-leg-records #{[0 0] [0 7]})))))
+
+    (it "refuels at carrier when low on fuel"
+      ;; Fighter on sea adjacent to carrier, no city nearby
+      (reset! atoms/game-map (build-test-map ["#####~j~"]))
+      ;; Place carrier at [0,7] in holding mode
+      (swap! atoms/game-map assoc-in [0 7 :contents]
+             {:type :carrier :owner :computer :hits 8 :carrier-mode :holding})
+      (set-test-unit atoms/game-map "f" :fuel 2)
+      (reset! atoms/computer-map @atoms/game-map)
+      (let [unit (get-in @atoms/game-map [0 6 :contents])]
+        (fighter/process-fighter [0 6] unit)
+        ;; Fighter should have refueled and still be alive
+        (let [result (get-test-unit atoms/game-map "f")]
+          (should-not-be-nil result)
+          ;; Fuel should be much higher than starting 2 (refueled to 32, then some patrol steps)
+          (should (> (:fuel (:unit result)) 20)))))
+
+    (it "falls back to patrol when no reachable legs"
+      ;; Fighter at a city with no other refueling sites within range
+      (reset! atoms/game-map (build-test-map ["Xf########"]))
+      (set-test-unit atoms/game-map "f" :fuel 20)
+      ;; Unexplored territory to the right
+      (reset! atoms/computer-map (build-test-map ["Xf........"]))
+      (let [unit (get-in @atoms/game-map [0 1 :contents])]
+        (fighter/process-fighter [0 1] unit)
+        ;; Fighter should have moved (patrol behavior) even without a leg target
+        (should-be-nil (get-in @atoms/game-map [0 1 :contents]))
+        (let [result (get-test-unit atoms/game-map "f")
+              [_ fighter-col] (:pos result)]
+          (should-not-be-nil result)
+          (should (> fighter-col 1)))))))

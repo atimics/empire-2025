@@ -1,8 +1,10 @@
 (ns empire.computer.fighter
   "Computer fighter module - VMS Empire style fighter movement.
-   Attack adjacent enemies, patrol within fuel range, return to city."
+   Attack adjacent enemies, patrol within fuel range, return to city.
+   Leg-based coverage: fly between refueling sites, prefer unflown/oldest legs."
   (:require [empire.atoms :as atoms]
             [empire.computer.core :as core]
+            [empire.computer.ship :as ship]
             [empire.combat :as combat]
             [empire.movement.pathfinding :as pathfinding]
             [empire.movement.visibility :as visibility]
@@ -50,16 +52,12 @@
         (visibility/update-cell-visibility fighter-pos :computer)
         nil))))
 
-(defn- find-nearest-friendly-city
-  "Find the nearest computer-owned city."
+(defn- find-nearest-refueling-site
+  "Find the nearest refueling site (computer city or holding carrier)."
   [pos]
-  (let [cities (core/find-visible-cities #{:computer})]
-    (when (seq cities)
-      (apply min-key
-             (fn [[r c]]
-               (let [[pr pc] pos]
-                 (+ (Math/abs (- r pr)) (Math/abs (- c pc)))))
-             cities))))
+  (let [sites (ship/find-refueling-sites)]
+    (when (seq sites)
+      (apply min-key (partial core/distance pos) sites))))
 
 (defn- distance-to
   "Manhattan distance between two positions."
@@ -67,30 +65,17 @@
   (+ (Math/abs (- r1 r2)) (Math/abs (- c1 c2))))
 
 (defn- fuel-to-return
-  "Calculate fuel needed to return to nearest city."
+  "Calculate fuel needed to return to nearest refueling site."
   [pos]
-  (if-let [city (find-nearest-friendly-city pos)]
-    (distance-to pos city)
-    999))  ; Very high if no city
+  (if-let [site (find-nearest-refueling-site pos)]
+    (distance-to pos site)
+    999))
 
-(defn- should-return-to-city?
+(defn- should-return-to-refuel?
   "Returns true if fighter should head back to refuel."
   [pos fuel]
   (let [return-distance (fuel-to-return pos)]
-    ;; Need to return if fuel is just barely enough (with 1-2 margin)
     (<= fuel (+ return-distance 2))))
-
-(defn- move-toward-city
-  "Move fighter one step toward nearest city."
-  [pos]
-  (when-let [city (find-nearest-friendly-city pos)]
-    (let [passable (get-passable-neighbors pos)
-          closest (core/move-toward pos city passable)]
-      (when closest
-        (core/move-unit-to pos closest)
-        (visibility/update-cell-visibility pos :computer)
-        (visibility/update-cell-visibility closest :computer)
-        closest))))
 
 (defn- find-patrol-target
   "Find something interesting to patrol toward.
@@ -139,54 +124,180 @@
       (do (swap! atoms/game-map assoc-in (conj pos :contents :fuel) new-fuel)
           true))))
 
-(defn- move-fighter-once
-  "Execute one step of fighter priority logic.
-   Returns new position if moved and alive, :landed if landed at city, nil if died or stuck."
+;; --- Leg-based coverage ---
+
+(defn- current-refueling-site
+  "Returns the refueling site position the fighter at pos is at, or nil.
+   A fighter is 'at' a city if on it, or 'at' a carrier if adjacent to it."
+  [pos]
+  (let [cell (get-in @atoms/game-map pos)]
+    (cond
+      (and (= :city (:type cell)) (= :computer (:city-status cell)))
+      pos
+
+      :else
+      (first (filter (fn [n]
+                       (let [ncell (get-in @atoms/game-map n)]
+                         (and (= :carrier (get-in ncell [:contents :type]))
+                              (= :computer (get-in ncell [:contents :owner]))
+                              (= :holding (get-in ncell [:contents :carrier-mode])))))
+                     (core/get-neighbors pos))))))
+
+(defn- choose-leg
+  "Choose the best leg from current-site. Returns target site position or nil.
+   Prefers unflown legs (absent from records), then oldest (lowest :last-flown)."
+  [current-site]
+  (let [sites (ship/find-refueling-sites)
+        reachable (filter #(and (not= % current-site)
+                                (<= (distance-to current-site %) config/fighter-fuel))
+                          sites)
+        leg-records @atoms/fighter-leg-records
+        scored (map (fn [target]
+                      (let [leg-key #{current-site target}
+                            record (get leg-records leg-key)
+                            last-flown (:last-flown record -1)]
+                        [target last-flown]))
+                    reachable)]
+    (when (seq scored)
+      (first (first (sort-by second scored))))))
+
+(defn- ensure-flight-target
+  "If fighter at pos is at a refueling site with no target, pick a leg and refuel."
+  [pos]
+  (let [unit (get-in @atoms/game-map (conj pos :contents))]
+    (when (and unit (nil? (:flight-target-site unit)))
+      (when-let [site-pos (current-refueling-site pos)]
+        (when-let [target (choose-leg site-pos)]
+          (swap! atoms/game-map assoc-in (conj pos :contents :fuel) config/fighter-fuel)
+          (swap! atoms/game-map update-in (conj pos :contents)
+                 assoc :flight-target-site target :flight-origin-site site-pos))))))
+
+(defn- at-flight-target?
+  "True if pos has reached the flight target. City: at position. Carrier: adjacent."
+  [pos target]
+  (let [target-cell (get-in @atoms/game-map target)]
+    (or (= pos target)
+        (and (= :carrier (get-in target-cell [:contents :type]))
+             (<= (distance-to pos target) 1)))))
+
+(defn- handle-arrival
+  "Process arrival at target refueling site. Record leg, refuel, pick new leg.
+   Returns current pos (no movement this step)."
   [pos unit]
-  (let [fuel (:fuel unit config/fighter-fuel)]
+  (let [target (:flight-target-site unit)
+        origin (:flight-origin-site unit)]
+    ;; Record completed leg
+    (when origin
+      (swap! atoms/fighter-leg-records assoc #{origin target}
+             {:last-flown @atoms/round-number}))
+    ;; Refuel
+    (swap! atoms/game-map assoc-in (conj pos :contents :fuel) config/fighter-fuel)
+    ;; Pick new leg from target site
+    (let [new-target (choose-leg target)]
+      (swap! atoms/game-map update-in (conj pos :contents)
+             assoc :flight-target-site new-target :flight-origin-site target))
+    pos))
+
+(defn- navigate-toward-target
+  "Move one step toward target, preferring unexplored cells when fuel allows."
+  [pos target fuel]
+  (let [passable (get-passable-neighbors pos)
+        direct-dist (distance-to pos target)
+        fuel-margin? (> fuel (+ direct-dist 2))
+        unexplored-toward (when fuel-margin?
+                            (seq (filter (fn [n]
+                                          (and (nil? (get-in @atoms/computer-map n))
+                                               (<= (distance-to n target) direct-dist)))
+                                        passable)))
+        next-pos (or (when unexplored-toward
+                       (apply min-key (partial distance-to target) unexplored-toward))
+                     (core/move-toward pos target passable))]
+    (when (and next-pos (core/move-unit-to pos next-pos))
+      (visibility/update-cell-visibility pos :computer)
+      (visibility/update-cell-visibility next-pos :computer)
+      (if (consume-fighter-fuel next-pos) next-pos nil))))
+
+(defn- refuel-at-site
+  "Refuel fighter in place, recording origin site for leg tracking."
+  [pos site-pos]
+  (swap! atoms/game-map assoc-in (conj pos :contents :fuel) config/fighter-fuel)
+  (swap! atoms/game-map update-in (conj pos :contents)
+         assoc :flight-origin-site site-pos)
+  pos)
+
+(defn- move-and-consume-toward
+  "Move one step toward target and consume fuel. Returns new pos or nil."
+  [pos target]
+  (let [passable (get-passable-neighbors pos)
+        closest (core/move-toward pos target passable)]
+    (when (and closest (core/move-unit-to pos closest))
+      (visibility/update-cell-visibility pos :computer)
+      (visibility/update-cell-visibility closest :computer)
+      (if (consume-fighter-fuel closest) closest nil))))
+
+(defn- handle-low-fuel
+  "Handle low-fuel: return to nearest refueling site or patrol desperately."
+  [pos]
+  (let [site (find-nearest-refueling-site pos)]
+    (cond
+      ;; At or adjacent to city → land
+      (and site
+           (= :city (:type (get-in @atoms/game-map site)))
+           (<= (distance-to pos site) 1))
+      (land-at-city pos site)
+
+      ;; Adjacent to non-city refueling site (carrier) → refuel in place
+      (and site (<= (distance-to pos site) 1))
+      (refuel-at-site pos site)
+
+      ;; Move toward nearest site
+      site
+      (move-and-consume-toward pos site)
+
+      ;; No site → patrol desperately
+      :else
+      (when-let [new-pos (do-patrol pos)]
+        (if (consume-fighter-fuel new-pos) new-pos nil)))))
+
+(defn- handle-patrol
+  "Execute one patrol step, consuming fuel."
+  [pos]
+  (when-let [new-pos (do-patrol pos)]
+    (if (consume-fighter-fuel new-pos) new-pos nil)))
+
+(defn- move-fighter-once
+  "Execute one step of fighter priority logic. CC=4.
+   Returns new position if moved and alive, :landed if landed, nil if died or stuck."
+  [pos unit]
+  (let [fuel (:fuel unit config/fighter-fuel)
+        target (:flight-target-site unit)]
     ;; Priority 1: Attack adjacent enemy
     (if-let [enemy-pos (find-adjacent-enemy pos)]
       (when-let [new-pos (attack-enemy pos enemy-pos)]
-        (if (consume-fighter-fuel new-pos)
-          new-pos
-          nil))
+        (if (consume-fighter-fuel new-pos) new-pos nil))
 
-      ;; Priority 2: Return to city if low on fuel
-      (if (should-return-to-city? pos fuel)
-        (let [city (find-nearest-friendly-city pos)]
-          (cond
-            (and city (= pos city))
-            (land-at-city pos city)
+      ;; Priority 2: Arrived at target refueling site
+      (if (and target (at-flight-target? pos target))
+        (handle-arrival pos unit)
 
-            (and city (some #{city} (core/get-neighbors pos)))
-            (land-at-city pos city)
+        ;; Priority 3: Low fuel → return to nearest refueling site
+        (if (should-return-to-refuel? pos fuel)
+          (handle-low-fuel pos)
 
-            city
-            (when-let [new-pos (move-toward-city pos)]
-              (if (consume-fighter-fuel new-pos)
-                new-pos
-                nil))
-
-            ;; No city to return to - patrol desperately
-            :else
-            (when-let [new-pos (do-patrol pos)]
-              (if (consume-fighter-fuel new-pos)
-                new-pos
-                nil))))
-
-        ;; Priority 3: Patrol
-        (when-let [new-pos (do-patrol pos)]
-          (if (consume-fighter-fuel new-pos)
-            new-pos
-            nil))))))
+          ;; Priority 4: Navigate toward target or patrol
+          (if target
+            (navigate-toward-target pos target fuel)
+            (handle-patrol pos)))))))
 
 (defn process-fighter
   "Processes a computer fighter using VMS Empire style logic.
    Moves up to fighter-speed (8) cells per round, consuming fuel each step.
-   Priority each step: Attack adjacent > Return to city if low fuel > Patrol
+   Priority each step: Attack > Arrive at target > Return if low fuel > Navigate/Patrol
    Returns nil."
   [pos unit]
   (when (and unit (= :computer (:owner unit)) (= :fighter (:type unit)))
+    ;; Set flight target if at a refueling site with no current target
+    (ensure-flight-target pos)
     (loop [current-pos pos
            steps-remaining fighter-speed]
       (when (pos? steps-remaining)

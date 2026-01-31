@@ -51,7 +51,7 @@
 (defn- apply-country-id
   "Assigns city's country-id to armies and transports."
   [unit item cell]
-  (if (and (#{:army :transport} item) (:country-id cell))
+  (if (and (#{:army :transport :fighter} item) (:country-id cell))
     (assoc unit :country-id (:country-id cell))
     unit))
 

@@ -147,7 +147,26 @@
       (let [unit (:contents (get-in @atoms/game-map city-coords))]
         (should= :transport (:type unit))
         (should= :awake (:mode unit))
-        (should-be-nil (:explore-steps unit))))))
+        (should-be-nil (:explore-steps unit)))))
+
+  (it "assigns country-id to fighter when city has country-id"
+    (let [city-coords (:pos (get-test-city atoms/game-map "O"))]
+      (swap! atoms/game-map assoc-in (conj city-coords :city-status) :computer)
+      (swap! atoms/game-map assoc-in (conj city-coords :country-id) 7)
+      (swap! atoms/production assoc city-coords {:item :fighter :remaining-rounds 1})
+      (production/update-production)
+      (let [unit (:contents (get-in @atoms/game-map city-coords))]
+        (should= :fighter (:type unit))
+        (should= 7 (:country-id unit)))))
+
+  (it "does not assign country-id to fighter when city lacks country-id"
+    (let [city-coords (:pos (get-test-city atoms/game-map "O"))]
+      (swap! atoms/game-map assoc-in (conj city-coords :city-status) :computer)
+      (swap! atoms/production assoc city-coords {:item :fighter :remaining-rounds 1})
+      (production/update-production)
+      (let [unit (:contents (get-in @atoms/game-map city-coords))]
+        (should= :fighter (:type unit))
+        (should-be-nil (:country-id unit))))))
 
 (describe "coast-walk stamping"
   (before

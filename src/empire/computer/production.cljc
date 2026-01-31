@@ -69,6 +69,19 @@
                           (= country-id (:country-id unit)))]
            true)))
 
+(defn- count-country-fighters
+  "Counts live fighters belonging to the given country-id."
+  [country-id]
+  (count (for [i (range (count @atoms/game-map))
+               j (range (count (first @atoms/game-map)))
+               :let [cell (get-in @atoms/game-map [i j])
+                     unit (:contents cell)]
+               :when (and unit
+                          (= :computer (:owner unit))
+                          (= :fighter (:type unit))
+                          (= country-id (:country-id unit)))]
+           true)))
+
 (defn- count-country-patrol-boats
   "Counts live computer patrol boats belonging to the given country-id."
   [country-id]
@@ -110,7 +123,7 @@
         (map-indexed vector @atoms/game-map)))
 
 (defn- decide-country-production
-  "Per-country production priorities. Returns unit type or nil. CC=4."
+  "Per-country production priorities. Returns unit type or nil. CC=5."
   [city-pos country-id coastal? unit-counts]
   (cond
     ;; 1. Transport: < 2 per country, coastal, need 6+ armies first
@@ -133,7 +146,11 @@
     (and coastal?
          (< (get unit-counts :destroyer 0) (get unit-counts :transport 0))
          (country-has-unadopted-transport? country-id))
-    :destroyer))
+    :destroyer
+
+    ;; 5. Fighter: < 2 per country
+    (< (count-country-fighters country-id) 2)
+    :fighter))
 
 (defn- count-carrier-producers
   "Counts computer cities currently producing carriers."

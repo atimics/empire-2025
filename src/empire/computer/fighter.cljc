@@ -119,8 +119,7 @@
   (when-let [target (find-patrol-target pos)]
     (let [passable (get-passable-neighbors pos)
           closest (move-toward-with-sidestep pos target passable)]
-      (when closest
-        (core/move-unit-to pos closest)
+      (when (and closest (core/move-unit-to pos closest))
         (visibility/update-cell-visibility pos :computer)
         (visibility/update-cell-visibility closest :computer)
         closest))))

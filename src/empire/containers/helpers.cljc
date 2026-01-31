@@ -88,9 +88,9 @@
   "Returns the unit to display during normal (non-blink) rendering."
   [cell contents has-awake-airport? has-any-airport?]
   (cond
-    (and contents (= (:mode contents) :awake)) contents
+    (and contents (:type contents) (= (:mode contents) :awake)) contents
     has-awake-airport? {:type :fighter :mode :awake}
-    contents contents
+    (and contents (:type contents)) contents
     has-any-airport? {:type :fighter :mode :sentry}
     :else nil))
 

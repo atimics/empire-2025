@@ -271,6 +271,20 @@
           (should-not-be-nil result)
           (should (> fighter-col 1))))))
 
+  (describe "no phantom contents on blocked patrol"
+    (it "does not create phantom contents when patrol move is blocked"
+      ;; Fighter at [0 0] on a 1-row map. All neighbors occupied by friendly armies.
+      ;; No unexplored cells on computer-map, but a player army far away to give a patrol target.
+      ;; do-patrol will find the player army as target, pick a neighbor, but move-unit-to fails.
+      ;; The cell should NOT end up with phantom {:contents {:fuel N}}.
+      (reset! atoms/game-map (build-test-map ["fa###A"]))
+      (set-test-unit atoms/game-map "f" :fuel 20)
+      (reset! atoms/computer-map @atoms/game-map)
+      (let [unit (get-in @atoms/game-map [0 0 :contents])]
+        (fighter/process-fighter [0 0] unit)
+        ;; Cell [0 1] has a friendly army - should still be an army, not phantom fuel
+        (should= :army (:type (:contents (get-in @atoms/game-map [0 1])))))))
+
   (describe "sidestepping"
     (it "sidesteps around friendly unit blocking direct path"
       ;; 3x3 map: fighter at [0 0], friendly army blocking [0 1], target city at [0 2]

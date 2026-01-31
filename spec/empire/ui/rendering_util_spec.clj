@@ -145,7 +145,15 @@
   (it "preserves mission field for army with loading mission"
     (let [cell {:contents {:type :army :mode :sentry :mission :loading :owner :computer}}]
       (should= {:type :army :mode :sentry :mission :loading :owner :computer}
-               (ru/determine-display-unit 5 5 cell nil false)))))
+               (ru/determine-display-unit 5 5 cell nil false))))
+
+  (it "returns nil for cell with contents lacking :type"
+    (let [cell {:type :land :contents {:fuel 31}}]
+      (should-not (ru/determine-display-unit 5 5 cell nil false))))
+
+  (it "returns nil for cell with contents lacking :type even with :awake mode"
+    (let [cell {:type :land :contents {:mode :awake :fuel 31}}]
+      (should-not (ru/determine-display-unit 5 5 cell nil false)))))
 
 (describe "group-cells-by-color"
   (it "groups cells by their base color"

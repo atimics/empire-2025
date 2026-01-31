@@ -664,4 +664,19 @@
       ;; City should be computer-owned
       (should= :computer (get-in @atoms/game-map [0 10 :city-status]))
       ;; Production should NOT be set (10 armies still alive after conquering army removed)
-      (should-be-nil (get @atoms/production [0 10])))))
+      (should-be-nil (get @atoms/production [0 10]))))
+
+  (it "conquered city does not produce armies when another city in country is already producing"
+    (with-redefs [rand (constantly 0.1)]
+      (reset! atoms/game-map (build-test-map ["a#XO"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      (swap! atoms/game-map assoc-in [0 0 :contents :country-id] 3)
+      ;; Existing computer city at [0 2] in country 3, already producing armies
+      (swap! atoms/game-map assoc-in [0 2 :country-id] 3)
+      (swap! atoms/production assoc [0 2] {:item :army :remaining-rounds 3})
+      ;; Army at [0 0] conquers city at [0 3]
+      (computer-core/attempt-conquest-computer [0 0] [0 3])
+      ;; City should be computer-owned
+      (should= :computer (get-in @atoms/game-map [0 3 :city-status]))
+      ;; Production should NOT be set because another city in country 3 is already producing armies
+      (should-be-nil (get @atoms/production [0 3])))))

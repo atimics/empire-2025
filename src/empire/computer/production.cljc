@@ -82,7 +82,7 @@
                           (= country-id (:patrol-country-id unit)))]
            true)))
 
-(defn- country-city-producing-armies?
+(defn country-city-producing-armies?
   "Returns true if any other computer city in this country is already producing armies."
   [city-pos country-id]
   (some (fn [[coords prod]]

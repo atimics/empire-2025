@@ -269,4 +269,84 @@
         (let [result (get-test-unit atoms/game-map "f")
               [_ fighter-col] (:pos result)]
           (should-not-be-nil result)
-          (should (> fighter-col 1)))))))
+          (should (> fighter-col 1))))))
+
+  (describe "sidestepping"
+    (it "sidesteps around friendly unit blocking direct path"
+      ;; 3x3 map: fighter at [0 0], friendly army blocking [0 1], target city at [0 2]
+      ;; Fighter should move diagonally to [1 0] or [1 1] to go around
+      (reset! atoms/game-map (build-test-map ["f##"
+                                               "###"
+                                               "##X"]))
+      ;; Place a friendly army at [0 1] blocking the direct path
+      (swap! atoms/game-map assoc-in [0 1 :contents]
+             {:type :army :owner :computer :hits 1})
+      (set-test-unit atoms/game-map "f" :fuel 20
+                     :flight-target-site [0 2]
+                     :flight-origin-site [2 2])
+      (reset! atoms/computer-map @atoms/game-map)
+      (let [unit (get-in @atoms/game-map [0 0 :contents])]
+        (fighter/process-fighter [0 0] unit)
+        ;; Fighter should NOT still be at [0 0] - it should have sidestepped
+        (let [result (get-test-unit atoms/game-map "f")]
+          (should-not-be-nil result)
+          ;; Should have moved somewhere other than [0 0]
+          (should-not= [0 0] (:pos result)))))
+
+    (it "prefers diagonal when diagonal and orthogonal equidistant to target"
+      ;; 5x5 map: city at [0 0], fighter at [1 0], target city at [4 4]
+      ;; Fighter should move diagonally toward target
+      (reset! atoms/game-map (build-test-map ["X####"
+                                               "f####"
+                                               "#####"
+                                               "#####"
+                                               "####X"]))
+      (set-test-unit atoms/game-map "f" :fuel 20
+                     :flight-target-site [4 4]
+                     :flight-origin-site [0 0])
+      (reset! atoms/computer-map @atoms/game-map)
+      (let [unit (get-in @atoms/game-map [1 0 :contents])]
+        (fighter/process-fighter [1 0] unit)
+        ;; Fighter should have moved toward [4 4]
+        (let [result (get-test-unit atoms/game-map "f")]
+          (should-not-be-nil result)
+          (should-not= [1 0] (:pos result)))))
+
+    (it "stuck fighter surrounded by friendly units burns fuel and dies"
+      ;; 3x3 map: fighter at center [1 1], surrounded by friendly armies on all 8 neighbors
+      (reset! atoms/game-map (build-test-map ["aaa"
+                                               "afa"
+                                               "aaa"]))
+      (set-test-unit atoms/game-map "f" :fuel 5)
+      (reset! atoms/computer-map @atoms/game-map)
+      (let [unit (get-in @atoms/game-map [1 1 :contents])]
+        (fighter/process-fighter [1 1] unit)
+        ;; Fighter should be dead - fuel burned to 0 while stuck
+        (should-be-nil (get-test-unit atoms/game-map "f")))))
+
+  (describe "fuel burn when stuck"
+    (it "stuck fighter with 8 fuel burns all fuel and dies"
+      ;; Fighter completely surrounded, with exactly 8 fuel (one per step)
+      (reset! atoms/game-map (build-test-map ["aaa"
+                                               "afa"
+                                               "aaa"]))
+      (set-test-unit atoms/game-map "f" :fuel 8)
+      (reset! atoms/computer-map @atoms/game-map)
+      (let [unit (get-in @atoms/game-map [1 1 :contents])]
+        (fighter/process-fighter [1 1] unit)
+        ;; Fighter should be dead after burning 8 fuel
+        (should-be-nil (get-test-unit atoms/game-map "f"))))
+
+    (it "stuck fighter with more than 8 fuel survives the round"
+      ;; Fighter completely surrounded, with 10 fuel - burns 8, survives with 2
+      (reset! atoms/game-map (build-test-map ["aaa"
+                                               "afa"
+                                               "aaa"]))
+      (set-test-unit atoms/game-map "f" :fuel 10)
+      (reset! atoms/computer-map @atoms/game-map)
+      (let [unit (get-in @atoms/game-map [1 1 :contents])]
+        (fighter/process-fighter [1 1] unit)
+        ;; Fighter should survive with 2 fuel remaining
+        (let [result (get-test-unit atoms/game-map "f")]
+          (should-not-be-nil result)
+          (should= 2 (:fuel (:unit result))))))))

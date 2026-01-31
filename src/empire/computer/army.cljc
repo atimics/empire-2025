@@ -89,6 +89,7 @@
           ;; Attacker won - move to enemy position
           (do
             (swap! atoms/game-map assoc-in (conj enemy-pos :contents) (:survivor result))
+            (core/stamp-territory enemy-pos (:survivor result))
             (visibility/update-cell-visibility army-pos :computer)
             (visibility/update-cell-visibility enemy-pos :computer)
             enemy-pos)

@@ -52,6 +52,15 @@
   (map-utils/any-neighbor-matches? pos @atoms/computer-map map-utils/neighbor-offsets
                                    nil?))
 
+(defn stamp-territory
+  "Stamps a land cell with the army's country-id as it moves through."
+  [pos unit]
+  (when (and (= :army (:type unit))
+             (= :computer (:owner unit))
+             (:country-id unit)
+             (= :land (:type (get-in @atoms/game-map pos))))
+    (swap! atoms/game-map assoc-in (conj pos :country-id) (:country-id unit))))
+
 (defn move-unit-to
   "Moves a unit from from-pos to to-pos. Returns to-pos if moved, nil if target occupied."
   [from-pos to-pos]
@@ -63,6 +72,7 @@
       (do
         (swap! atoms/game-map assoc-in from-pos (dissoc from-cell :contents))
         (swap! atoms/game-map assoc-in (conj to-pos :contents) unit)
+        (stamp-territory to-pos unit)
         to-pos))))
 
 (defn- assign-country-on-conquest

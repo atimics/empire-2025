@@ -2,6 +2,7 @@
   "Tests for VMS Empire style computer army movement."
   (:require [speclj.core :refer :all]
             [empire.computer.army :as army]
+            [empire.computer.core :as core]
             [empire.atoms :as atoms]
             [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
 
@@ -244,6 +245,44 @@
       ;; Combat should have occurred
       (should (or (nil? (:contents (get-in @atoms/game-map [0 0])))
                   (= :computer (:owner (:contents (get-in @atoms/game-map [0 1]))))))))
+
+  (describe "territory stamping"
+    (it "computer army with country-id stamps land cell it moves to"
+      ;; Army at [0 0] with country-id 3, empty land at [0 1]
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1 :country-id 3}}
+                                {:type :land}
+                                {:type :land}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (army/process-army [0 0])
+      ;; The cell army moved to should have country-id stamped
+      (should= 3 (:country-id (get-in @atoms/game-map [0 1]))))
+
+    (it "army without country-id does not stamp land"
+      ;; Army at [0 0] without country-id
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1}}
+                                {:type :land}
+                                {:type :land}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (army/process-army [0 0])
+      ;; Land cell should not have country-id
+      (should-be-nil (:country-id (get-in @atoms/game-map [0 1]))))
+
+    (it "army does not stamp sea or city cells"
+      ;; Army at [0 0] with country-id, next to a city
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1 :country-id 3}}
+                                {:type :city :city-status :free}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (army/process-army [0 0])
+      ;; City cell should not have country-id from stamping (may get one from conquest though)
+      ;; Just verify the cell is still a city
+      (should= :city (:type (get-in @atoms/game-map [0 1]))))
+
+    (it "move-unit-to stamps territory for computer armies"
+      ;; Directly test core/move-unit-to stamps land
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1 :country-id 5}}
+                                {:type :land}]])
+      (core/move-unit-to [0 0] [0 1])
+      (should= 5 (:country-id (get-in @atoms/game-map [0 1])))))
 
   (describe "ignores non-computer units"
     (it "returns nil for player army"

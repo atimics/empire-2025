@@ -198,10 +198,11 @@
           ;; Unload armies onto land cells
           (let [unload-eid (:unload-event-id transport)]
             (doseq [land-pos (take to-unload land-neighbors)]
-              (swap! atoms/game-map assoc-in (conj land-pos :contents)
-                     (cond-> {:type :army :owner :computer :mode :awake :hits 1}
-                       unload-eid (assoc :unload-event-id unload-eid)))
-              (visibility/update-cell-visibility land-pos :computer)))
+              (let [army (cond-> {:type :army :owner :computer :mode :awake :hits 1}
+                           unload-eid (assoc :unload-event-id unload-eid))]
+                (swap! atoms/game-map assoc-in (conj land-pos :contents) army)
+                (core/stamp-territory land-pos army)
+                (visibility/update-cell-visibility land-pos :computer))))
           ;; Update transport army count
           (swap! atoms/game-map update-in (conj pos :contents :army-count) - to-unload)
           ;; If fully unloaded, change mission to loading and update pickup continent

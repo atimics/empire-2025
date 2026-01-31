@@ -33,6 +33,16 @@
    :land [139 69 19]           ; brown for land
    :sea [0 191 255]})          ; deep sky blue for water
 
+(def land-colors
+  [[139 69 19]    ; saddle brown (default)
+   [160 82 45]    ; sienna
+   [120 66 18]    ; dark brown
+   [180 100 50]   ; peru
+   [101 67 33]    ; dark wood
+   [170 120 60]   ; light wood
+   [150 75 0]     ; brown orange
+   [133 94 66]])  ; french beige
+
 (def production-color [128 128 128])
 (def waypoint-color [0 255 0])
 (def awake-unit-color [255 255 255])
@@ -123,14 +133,15 @@
 (defn color-of
   "Returns the RGB color for a cell based on its type and status."
   [cell]
-  (let [terrain-type (:type cell)
-        cell-color (if (= terrain-type :city)
-                     (case (:city-status cell)
-                       :player :player-city
-                       :computer :computer-city
-                       :free :free-city)
-                     terrain-type)]
-    (cell-colors cell-color)))
+  (let [terrain-type (:type cell)]
+    (if (= terrain-type :city)
+      (cell-colors (case (:city-status cell)
+                     :player :player-city
+                     :computer :computer-city
+                     :free :free-city))
+      (if (and (= terrain-type :land) (:country-id cell))
+        (nth land-colors (mod (:country-id cell) (count land-colors)))
+        (cell-colors terrain-type)))))
 
 (defn mode->color
   "Returns the RGB color for a unit mode."

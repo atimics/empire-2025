@@ -16,7 +16,23 @@
     (should= [139 69 19] (config/color-of {:type :land})))
 
   (it "returns blue for sea"
-    (should= [0 191 255] (config/color-of {:type :sea}))))
+    (should= [0 191 255] (config/color-of {:type :sea})))
+
+  (it "returns different browns for different country-ids on land"
+    (let [color1 (config/color-of {:type :land :country-id 1})
+          color2 (config/color-of {:type :land :country-id 2})]
+      (should-not= color1 color2)))
+
+  (it "returns default brown for land without country-id"
+    (should= [139 69 19] (config/color-of {:type :land})))
+
+  (it "returns standard city colors regardless of country-id"
+    (should= [0 255 0] (config/color-of {:type :city :city-status :player :country-id 3}))
+    (should= [255 0 0] (config/color-of {:type :city :city-status :computer :country-id 3}))
+    (should= [255 255 255] (config/color-of {:type :city :city-status :free :country-id 3})))
+
+  (it "returns sea color for sea cells"
+    (should= [0 191 255] (config/color-of {:type :sea :country-id 3}))))
 
 (describe "mode->color"
   (it "returns white for awake"

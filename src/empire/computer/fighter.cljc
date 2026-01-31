@@ -21,6 +21,32 @@
                    (>= c 0) (< c width)))
             (core/get-neighbors pos))))
 
+(defn- occupied?
+  "Returns true if the cell at pos has contents."
+  [pos]
+  (some? (get-in @atoms/game-map (conj pos :contents))))
+
+(defn- diagonal-move?
+  "Returns true if moving from pos to target involves both row and column change."
+  [[r1 c1] [r2 c2]]
+  (and (not= r1 r2) (not= c1 c2)))
+
+(defn- move-toward-with-sidestep
+  "Like core/move-toward but excludes occupied cells and prefers diagonals on ties.
+   When distance is equal, diagonals are preferred. Among same-distance same-type moves,
+   the last one in input order wins (matching min-key behavior)."
+  [pos target passable-neighbors]
+  (let [unoccupied (filter (complement occupied?) passable-neighbors)]
+    (when (seq unoccupied)
+      (let [scored (map (fn [n]
+                          [n (core/distance n target) (if (diagonal-move? pos n) 0 1)])
+                        unoccupied)
+            best-dist (apply min (map second scored))
+            at-best-dist (filter #(= best-dist (second %)) scored)
+            best-diag (apply min (map #(nth % 2) at-best-dist))
+            candidates (filter #(= best-diag (nth % 2)) at-best-dist)]
+        (first (last candidates))))))
+
 (defn- find-adjacent-enemy
   "Finds an adjacent enemy unit to attack (not cities - fighters can't conquer)."
   [pos]
@@ -92,7 +118,7 @@
   [pos]
   (when-let [target (find-patrol-target pos)]
     (let [passable (get-passable-neighbors pos)
-          closest (core/move-toward pos target passable)]
+          closest (move-toward-with-sidestep pos target passable)]
       (when closest
         (core/move-unit-to pos closest)
         (visibility/update-cell-visibility pos :computer)
@@ -206,12 +232,13 @@
         fuel-margin? (> fuel (+ direct-dist 2))
         unexplored-toward (when fuel-margin?
                             (seq (filter (fn [n]
-                                          (and (nil? (get-in @atoms/computer-map n))
+                                          (and (not (occupied? n))
+                                               (nil? (get-in @atoms/computer-map n))
                                                (<= (distance-to n target) direct-dist)))
                                         passable)))
         next-pos (or (when unexplored-toward
                        (apply min-key (partial distance-to target) unexplored-toward))
-                     (core/move-toward pos target passable))]
+                     (move-toward-with-sidestep pos target passable))]
     (when (and next-pos (core/move-unit-to pos next-pos))
       (visibility/update-cell-visibility pos :computer)
       (visibility/update-cell-visibility next-pos :computer)
@@ -229,7 +256,7 @@
   "Move one step toward target and consume fuel. Returns new pos or nil."
   [pos target]
   (let [passable (get-passable-neighbors pos)
-        closest (core/move-toward pos target passable)]
+        closest (move-toward-with-sidestep pos target passable)]
     (when (and closest (core/move-unit-to pos closest))
       (visibility/update-cell-visibility pos :computer)
       (visibility/update-cell-visibility closest :computer)
@@ -304,6 +331,12 @@
         (let [unit (get-in @atoms/game-map (conj current-pos :contents))]
           (when (and unit (= :fighter (:type unit)))
             (let [result (move-fighter-once current-pos unit)]
-              (when (and result (not= result :landed))
-                (recur result (dec steps-remaining)))))))))
+              (cond
+                (= result :landed) nil
+                result (recur result (dec steps-remaining))
+                ;; Stuck (nil result) - fighter may be alive at current-pos
+                :else (let [stuck-unit (get-in @atoms/game-map (conj current-pos :contents))]
+                        (when (and stuck-unit (= :fighter (:type stuck-unit)))
+                          (when (consume-fighter-fuel current-pos)
+                            (recur current-pos (dec steps-remaining))))))))))))
   nil)

@@ -316,6 +316,28 @@
             (navigate-toward-target pos target fuel)
             (handle-patrol pos)))))))
 
+(defn- fighter-at?
+  "Returns true if a fighter exists at pos on the game map."
+  [pos]
+  (= :fighter (get-in @atoms/game-map (conj pos :contents :type))))
+
+(defn- burn-stuck-fuel
+  "Burns fuel for a stuck fighter at pos. Returns pos if survived, nil if died."
+  [pos]
+  (when (and (fighter-at? pos) (consume-fighter-fuel pos))
+    pos))
+
+(defn- step-fighter
+  "Execute one step. Returns [new-pos :continue], [nil :stop], or recur-ready values."
+  [current-pos]
+  (when (fighter-at? current-pos)
+    (let [unit (get-in @atoms/game-map (conj current-pos :contents))
+          result (move-fighter-once current-pos unit)]
+      (cond
+        (= result :landed) nil
+        result result
+        :else (burn-stuck-fuel current-pos)))))
+
 (defn process-fighter
   "Processes a computer fighter using VMS Empire style logic.
    Moves up to fighter-speed (8) cells per round, consuming fuel each step.
@@ -323,20 +345,10 @@
    Returns nil."
   [pos unit]
   (when (and unit (= :computer (:owner unit)) (= :fighter (:type unit)))
-    ;; Set flight target if at a refueling site with no current target
     (ensure-flight-target pos)
     (loop [current-pos pos
            steps-remaining fighter-speed]
       (when (pos? steps-remaining)
-        (let [unit (get-in @atoms/game-map (conj current-pos :contents))]
-          (when (and unit (= :fighter (:type unit)))
-            (let [result (move-fighter-once current-pos unit)]
-              (cond
-                (= result :landed) nil
-                result (recur result (dec steps-remaining))
-                ;; Stuck (nil result) - fighter may be alive at current-pos
-                :else (let [stuck-unit (get-in @atoms/game-map (conj current-pos :contents))]
-                        (when (and stuck-unit (= :fighter (:type stuck-unit)))
-                          (when (consume-fighter-fuel current-pos)
-                            (recur current-pos (dec steps-remaining))))))))))))
+        (when-let [next-pos (step-fighter current-pos)]
+          (recur next-pos (dec steps-remaining))))))
   nil)

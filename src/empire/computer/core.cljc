@@ -116,9 +116,12 @@
         (combat/conquer-city-contents city-pos :computer)
         (assign-country-on-conquest city-pos army)
         (let [city-country-id (:country-id (get-in @atoms/game-map city-pos))
-              count-country-armies (requiring-resolve 'empire.computer.production/count-country-armies)]
-          (when (or (nil? city-country-id)
-                    (< (count-country-armies city-country-id) 10))
+              count-country-armies (requiring-resolve 'empire.computer.production/count-country-armies)
+              country-city-producing-armies? (requiring-resolve 'empire.computer.production/country-city-producing-armies?)]
+          (when (and (or (nil? city-country-id)
+                        (< (count-country-armies city-country-id) 10))
+                    (not (and city-country-id
+                              (country-city-producing-armies? city-pos city-country-id))))
             (production/set-city-production city-pos :army)))
         (visibility/update-cell-visibility army-pos :computer)
         (visibility/update-cell-visibility city-pos :computer)

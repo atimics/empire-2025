@@ -360,6 +360,19 @@
                                 [0 2] {:item :carrier :remaining-rounds 10}})
       (should-not= :carrier (production/decide-production [0 22]))))
 
+  (it "does not produce carrier when 8 already exist"
+    ;; 12 computer cities, 8 live carriers on the map - fleet cap reached
+    (let [cells (vec (for [j (range 80)]
+                       (cond
+                         (and (even? j) (<= j 22)) {:type :city :city-status :computer}
+                         (<= j 22) {:type :land}
+                         ;; 8 carriers at positions 30-37
+                         (<= 30 j 37) {:type :sea :contents {:type :carrier :owner :computer :hits 8}}
+                         :else {:type :sea})))]
+      (reset! atoms/game-map [cells])
+      (reset! atoms/computer-map [cells])
+      (should-not= :carrier (production/decide-production [0 22]))))
+
   (it "does not produce carrier when no valid position exists"
     ;; 12 cities but sea only extends 25 cells past last city (max distance 25 < 26)
     (let [cells (vec (for [j (range 48)]

@@ -251,6 +251,63 @@
         (swap! bfs-unexplored-cache assoc unit-type result)
         result))))
 
+(defn- at-exploration-frontier?
+  "Returns true if pos is a sea cell adjacent to both:
+   - at least one unexplored (nil or {:type :unexplored}) cell on computer-map
+   - at least one known land/city cell on computer-map
+   This identifies coastal frontier positions worth exploring."
+  [pos computer-map]
+  (let [[x y] pos
+        height (count computer-map)
+        width (count (first computer-map))
+        has-unexplored (some (fn [[dx dy]]
+                               (let [nx (+ x dx) ny (+ y dy)]
+                                 (and (>= nx 0) (< nx height)
+                                      (>= ny 0) (< ny width)
+                                      (let [cell (get-in computer-map [nx ny])]
+                                        (or (nil? cell)
+                                            (= :unexplored (:type cell)))))))
+                             neighbor-offsets)
+        has-known-land (some (fn [[dx dy]]
+                               (let [nx (+ x dx) ny (+ y dy)
+                                     cell (get-in computer-map [nx ny])]
+                                 (and cell
+                                      (#{:land :city} (:type cell)))))
+                             neighbor-offsets)]
+    (and has-unexplored has-known-land)))
+
+(defn- find-nearest-unexplored-coastline-uncached
+  "BFS from start over passable sea cells to find nearest cell at the
+   exploration frontier (adjacent to both unexplored and known land)."
+  [start unit-type]
+  (let [game-map @atoms/game-map
+        computer-map @atoms/computer-map]
+    (loop [queue (conj clojure.lang.PersistentQueue/EMPTY start)
+           visited #{start}]
+      (when (seq queue)
+        (let [current (peek queue)
+              rest-queue (pop queue)]
+          (if (and (not= current start)
+                   (at-exploration-frontier? current computer-map))
+            current
+            (let [neighbors (remove visited
+                                    (get-passable-neighbors current unit-type game-map))
+                  new-visited (into visited neighbors)
+                  new-queue (into rest-queue neighbors)]
+              (recur new-queue new-visited))))))))
+
+(defn find-nearest-unexplored-coastline
+  "BFS to find nearest sea cell at a coastal exploration frontier.
+   Cached per round like find-nearest-unexplored."
+  [start unit-type]
+  (let [cache @bfs-unexplored-cache
+        cache-key [:coastline unit-type]]
+    (if (contains? cache cache-key)
+      (get cache cache-key)
+      (let [result (find-nearest-unexplored-coastline-uncached start unit-type)]
+        (swap! bfs-unexplored-cache assoc cache-key result)
+        result))))
+
 (defn- adjacent-to-target-continent-land?
   "Returns true if any neighbor of pos is land/city on target-continent."
   [pos target-continent game-map]

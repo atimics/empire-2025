@@ -34,15 +34,28 @@
                      (= :army (:type unit)))]
       [i j])))
 
+(defn- recently-unloaded-country?
+  "Returns true if the country-id was unloaded to within the last 10 rounds."
+  [unloaded-countries country-id]
+  (when-let [unload-round (get unloaded-countries country-id)]
+    (< (- @atoms/round-number unload-round) 10)))
+
 (defn- find-nearest-army
   "Find the nearest army to the transport. When pickup-continent is provided,
-   only considers armies on that continent (so the transport doesn't re-load
-   armies it just dropped off on an enemy continent)."
-  [transport-pos pickup-continent]
+   only considers armies on that continent. Excludes armies from countries
+   the transport recently unloaded into."
+  [transport-pos pickup-continent unloaded-countries]
   (let [armies (find-armies-to-load)
-        candidates (if pickup-continent
-                     (filter #(contains? pickup-continent %) armies)
-                     armies)]
+        candidates (cond->> armies
+                     pickup-continent
+                     (filter #(contains? pickup-continent %))
+
+                     (seq unloaded-countries)
+                     (remove (fn [army-pos]
+                               (let [unit (get-in @atoms/game-map (conj army-pos :contents))]
+                                 (and (:country-id unit)
+                                      (recently-unloaded-country?
+                                        unloaded-countries (:country-id unit)))))))]
     (when (seq candidates)
       (apply min-key #(core/distance transport-pos %) candidates))))
 
@@ -135,10 +148,13 @@
         closest))))
 
 (defn- explore-sea
-  "Move transport toward unexplored sea via BFS. Stays put if all sea is explored."
+  "Move transport toward unexplored coastline first, then any unexplored sea.
+   Stays put if all sea is explored."
   [pos]
-  (when-let [target (pathfinding/find-nearest-unexplored pos :transport)]
-    (move-toward-position pos target)))
+  (if-let [target (pathfinding/find-nearest-unexplored-coastline pos :transport)]
+    (move-toward-position pos target)
+    (when-let [target (pathfinding/find-nearest-unexplored pos :transport)]
+      (move-toward-position pos target))))
 
 (defn- find-next-pickup-continent-pos
   "After unloading, find the nearest continent with >3 computer armies,
@@ -203,6 +219,13 @@
                 (swap! atoms/game-map assoc-in (conj land-pos :contents) army)
                 (core/stamp-territory land-pos army)
                 (visibility/update-cell-visibility land-pos :computer))))
+          ;; Record unloaded country-id
+          (let [unloaded-country-id (->> (take to-unload land-neighbors)
+                                          (keep #(:country-id (get-in @atoms/game-map %)))
+                                          first)]
+            (when unloaded-country-id
+              (swap! atoms/game-map update-in (conj pos :contents :unloaded-countries)
+                     assoc unloaded-country-id @atoms/round-number)))
           ;; Update transport army count
           (swap! atoms/game-map update-in (conj pos :contents :army-count) - to-unload)
           ;; If fully unloaded, change mission to loading and update pickup continent
@@ -215,6 +238,41 @@
               (swap! atoms/game-map assoc-in
                      (conj pos :contents :pickup-continent-pos) next-pickup)))
           true)))))
+
+(defn- stuck?
+  "Returns true if transport hasn't moved in 10 or more rounds."
+  [transport]
+  (let [since (:stuck-since-round transport)]
+    (and since (>= (- @atoms/round-number since) 10))))
+
+(defn- scuttle-unload
+  "Unloads as many armies as possible to adjacent land before scuttling."
+  [pos transport]
+  (let [neighbors (core/get-neighbors pos)
+        game-map @atoms/game-map
+        land-cells (filter (fn [n]
+                             (let [cell (get-in game-map n)]
+                               (and cell
+                                    (#{:land :city} (:type cell))
+                                    (nil? (:contents cell)))))
+                           neighbors)
+        army-count (:army-count transport 0)
+        to-unload (min army-count (count land-cells))]
+    (doseq [land-pos (take to-unload land-cells)]
+      (let [army {:type :army :owner :computer :mode :awake :hits 1}]
+        (swap! atoms/game-map assoc-in (conj land-pos :contents) army)
+        (visibility/update-cell-visibility land-pos :computer)))))
+
+(defn- mark-city-landlocked
+  "Marks the producing city as landlocked so no more ships are built there."
+  [city-pos]
+  (when city-pos
+    (swap! atoms/game-map assoc-in (conj city-pos :landlocked) true)))
+
+(defn- reset-stuck-counter
+  "Resets the stuck-since-round counter after a successful move."
+  [new-pos]
+  (swap! atoms/game-map assoc-in (conj new-pos :contents :stuck-since-round) @atoms/round-number))
 
 (defn- set-transport-mission
   "Set the transport's mission state."
@@ -285,45 +343,57 @@
     (when (and transport
                (= :computer (:owner transport))
                (= :transport (:type transport)))
-      (let [army-count (:army-count transport 0)
-            mission (:transport-mission transport :idle)]
+      (if (stuck? transport)
+        ;; Scuttle: unload armies, mark city landlocked, remove transport
+        (do (scuttle-unload pos transport)
+            (mark-city-landlocked (:produced-at transport))
+            (swap! atoms/game-map assoc-in (conj pos :contents) nil))
+        (let [army-count (:army-count transport 0)
+              mission (:transport-mission transport :idle)]
 
-        ;; Determine mission if idle
-        (when (= mission :idle)
-          (set-transport-mission pos :loading))
+          ;; Determine mission if idle
+          (when (= mission :idle)
+            (set-transport-mission pos :loading))
 
-        (let [current-mission (or (:transport-mission transport) :loading)]
-          (cond
-            ;; Full transport - go unload on a different continent
-            (>= army-count 6)
-            (do
-              (set-transport-mission pos :unloading)
-              (mint-unload-event-id pos transport)
-              (record-pickup-continent-pos pos transport)
-              (let [updated-transport (get-in @atoms/game-map (conj pos :contents))
-                    pickup-continent (when-let [ocp (:pickup-continent-pos updated-transport)]
-                                      (continent/flood-fill-continent ocp))]
+          (let [current-mission (or (:transport-mission transport) :loading)]
+            (cond
+              ;; Full transport - go unload on a different continent
+              (>= army-count 6)
+              (do
+                (set-transport-mission pos :unloading)
+                (mint-unload-event-id pos transport)
+                (record-pickup-continent-pos pos transport)
+                (let [updated-transport (get-in @atoms/game-map (conj pos :contents))
+                      pickup-continent (when-let [ocp (:pickup-continent-pos updated-transport)]
+                                         (continent/flood-fill-continent ocp))]
+                  (if (adjacent-to-land? pos)
+                    (when-not (unload-armies pos pickup-continent)
+                      (when-let [new-pos (move-toward-unload-or-explore pos pickup-continent)]
+                        (reset-stuck-counter new-pos)))
+                    (when-let [new-pos (move-toward-unload-or-explore pos pickup-continent)]
+                      (reset-stuck-counter new-pos)))))
+
+              ;; Loading transport - go get armies (only on pickup continent if known)
+              (= current-mission :loading)
+              (let [pickup-continent (when-let [ocp (:pickup-continent-pos transport)]
+                                      (continent/flood-fill-continent ocp))
+                    unloaded-countries (:unloaded-countries transport)]
+                (if-let [army-pos (find-nearest-army pos pickup-continent unloaded-countries)]
+                  (when-let [new-pos (move-toward-position pos army-pos)]
+                    (reset-stuck-counter new-pos))
+                  (when-let [new-pos (explore-sea pos)]
+                    (reset-stuck-counter new-pos))))
+
+              ;; Unloading transport - continue to target on different continent
+              (= current-mission :unloading)
+              (let [pickup-continent (when-let [ocp (:pickup-continent-pos transport)]
+                                       (continent/flood-fill-continent ocp))]
                 (if (adjacent-to-land? pos)
                   (when-not (unload-armies pos pickup-continent)
-                    (move-toward-unload-or-explore pos pickup-continent))
-                  (move-toward-unload-or-explore pos pickup-continent))))
+                    (when-let [new-pos (move-toward-unload-or-explore pos pickup-continent)]
+                      (reset-stuck-counter new-pos)))
+                  (when-let [new-pos (move-toward-unload-or-explore pos pickup-continent)]
+                    (reset-stuck-counter new-pos))))
 
-            ;; Loading transport - go get armies (only on pickup continent if known)
-            (= current-mission :loading)
-            (let [pickup-continent (when-let [ocp (:pickup-continent-pos transport)]
-                                    (continent/flood-fill-continent ocp))]
-              (if-let [army-pos (find-nearest-army pos pickup-continent)]
-                (move-toward-position pos army-pos)
-                (explore-sea pos)))
-
-            ;; Unloading transport - continue to target on different continent
-            (= current-mission :unloading)
-            (let [pickup-continent (when-let [ocp (:pickup-continent-pos transport)]
-                                     (continent/flood-fill-continent ocp))]
-              (if (adjacent-to-land? pos)
-                (when-not (unload-armies pos pickup-continent)
-                  (move-toward-unload-or-explore pos pickup-continent))
-                (move-toward-unload-or-explore pos pickup-continent)))
-
-            :else nil)))))
+              :else nil))))))
   nil)

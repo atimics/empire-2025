@@ -287,17 +287,68 @@
     (should-be-nil (:contents (get-in @atoms/game-map [2 2])))
     (should= [1 1] (:direction (:contents (get-in @atoms/game-map [3 3])))))
 
-  (it "stops at map edge"
+  (it "bounces at map edge with new direction"
     (reset! atoms/game-map (build-test-map ["###"
                                              "###"
                                              "##v"]))
     (set-test-unit atoms/game-map "v" :direction [1 1] :turns-remaining 50)
     (reset! atoms/computer-map (make-initial-test-map 3 3 nil))
-    (move-satellite [2 2])
-    ;; At corner, direction [1 1] would go to [3 3] which is out of bounds
-    ;; Should stay in place
-    (should (:contents (get-in @atoms/game-map [2 2])))
-    (should= [2 2] (move-satellite [2 2])))
+    (let [new-pos (move-satellite [2 2])]
+      ;; At corner [2 2] with direction [1 1], should bounce to a valid cell
+      (should-not= [2 2] new-pos)
+      ;; New position should be in bounds
+      (should (>= (first new-pos) 0))
+      (should (< (first new-pos) 3))
+      (should (>= (second new-pos) 0))
+      (should (< (second new-pos) 3))
+      ;; Satellite should be at new position with a new direction
+      (let [sat (:contents (get-in @atoms/game-map new-pos))]
+        (should sat)
+        (should-not= [1 1] (:direction sat)))))
+
+  (it "bounces at top edge"
+    (reset! atoms/game-map (build-test-map ["#v###"
+                                             "#####"
+                                             "#####"
+                                             "#####"
+                                             "#####"]))
+    (set-test-unit atoms/game-map "v" :direction [-1 0] :turns-remaining 50)
+    (reset! atoms/computer-map (make-initial-test-map 5 5 nil))
+    (let [new-pos (move-satellite [0 1])]
+      ;; Should bounce away from top edge (dx >= 0)
+      (should (>= (first new-pos) 0))
+      (let [sat (:contents (get-in @atoms/game-map new-pos))
+            [dx _] (:direction sat)]
+        (should (>= dx 0)))))
+
+  (it "bounces at bottom edge"
+    (reset! atoms/game-map (build-test-map ["#####"
+                                             "#####"
+                                             "#####"
+                                             "#####"
+                                             "#v###"]))
+    (set-test-unit atoms/game-map "v" :direction [1 0] :turns-remaining 50)
+    (reset! atoms/computer-map (make-initial-test-map 5 5 nil))
+    (let [new-pos (move-satellite [4 1])]
+      ;; Should bounce away from bottom edge (dx <= 0)
+      (should (<= (first new-pos) 4))
+      (let [sat (:contents (get-in @atoms/game-map new-pos))
+            [dx _] (:direction sat)]
+        (should (<= dx 0)))))
+
+  (it "satellite continues moving after bounce"
+    (reset! atoms/game-map (build-test-map ["#####"
+                                             "#####"
+                                             "#####"
+                                             "#####"
+                                             "#v###"]))
+    (set-test-unit atoms/game-map "v" :direction [1 0] :turns-remaining 50)
+    (reset! atoms/computer-map (make-initial-test-map 5 5 nil))
+    (let [pos1 (move-satellite [4 1])
+          pos2 (move-satellite pos1)]
+      ;; After bouncing, satellite should continue moving
+      (should-not= pos1 pos2)
+      (should (:contents (get-in @atoms/game-map pos2)))))
 
   (it "player satellite without :direction uses target-based movement"
     (reset! atoms/game-map (build-test-map ["#####"

@@ -281,14 +281,15 @@
 
   (describe "carrier positioning behavior"
     (it "carrier in positioning mode moves toward target"
-      (reset! atoms/game-map [[{:type :sea :contents {:type :carrier :owner :computer :hits 8
-                                                       :carrier-mode :positioning :carrier-target [0 3]}}
-                                {:type :sea}
-                                {:type :sea}
-                                {:type :sea}]])
-      (reset! atoms/computer-map @atoms/game-map)
-      (ship/process-ship [0 0] :carrier)
-      (should= :carrier (get-in @atoms/game-map [0 1 :contents :type])))
+      (let [cells (vec (concat [{:type :city :city-status :computer}
+                                 {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                         :carrier-mode :positioning :carrier-target [0 22]
+                                                         :carrier-id 1}}]
+                                (repeat 23 {:type :sea})))]
+        (reset! atoms/game-map [cells])
+        (reset! atoms/computer-map [cells])
+        (ship/process-ship [0 1] :carrier)
+        (should= :carrier (get-in @atoms/game-map [0 2 :contents :type]))))
 
     (it "carrier transitions to holding when at target"
       (reset! atoms/game-map [[{:type :sea :contents {:type :carrier :owner :computer :hits 8
@@ -323,21 +324,78 @@
         (let [target (:carrier-target (get-in @atoms/game-map [0 2 :contents]))]
           (should-not-be-nil target)
           (should= 0 (first target))
-          (should (>= (second target) 26))
-          (should (<= (second target) 32))))))
+          (should (>= (second target) 22))
+          (should (<= (second target) 32)))))
+
+    (it "carrier navigates around land using pathfinding"
+      ;; 2x30 map: city at [0,0], carrier at [0,10], target [0,22].
+      ;; Land at [0,11] blocks direct path in row 0.
+      ;; Pathfinding routes through row 1 to get around the obstacle.
+      (let [cells-row0 (vec (for [j (range 30)]
+                              (cond
+                                (= j 0) {:type :city :city-status :computer}
+                                (= j 10) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                                 :carrier-mode :positioning :carrier-target [0 22]
+                                                                 :carrier-id 1}}
+                                (= j 11) {:type :land}
+                                :else {:type :sea})))
+            cells-row1 (vec (repeat 30 {:type :sea}))]
+        (reset! atoms/game-map [cells-row0 cells-row1])
+        (reset! atoms/computer-map @atoms/game-map)
+        (ship/process-ship [0 10] :carrier)
+        ;; Carrier should have moved from [0,10]
+        (should-be-nil (:contents (get-in @atoms/game-map [0 10])))
+        ;; Find where it went - should have navigated around the land
+        (let [new-pos (first (for [r (range 2) c (range 30)
+                                   :when (= :carrier (get-in @atoms/game-map [r c :contents :type]))]
+                               [r c]))]
+          (should-not-be-nil new-pos))))
+
+    (it "carrier clears stale target when target becomes occupied"
+      ;; 1x40 map: city at [0,0], carrier at [0,1] targeting [0,22].
+      ;; [0,22] has a submarine, making the target invalid (occupied).
+      (let [cells (vec (for [j (range 40)]
+                         (cond
+                           (= j 0) {:type :city :city-status :computer}
+                           (= j 1) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                           :carrier-mode :positioning :carrier-target [0 22]
+                                                           :carrier-id 1}}
+                           (= j 22) {:type :sea :contents {:type :submarine :owner :computer :hits 2}}
+                           :else {:type :sea})))]
+        (reset! atoms/game-map [cells])
+        (reset! atoms/computer-map [cells])
+        (ship/process-ship [0 1] :carrier)
+        ;; Target [0,22] was invalid (occupied), carrier should find new target
+        (let [carrier-pos (first (for [c (range 40)
+                                       :when (= :carrier (get-in @atoms/game-map [0 c :contents :type]))]
+                                   [0 c]))
+              unit (get-in @atoms/game-map (conj carrier-pos :contents))]
+          (should-not= [0 22] (:carrier-target unit))))))
 
   (describe "find-carrier-position"
     (it "finds valid position at correct spacing"
       (let [cells (vec (concat [{:type :city :city-status :computer}]
                                 (repeat 39 {:type :sea})))]
         (reset! atoms/game-map [cells])
-        (should= [0 26] (ship/find-carrier-position))))
+        (should= [0 22] (ship/find-carrier-position))))
 
     (it "returns nil when no valid position exists"
       (let [cells (vec (concat [{:type :city :city-status :computer}]
-                                (repeat 25 {:type :sea})))]
+                                (repeat 21 {:type :sea})))]
         (reset! atoms/game-map [cells])
         (should-be-nil (ship/find-carrier-position))))
+
+    (it "finds position between two distant refueling sites"
+      ;; Two cities 59 cells apart. Pair search finds midpoint area.
+      ;; Midpoint [0 29], valid range cols 22-37 (>= 22 from both, within fuel).
+      ;; Closest to midpoint: [0 29].
+      (let [cells (vec (for [j (range 60)]
+                         (cond
+                           (= j 0) {:type :city :city-status :computer}
+                           (= j 59) {:type :city :city-status :computer}
+                           :else {:type :sea})))]
+        (reset! atoms/game-map [cells])
+        (should= [0 29] (ship/find-carrier-position))))
 
     (it "holding carrier counts as refueling site"
       (let [cells (vec (for [j (range 60)]
@@ -347,7 +405,7 @@
                                                              :carrier-mode :holding}}
                            :else {:type :sea})))]
         (reset! atoms/game-map [cells])
-        (should= [0 52] (ship/find-carrier-position)))))
+        (should= [0 48] (ship/find-carrier-position)))))
 
   (describe "carrier group escort behavior"
     (it "seeking battleship adopts carrier with open slot"
@@ -494,7 +552,7 @@
                                                             :carrier-mode :holding}}
                            :else {:type :sea})))]
         (reset! atoms/game-map [cells])
-        (should= [0 84] (ship/find-carrier-position))))
+        (should= [0 80] (ship/find-carrier-position))))
 
     (it "positioning carrier without target has no effect"
       ;; Positioning carrier without :carrier-target should not affect results.
@@ -505,7 +563,7 @@
                                                            :carrier-mode :positioning}}
                            :else {:type :sea})))]
         (reset! atoms/game-map [cells])
-        (should= [0 26] (ship/find-carrier-position))))
+        (should= [0 22] (ship/find-carrier-position))))
 
     (it "multiple positioning targets block multiple zones"
       ;; Two positioning carriers target [0,26] and [0,52]. Holding carrier at [0,84].
@@ -523,7 +581,7 @@
                                                             :carrier-mode :holding}}
                            :else {:type :sea})))]
         (reset! atoms/game-map [cells])
-        (should= [0 110] (ship/find-carrier-position))))
+        (should= [0 106] (ship/find-carrier-position))))
 
     (it "returns nil when positioning target blocks only valid zone"
       ;; Single city, narrow map. Only valid zone is [0,26] but positioning carrier targets it.

@@ -180,6 +180,49 @@
     (reset! atoms/computer-map (build-test-map ["~X#"]))
     (should-be-nil (production/decide-production [0 1]))))
 
+(describe "army overproduction fix"
+  (before (reset-all-atoms!))
+
+  (it "count-country-armies includes armies aboard transports"
+    ;; 2 armies on map + transport with 3 armies aboard = 5 total
+    (reset! atoms/game-map (build-test-map ["aa~t"]))
+    (swap! atoms/game-map assoc-in [0 0 :contents :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 1 :contents :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 3 :contents :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 3 :contents :army-count] 3)
+    (should= 5 (production/count-country-armies 1)))
+
+  (it "count-country-armies does not count transport cargo from different country"
+    ;; 2 armies country 1 + transport country 2 with 3 armies = 2 for country 1
+    (reset! atoms/game-map (build-test-map ["aa~t"]))
+    (swap! atoms/game-map assoc-in [0 0 :contents :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 1 :contents :country-id] 1)
+    (swap! atoms/game-map assoc-in [0 3 :contents :country-id] 2)
+    (swap! atoms/game-map assoc-in [0 3 :contents :army-count] 3)
+    (should= 2 (production/count-country-armies 1)))
+
+  (it "non-country army production is capped at 10"
+    ;; 10 non-country armies already on map, non-country city with objective
+    (let [cells (vec (concat [{:type :city :city-status :computer}
+                              {:type :city :city-status :free}]
+                             (for [_ (range 10)]
+                               {:type :land :contents {:type :army :owner :computer :mode :awake :hits 1}})))]
+      (reset! atoms/game-map [cells])
+      (reset! atoms/computer-map [cells])
+      ;; Non-country city at [0,0] with objective (free city at [0,1])
+      ;; Should NOT produce army because 10 non-country armies already exist
+      (should-be-nil (production/decide-production [0 0]))))
+
+  (it "non-country army production allowed when under 10"
+    ;; 9 non-country armies, non-country city with objective
+    (let [cells (vec (concat [{:type :city :city-status :computer}
+                              {:type :city :city-status :free}]
+                             (for [_ (range 9)]
+                               {:type :land :contents {:type :army :owner :computer :mode :awake :hits 1}})))]
+      (reset! atoms/game-map [cells])
+      (reset! atoms/computer-map [cells])
+      (should= :army (production/decide-production [0 0])))))
+
 (describe "satellite production gate"
   (before (reset-all-atoms!))
 
@@ -365,8 +408,8 @@
       (should-not= :carrier (production/decide-production [0 22]))))
 
   (it "does not produce carrier when no valid position exists"
-    ;; 12 cities but sea only extends 25 cells past last city (max distance 25 < 26)
-    (let [cells (vec (for [j (range 48)]
+    ;; 12 cities but sea only extends 21 cells past last city (max distance 21 < 22)
+    (let [cells (vec (for [j (range 44)]
                        (cond
                          (and (even? j) (<= j 22)) {:type :city :city-status :computer}
                          (<= j 22) {:type :land}

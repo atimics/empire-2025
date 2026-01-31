@@ -311,32 +311,76 @@
          (every? #(>= (core/distance pos %) config/carrier-spacing) spacing-sites))))
 
 (defn find-carrier-position
-  "Finds the first valid carrier position on the map, or nil."
+  "Finds a valid carrier position between two refueling sites, preferring
+   positions closest to the midpoint of distant site pairs. Falls back to
+   first valid position by top-left scan."
   []
   (let [refuel-sites (vec (find-refueling-sites))
         positioning-targets (vec (find-positioning-carrier-targets))
-        spacing-sites (into refuel-sites positioning-targets)
-        game-map @atoms/game-map]
+        spacing-sites (into refuel-sites positioning-targets)]
     (when (seq refuel-sites)
-      (first (for [i (range (count game-map))
-                   j (range (count (first game-map)))
-                   :when (valid-carrier-position? [i j] refuel-sites spacing-sites)]
-               [i j])))))
+      (let [pairs (for [a refuel-sites
+                        b refuel-sites
+                        :when (and (not= a b)
+                                   (> (core/distance a b) config/carrier-spacing)
+                                   (<= (core/distance a b) (* 2 config/fighter-fuel)))]
+                    [a b])
+            sorted-pairs (sort-by (fn [[a b]] (- (core/distance a b))) pairs)]
+        (or
+          (first
+            (for [[a b] sorted-pairs
+                  :let [mid [(quot (+ (first a) (first b)) 2)
+                             (quot (+ (second a) (second b)) 2)]
+                        radius 8
+                        candidates (for [dr (range (- radius) (inc radius))
+                                         dc (range (- radius) (inc radius))
+                                         :let [pos [(+ (first mid) dr)
+                                                    (+ (second mid) dc)]]
+                                         :when (valid-carrier-position? pos refuel-sites spacing-sites)]
+                                     pos)]
+                  :when (seq candidates)
+                  :let [best (apply min-key #(core/distance % mid) candidates)]]
+              best))
+          (let [game-map @atoms/game-map]
+            (first (for [i (range (count game-map))
+                         j (range (count (first game-map)))
+                         :when (valid-carrier-position? [i j] refuel-sites spacing-sites)]
+                     [i j]))))))))
+
+(declare position-carrier-without-target)
 
 (defn- position-carrier-with-target
-  "Handles carrier in positioning mode that has a target."
+  "Handles carrier in positioning mode that has a target.
+   Validates target; uses pathfinding for movement. CC=4."
   [pos target]
-  (if (= pos target)
+  (cond
+    (= pos target)
     (swap! atoms/game-map update-in (conj pos :contents)
            #(-> % (assoc :carrier-mode :holding) (dissoc :carrier-target)))
-    (move-toward pos target)))
+
+    (let [refuel-sites (vec (find-refueling-sites))
+          spacing-sites (into refuel-sites (vec (find-positioning-carrier-targets)))]
+      (not (valid-carrier-position? target refuel-sites spacing-sites)))
+    (do (swap! atoms/game-map update-in (conj pos :contents) dissoc :carrier-target)
+        (position-carrier-without-target pos))
+
+    :else
+    (when-let [next-pos (pathfinding/next-step pos target :carrier)]
+      (core/move-unit-to pos next-pos)
+      (visibility/update-cell-visibility pos :computer)
+      (visibility/update-cell-visibility next-pos :computer)
+      next-pos)))
 
 (defn- position-carrier-without-target
   "Handles carrier in positioning mode without a target. Finds one or holds."
   [pos]
   (if-let [new-target (find-carrier-position)]
     (do (swap! atoms/game-map assoc-in (conj pos :contents :carrier-target) new-target)
-        (move-toward pos new-target))
+        (when-let [next-pos (pathfinding/next-step pos new-target :carrier)]
+          (core/move-unit-to pos next-pos)
+          (visibility/update-cell-visibility pos :computer)
+          (visibility/update-cell-visibility next-pos :computer)
+          next-pos))
     (swap! atoms/game-map update-in (conj pos :contents)
            assoc :carrier-mode :holding)))
 
@@ -346,7 +390,11 @@
   (if-let [new-target (find-carrier-position)]
     (do (swap! atoms/game-map update-in (conj pos :contents)
                #(-> % (assoc :carrier-mode :positioning :carrier-target new-target)))
-        (move-toward pos new-target))
+        (when-let [next-pos (pathfinding/next-step pos new-target :carrier)]
+          (core/move-unit-to pos next-pos)
+          (visibility/update-cell-visibility pos :computer)
+          (visibility/update-cell-visibility next-pos :computer)
+          next-pos))
     (swap! atoms/game-map update-in (conj pos :contents)
            assoc :carrier-mode :holding)))
 

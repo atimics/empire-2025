@@ -2,7 +2,9 @@
   "Tests for VMS Empire style computer transport movement."
   (:require [speclj.core :refer :all]
             [empire.computer.transport :as transport]
+            [empire.computer.production :as production]
             [empire.computer.continent :as continent]
+            [empire.player.production :as player-prod]
             [empire.atoms :as atoms]
             [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
 
@@ -318,6 +320,51 @@
                                      true))]
             (should= 0 origin-armies)
             (should (pos? other-armies)))))))
+
+  (describe "coastline exploration priority"
+    (it "idle transport moves toward unexplored coastline over open sea"
+      ;; Known land at row 4, unexplored cells near it. Also unexplored open sea at [0,2].
+      ;; Transport should prefer coastline frontier (near row 3-4) over open sea [0,2].
+      (reset! atoms/game-map (build-test-map ["~~~"
+                                              "~~~"
+                                              "~t~"
+                                              "~~~"
+                                              "###"]))
+      (reset! atoms/computer-map [[nil {:type :sea} {:type :sea}]
+                                  [{:type :sea} {:type :sea} {:type :sea}]
+                                  [{:type :sea} {:type :sea} {:type :sea}]
+                                  [{:type :sea} {:type :sea} nil]
+                                  [{:type :land} {:type :land} nil]])
+      (swap! atoms/game-map assoc-in [2 1 :contents]
+             {:type :transport :owner :computer
+              :transport-mission :loading :army-count 0})
+      (transport/process-transport [2 1])
+      ;; Transport should have moved toward the coastline, not toward [0,0]
+      (let [transport-pos (first (for [r (range 5) c (range 3)
+                                       :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
+                                   [r c]))]
+        (should-not-be-nil transport-pos)
+        ;; Should move south toward coastline
+        (should (>= (first transport-pos) 2))))
+
+    (it "falls back to open sea when no coastline frontier"
+      ;; No known land, only unexplored open sea
+      (reset! atoms/game-map (build-test-map ["~~~"
+                                              "~t~"
+                                              "~~~"]))
+      (reset! atoms/computer-map [[{:type :sea} {:type :sea} {:type :sea}]
+                                  [{:type :sea} {:type :sea} {:type :sea}]
+                                  [{:type :sea} {:type :sea} nil]])
+      (swap! atoms/game-map assoc-in [1 1 :contents]
+             {:type :transport :owner :computer
+              :transport-mission :loading :army-count 0})
+      (transport/process-transport [1 1])
+      ;; Transport should still explore toward the unexplored cell
+      (let [transport-pos (first (for [r (range 3) c (range 3)
+                                       :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
+                                   [r c]))]
+        (should-not-be-nil transport-pos)
+        (should-not= [1 1] transport-pos))))
 
   (describe "explore-sea fallback"
     (it "transport stays put when no target and no unexplored territory"
@@ -644,4 +691,178 @@
                                         :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
                                     [r c]))]
           (should-not-be-nil transport-pos)
-          (should-not= [2 1] transport-pos))))))
+          (should-not= [2 1] transport-pos)))))
+
+  (describe "no-reload from recently unloaded country"
+    (it "transport avoids armies from recently unloaded country"
+      ;; Army country-1 at [0,0], army country-2 at [0,9]. Transport at [1,3].
+      ;; Without filtering, transport would pick [0,0] (closer, distance 4).
+      ;; With country-1 filtered, transport should move right toward [0,9] (distance 7).
+      (reset! atoms/round-number 10)
+      (let [cells (vec (repeat 10 {:type :sea}))]
+        (reset! atoms/game-map [(assoc cells
+                                       0 {:type :land :contents {:type :army :owner :computer :country-id 1}}
+                                       9 {:type :land :contents {:type :army :owner :computer :country-id 2}})
+                                cells])
+        (reset! atoms/computer-map @atoms/game-map)
+        (swap! atoms/game-map assoc-in [1 3 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :loading :army-count 0
+                :unloaded-countries {1 5}})
+        (transport/process-transport [1 3])
+        ;; Transport should have moved right (toward country-2 army at [0,9])
+        (let [transport-pos (first (for [r (range 2) c (range 10)
+                                         :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
+                                     [r c]))]
+          (should-not-be-nil transport-pos)
+          (should (> (second transport-pos) 3)))))
+
+    (it "exclusion expires after 10 rounds"
+      ;; Same setup but round 20 (15 rounds since unload at round 5 - expired).
+      ;; Country-1 army at [0,0] is now the closest candidate again.
+      (reset! atoms/round-number 20)
+      (let [cells (vec (repeat 10 {:type :sea}))]
+        (reset! atoms/game-map [(assoc cells
+                                       0 {:type :land :contents {:type :army :owner :computer :country-id 1}}
+                                       9 {:type :land :contents {:type :army :owner :computer :country-id 2}})
+                                cells])
+        (reset! atoms/computer-map @atoms/game-map)
+        (swap! atoms/game-map assoc-in [1 3 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :loading :army-count 0
+                :unloaded-countries {1 5}})
+        (transport/process-transport [1 3])
+        ;; After expiration, transport should move left toward closer army at [0,0]
+        (let [transport-pos (first (for [r (range 2) c (range 10)
+                                         :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
+                                     [r c]))]
+          (should-not-be-nil transport-pos)
+          (should (< (second transport-pos) 3)))))
+
+    (it "armies with no country-id are not filtered"
+      (reset! atoms/round-number 10)
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer}}
+                                {:type :sea}
+                                {:type :sea :contents {:type :transport :owner :computer
+                                                        :transport-mission :loading :army-count 0
+                                                        :unloaded-countries {1 5}}}
+                                {:type :sea}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (transport/process-transport [0 2])
+      ;; Should move toward army (no country-id, not filtered)
+      (let [transport-pos (first (for [c (range 4)
+                                       :when (= :transport (get-in @atoms/game-map [0 c :contents :type]))]
+                                   [0 c]))]
+        (should= [0 1] transport-pos)))
+
+    (it "records unloaded country-id on unload"
+      (reset! atoms/round-number 15)
+      (reset! atoms/game-map [[{:type :land :country-id 3}
+                                {:type :sea :contents {:type :transport :owner :computer
+                                                        :transport-mission :unloading
+                                                        :army-count 1}}
+                                {:type :sea}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (transport/process-transport [0 1])
+      (let [transport (:contents (get-in @atoms/game-map [0 1]))]
+        (should= 15 (get-in transport [:unloaded-countries 3]))))
+
+    (it "transport falls back to explore when all armies filtered"
+      (reset! atoms/round-number 10)
+      (let [game-map (build-test-map ["a~a"
+                                      "~t~"
+                                      "~~~"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map (build-test-map ["a~a"
+                                                    "~t~"
+                                                    "~~-"]))
+        (swap! atoms/game-map assoc-in [0 0 :contents :country-id] 1)
+        (swap! atoms/game-map assoc-in [0 2 :contents :country-id] 1)
+        (swap! atoms/game-map assoc-in [1 1 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :loading :army-count 0
+                :unloaded-countries {1 5}})
+        (transport/process-transport [1 1])
+        (let [transport-pos (first (for [r (range 3) c (range 3)
+                                         :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
+                                     [r c]))]
+          (should-not-be-nil transport-pos)
+          (should-not= [1 1] transport-pos)))))
+
+  (describe "stuck transport scuttle"
+    (it "transport scuttles after 10 rounds stuck"
+      (reset! atoms/round-number 20)
+      (reset! atoms/game-map [[{:type :land}
+                                {:type :sea :contents {:type :transport :owner :computer
+                                                        :transport-mission :loading :army-count 0
+                                                        :stuck-since-round 10}}
+                                {:type :sea}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (transport/process-transport [0 1])
+      ;; Transport should be gone (scuttled)
+      (should-be-nil (:contents (get-in @atoms/game-map [0 1]))))
+
+    (it "unloads armies to adjacent land on scuttle"
+      (reset! atoms/round-number 20)
+      (reset! atoms/game-map [[{:type :land}
+                                {:type :sea :contents {:type :transport :owner :computer
+                                                        :transport-mission :loading :army-count 2
+                                                        :stuck-since-round 10}}
+                                {:type :sea}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (transport/process-transport [0 1])
+      ;; Transport should be gone
+      (should-be-nil (:contents (get-in @atoms/game-map [0 1])))
+      ;; Army should be on land
+      (should= :army (:type (:contents (get-in @atoms/game-map [0 0])))))
+
+    (it "marks producing city as landlocked"
+      (reset! atoms/round-number 20)
+      (reset! atoms/game-map [[{:type :city :city-status :computer}
+                                {:type :sea :contents {:type :transport :owner :computer
+                                                        :transport-mission :loading :army-count 0
+                                                        :stuck-since-round 10
+                                                        :produced-at [0 0]}}
+                                {:type :sea}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (transport/process-transport [0 1])
+      ;; City should be marked landlocked
+      (should (:landlocked (get-in @atoms/game-map [0 0]))))
+
+    (it "landlocked city produces no ships"
+      (reset! atoms/game-map (build-test-map ["~X+"]))
+      (reset! atoms/computer-map (build-test-map ["~X+"]))
+      (swap! atoms/game-map assoc-in [0 1 :landlocked] true)
+      (should-not (production/city-is-coastal? [0 1])))
+
+    (it "stuck counter resets on move"
+      ;; Transport that is not stuck (stuck-since-round was 5 rounds ago)
+      (reset! atoms/round-number 10)
+      (let [cells (vec (repeat 5 {:type :sea}))]
+        (reset! atoms/game-map [cells])
+        (reset! atoms/computer-map (build-test-map ["~~~~-"]))
+        (swap! atoms/game-map assoc-in [0 2 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :loading :army-count 0
+                :stuck-since-round 8})
+        (transport/process-transport [0 2])
+        ;; Transport moved, stuck-since-round should be reset
+        (let [transport-pos (first (for [c (range 5)
+                                         :when (= :transport (get-in @atoms/game-map [0 c :contents :type]))]
+                                     [0 c]))
+              transport (get-in @atoms/game-map (conj transport-pos :contents))]
+          (should-not-be-nil transport)
+          (should= 10 (:stuck-since-round transport)))))
+
+    (it "transport spawned with stuck-since-round and produced-at"
+      ;; Test that new transports get stuck tracking fields
+      (reset! atoms/round-number 5)
+      (reset! atoms/game-map [[{:type :city :city-status :computer :country-id 1}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (reset! atoms/production {[0 0] {:item :transport :remaining-rounds 1}})
+      ;; Run production to spawn the transport
+      (player-prod/update-production)
+      (let [unit (:contents (get-in @atoms/game-map [0 0]))]
+        (should= :transport (:type unit))
+        (should= 5 (:stuck-since-round unit))
+        (should= [0 0] (:produced-at unit))))))

@@ -57,6 +57,21 @@
     (should= [255 255 255] (config/unit->color {:mode :awake}))
     (should= [255 128 128] (config/unit->color {:mode :sentry}))
     (should= [144 238 144] (config/unit->color {:mode :explore}))
-    (should= [0 0 0] (config/unit->color {:mode :moving}))))
+    (should= [0 0 0] (config/unit->color {:mode :moving})))
+
+  (it "returns white for computer armies regardless of mode"
+    (should= [255 255 255] (config/unit->color {:type :army :owner :computer :mode :awake}))
+    (should= [255 255 255] (config/unit->color {:type :army :owner :computer :mode :sentry}))
+    (should= [255 255 255] (config/unit->color {:type :army :owner :computer :mode :explore}))
+    (should= [255 255 255] (config/unit->color {:type :army :owner :computer :mode :coastline-follow})))
+
+  (it "returns mode-based color for player armies"
+    (should= [255 255 255] (config/unit->color {:type :army :owner :player :mode :awake}))
+    (should= [255 128 128] (config/unit->color {:type :army :owner :player :mode :sentry}))
+    (should= [144 238 144] (config/unit->color {:type :army :owner :player :mode :explore})))
+
+  (it "returns mode-based color for computer ships"
+    (should= [255 128 128] (config/unit->color {:type :transport :owner :computer :mode :sentry}))
+    (should= [144 238 144] (config/unit->color {:type :destroyer :owner :computer :mode :explore}))))
 
 

@@ -66,7 +66,7 @@
 (def sea-lane-extended-radius 25)
 (def sea-lane-min-segment-length 2)
 (def sea-lane-min-network-nodes 4)
-(def carrier-spacing 26)  ;; 80% of fighter-fuel (0.8 * 32 = 25.6, rounded up)
+(def carrier-spacing 22)  ;; 70% of fighter-fuel (0.7 * 32 = 22.4, rounded down)
 (def bingo-fuel-divisor 4)
 (def max-placement-attempts 1000)
 (def min-surrounding-land 10)
@@ -162,11 +162,18 @@
     sleeping-unit-color))
 
 (defn unit->color
-  "Returns the RGB color for a unit based on mission and mode.
-   Units with mission :loading display as black."
+  "Returns the RGB color for a unit based on owner, type, mission, and mode.
+   Computer armies are always white."
   [unit]
-  (if (= :loading (:mission unit))
+  (cond
+    (and (= :computer (:owner unit))
+         (= :army (:type unit)))
+    awake-unit-color
+
+    (= :loading (:mission unit))
     sleeping-unit-color
+
+    :else
     (mode->color (:mode unit))))
 
 

@@ -52,9 +52,30 @@
       :else
       [x y])))
 
+(defn- bounce-direction
+  "Returns a random direction vector pointing away from the map edge.
+   Filters the 8 compass directions to those that move inward from the edge."
+  [[x y] map-height map-width]
+  (let [at-top? (zero? x)
+        at-bottom? (= x (dec map-height))
+        at-left? (zero? y)
+        at-right? (= y (dec map-width))
+        directions [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]]
+        valid (filter (fn [[dx dy]]
+                        (let [nx (+ x dx) ny (+ y dy)]
+                          (and (if at-top? (>= dx 0) true)
+                               (if at-bottom? (<= dx 0) true)
+                               (if at-left? (>= dy 0) true)
+                               (if at-right? (<= dy 0) true)
+                               (>= nx 0) (< nx map-height)
+                               (>= ny 0) (< ny map-width))))
+                      directions)]
+    (when (seq valid)
+      (rand-nth (vec valid)))))
+
 (defn- move-satellite-straight
   "Moves a computer satellite one step in its fixed direction.
-   Stays in place at map edge."
+   Bounces off map edges by picking a new random direction away from the edge."
   [[x y]]
   (let [cell (get-in @atoms/game-map [x y])
         satellite (:contents cell)
@@ -68,7 +89,15 @@
           (swap! atoms/game-map assoc-in [nx ny :contents] satellite)
           (visibility/update-cell-visibility [nx ny] (:owner satellite))
           [nx ny])
-      [x y])))
+      (if-let [new-dir (bounce-direction [x y] map-height map-width)]
+        (let [bx (+ x (first new-dir))
+              by (+ y (second new-dir))
+              updated (assoc satellite :direction new-dir)]
+          (swap! atoms/game-map assoc-in [x y :contents] nil)
+          (swap! atoms/game-map assoc-in [bx by :contents] updated)
+          (visibility/update-cell-visibility [bx by] (:owner satellite))
+          [bx by])
+        [x y]))))
 
 (defn move-satellite
   "Moves a satellite one step toward its target.

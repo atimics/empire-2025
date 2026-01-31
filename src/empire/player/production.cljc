@@ -26,7 +26,8 @@
     (assoc :direction (rand-nth [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]]))
 
     (= item :transport)
-    (assoc :transport-mission :idle)
+    (assoc :transport-mission :idle
+           :stuck-since-round @atoms/round-number)
 
     (and (= item :transport) (= owner :computer))
     (assoc :transport-id (let [id @atoms/next-transport-id]
@@ -148,7 +149,8 @@
         unit (-> (create-base-unit item owner)
                  (stamp-unit-fields cell)
                  (apply-coast-walk-fields item cell coords)
-                 (apply-movement-orders item marching-orders flight-path))]
+                 (apply-movement-orders item marching-orders flight-path)
+                 (cond-> (= item :transport) (assoc :produced-at coords)))]
     (swap! atoms/game-map assoc-in (conj coords :contents) unit)
     owner))
 

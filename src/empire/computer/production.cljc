@@ -15,11 +15,12 @@
                                     some?))
 
 (defn city-is-coastal?
-  "Returns true if city has adjacent sea cells."
+  "Returns true if city has adjacent sea cells and is not landlocked."
   [city-pos]
-  (some (fn [neighbor]
-          (= :sea (:type (get-in @atoms/game-map neighbor))))
-        (get-neighbors city-pos)))
+  (and (not (:landlocked (get-in @atoms/game-map city-pos)))
+       (some (fn [neighbor]
+               (= :sea (:type (get-in @atoms/game-map neighbor))))
+             (get-neighbors city-pos))))
 
 (defn count-computer-units
   "Counts computer units by type. Returns map of type to count."
@@ -57,8 +58,36 @@
            true)))
 
 (defn count-country-armies
-  "Counts live armies belonging to the given country-id."
+  "Counts live armies belonging to the given country-id,
+   including armies aboard transports of the same country."
   [country-id]
+  (reduce
+    (fn [total [_i row]]
+      (reduce
+        (fn [total [_j cell]]
+          (let [unit (:contents cell)]
+            (cond
+              (and unit
+                   (= :computer (:owner unit))
+                   (= :army (:type unit))
+                   (= country-id (:country-id unit)))
+              (inc total)
+
+              (and unit
+                   (= :computer (:owner unit))
+                   (= :transport (:type unit))
+                   (= country-id (:country-id unit)))
+              (+ total (get unit :army-count 0))
+
+              :else total)))
+        total
+        (map-indexed vector row)))
+    0
+    (map-indexed vector @atoms/game-map)))
+
+(defn- count-non-country-armies
+  "Counts computer armies with no country-id."
+  []
   (count (for [i (range (count @atoms/game-map))
                j (range (count (first @atoms/game-map)))
                :let [cell (get-in @atoms/game-map [i j])
@@ -66,7 +95,7 @@
                :when (and unit
                           (= :computer (:owner unit))
                           (= :army (:type unit))
-                          (= country-id (:country-id unit)))]
+                          (nil? (:country-id unit)))]
            true)))
 
 (defn- count-country-fighters
@@ -204,8 +233,9 @@
         (when country-id
           (decide-country-production city-pos country-id coastal? unit-counts))
 
-        ;; Non-country cities: army if continent has objectives (free/player cities)
+        ;; Non-country cities: army if continent has objectives and under cap
         (when (and (not country-id)
+                   (< (count-non-country-armies) 10)
                    (continent/has-land-objective?
                      (continent/scan-continent
                        (continent/flood-fill-continent city-pos))))

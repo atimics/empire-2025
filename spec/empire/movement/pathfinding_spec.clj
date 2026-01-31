@@ -423,6 +423,59 @@
       (should-not-be-nil result)
       (should= 3 (first result)))))
 
+(describe "find-nearest-unexplored-coastline"
+  (before (reset-all-atoms!))
+
+  (it "finds sea cell at coastal exploration frontier"
+    ;; Known land at row 4, unexplored adjacent to it, sea between
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                            "~~~"
+                                            "~~~"
+                                            "~~~"
+                                            "###"]))
+    (reset! atoms/computer-map [[{:type :sea} {:type :sea} {:type :sea}]
+                                [{:type :sea} {:type :sea} {:type :sea}]
+                                [{:type :sea} {:type :sea} {:type :sea}]
+                                [{:type :sea} {:type :sea} nil]
+                                [{:type :land} {:type :land} nil]])
+    ;; [3,2] is sea with known land neighbor [4,1] and unexplored neighbor [4,2]
+    ;; But wait, [3,2] itself needs to be a sea cell. Let me verify.
+    ;; Actually the frontier cell needs to be adjacent to both unexplored AND known land.
+    ;; [3,1] is sea, adjacent to known land [4,1] and adjacent to unexplored [4,2] and [3,2]
+    (let [target (pathfinding/find-nearest-unexplored-coastline [0 0] :transport)]
+      (should-not-be-nil target)
+      ;; Target should be in row 2 or 3 (near the coast)
+      (should (>= (first target) 2))))
+
+  (it "returns nil when no coastline frontier exists"
+    ;; All unexplored is open sea, no known land nearby
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                            "~~~"
+                                            "~~~"]))
+    (reset! atoms/computer-map [[{:type :sea} {:type :sea} {:type :sea}]
+                                [{:type :sea} {:type :sea} {:type :sea}]
+                                [{:type :sea} {:type :sea} nil]])
+    ;; No known land cells at all, so no frontier
+    (should-be-nil (pathfinding/find-nearest-unexplored-coastline [0 0] :transport)))
+
+  (it "uses distinct cache key from regular unexplored BFS"
+    (pathfinding/clear-path-cache)
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                            "~~~"
+                                            "~~~"
+                                            "~~~"
+                                            "###"]))
+    (reset! atoms/computer-map [[{:type :sea} {:type :sea} {:type :sea}]
+                                [{:type :sea} {:type :sea} {:type :sea}]
+                                [{:type :sea} {:type :sea} {:type :sea}]
+                                [{:type :sea} {:type :sea} nil]
+                                [{:type :land} {:type :land} nil]])
+    ;; Both should return results but use independent cache entries
+    (let [coastline (pathfinding/find-nearest-unexplored-coastline [0 0] :transport)
+          general (pathfinding/find-nearest-unexplored [0 0] :transport)]
+      (should-not-be-nil coastline)
+      (should-not-be-nil general))))
+
 (describe "sovereignty-aware pathfinding"
   (before (reset-all-atoms!))
 

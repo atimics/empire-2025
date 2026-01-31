@@ -279,25 +279,40 @@
                          (= :holding (get-in cell [:contents :carrier-mode]))))]
       [i j])))
 
+(defn find-positioning-carrier-targets
+  "Returns carrier-target positions of all computer carriers in :positioning mode."
+  []
+  (let [game-map @atoms/game-map]
+    (for [i (range (count game-map))
+          j (range (count (first game-map)))
+          :let [contents (get-in game-map [i j :contents])]
+          :when (and (= :carrier (:type contents))
+                     (= :computer (:owner contents))
+                     (= :positioning (:carrier-mode contents))
+                     (:carrier-target contents))]
+      (:carrier-target contents))))
+
 (defn- valid-carrier-position?
   "Returns true if pos is a valid carrier position: empty sea, within fuel range
-   of at least one refueling site, and at least carrier-spacing from all sites."
-  [pos sites]
+   of at least one refueling site, and at least carrier-spacing from all spacing sites."
+  [pos refuel-sites spacing-sites]
   (let [cell (get-in @atoms/game-map pos)]
     (and (= :sea (:type cell))
          (nil? (:contents cell))
-         (some #(<= (core/distance pos %) config/fighter-fuel) sites)
-         (every? #(>= (core/distance pos %) config/carrier-spacing) sites))))
+         (some #(<= (core/distance pos %) config/fighter-fuel) refuel-sites)
+         (every? #(>= (core/distance pos %) config/carrier-spacing) spacing-sites))))
 
 (defn find-carrier-position
   "Finds the first valid carrier position on the map, or nil."
   []
-  (let [sites (vec (find-refueling-sites))
+  (let [refuel-sites (vec (find-refueling-sites))
+        positioning-targets (vec (find-positioning-carrier-targets))
+        spacing-sites (into refuel-sites positioning-targets)
         game-map @atoms/game-map]
-    (when (seq sites)
+    (when (seq refuel-sites)
       (first (for [i (range (count game-map))
                    j (range (count (first game-map)))
-                   :when (valid-carrier-position? [i j] sites)]
+                   :when (valid-carrier-position? [i j] refuel-sites spacing-sites)]
                [i j])))))
 
 (defn- position-carrier-with-target

@@ -378,4 +378,99 @@
         (should= :submarine (:type sub))
         (should= :intercepting (:escort-mode sub))
         (should= 1 (:escort-carrier-id sub))
-        (should= [2] (:group-submarine-ids carrier))))))
+        (should= [2] (:group-submarine-ids carrier)))))
+
+  (describe "find-positioning-carrier-targets"
+    (it "returns targets of positioning carriers"
+      (let [cells (vec (for [j (range 60)]
+                         (cond
+                           (= j 0) {:type :city :city-status :computer}
+                           (= j 5) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                           :carrier-mode :positioning
+                                                           :carrier-target [0 26]}}
+                           (= j 10) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                            :carrier-mode :positioning
+                                                            :carrier-target [0 52]}}
+                           :else {:type :sea})))]
+        (reset! atoms/game-map [cells])
+        (should= [[0 26] [0 52]] (vec (ship/find-positioning-carrier-targets)))))
+
+    (it "excludes positioning carriers without target"
+      (let [cells (vec (for [j (range 60)]
+                         (cond
+                           (= j 0) {:type :city :city-status :computer}
+                           (= j 5) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                           :carrier-mode :positioning
+                                                           :carrier-target [0 26]}}
+                           (= j 10) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                            :carrier-mode :positioning}}
+                           :else {:type :sea})))]
+        (reset! atoms/game-map [cells])
+        (should= [[0 26]] (vec (ship/find-positioning-carrier-targets)))))
+
+    (it "excludes holding carriers"
+      (let [cells (vec (for [j (range 60)]
+                         (cond
+                           (= j 0) {:type :city :city-status :computer}
+                           (= j 5) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                           :carrier-mode :holding}}
+                           :else {:type :sea})))]
+        (reset! atoms/game-map [cells])
+        (should= [] (vec (ship/find-positioning-carrier-targets))))))
+
+  (describe "carrier clustering fix"
+    (it "positioning target treated as spacing point"
+      ;; City at [0,0], positioning carrier targeting [0,26], holding carrier at [0,58].
+      ;; Without fix: first valid is [0,26]. With fix: [0,26] blocked, result is [0,84].
+      (let [cells (vec (for [j (range 120)]
+                         (cond
+                           (= j 0) {:type :city :city-status :computer}
+                           (= j 5) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                           :carrier-mode :positioning
+                                                           :carrier-target [0 26]}}
+                           (= j 58) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                            :carrier-mode :holding}}
+                           :else {:type :sea})))]
+        (reset! atoms/game-map [cells])
+        (should= [0 84] (ship/find-carrier-position))))
+
+    (it "positioning carrier without target has no effect"
+      ;; Positioning carrier without :carrier-target should not affect results.
+      (let [cells (vec (for [j (range 40)]
+                         (cond
+                           (= j 0) {:type :city :city-status :computer}
+                           (= j 5) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                           :carrier-mode :positioning}}
+                           :else {:type :sea})))]
+        (reset! atoms/game-map [cells])
+        (should= [0 26] (ship/find-carrier-position))))
+
+    (it "multiple positioning targets block multiple zones"
+      ;; Two positioning carriers target [0,26] and [0,52]. Holding carrier at [0,84].
+      ;; Result pushed to [0,110].
+      (let [cells (vec (for [j (range 120)]
+                         (cond
+                           (= j 0) {:type :city :city-status :computer}
+                           (= j 3) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                           :carrier-mode :positioning
+                                                           :carrier-target [0 26]}}
+                           (= j 7) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                           :carrier-mode :positioning
+                                                           :carrier-target [0 52]}}
+                           (= j 84) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                            :carrier-mode :holding}}
+                           :else {:type :sea})))]
+        (reset! atoms/game-map [cells])
+        (should= [0 110] (ship/find-carrier-position))))
+
+    (it "returns nil when positioning target blocks only valid zone"
+      ;; Single city, narrow map. Only valid zone is [0,26] but positioning carrier targets it.
+      (let [cells (vec (for [j (range 40)]
+                         (cond
+                           (= j 0) {:type :city :city-status :computer}
+                           (= j 5) {:type :sea :contents {:type :carrier :owner :computer :hits 8
+                                                           :carrier-mode :positioning
+                                                           :carrier-target [0 26]}}
+                           :else {:type :sea})))]
+        (reset! atoms/game-map [cells])
+        (should-be-nil (ship/find-carrier-position))))))

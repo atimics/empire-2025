@@ -185,6 +185,13 @@
             (do (terminate-coast-walk target) target)
             target))))))
 
+(defn- find-and-execute-land-action [pos]
+  (if-let [objective (find-land-objective pos)]
+    (move-toward-objective pos objective)
+    (if (core/find-loading-transport)
+      (find-and-board-transport pos)
+      (explore-randomly pos))))
+
 (defn process-army
   "Processes a computer army's turn using VMS Empire style logic.
    Priority: Attack adjacent > Coast-walk (if mode) > Land objective > Board transport > Explore
@@ -193,22 +200,9 @@
   (let [cell (get-in @atoms/game-map pos)
         unit (:contents cell)]
     (when (and unit (= :computer (:owner unit)) (= :army (:type unit)))
-      ;; Priority 1: Attack adjacent enemy (always, regardless of mode)
-      (if-let [enemy-pos (find-adjacent-enemy pos)]
-        (attack-enemy pos enemy-pos)
-
-        ;; Coast-walk mode: follow coastline
-        (if (= :coast-walk (:mode unit))
-          (process-coast-walk pos)
-
-          ;; Priority 2: Find land objective on same continent
-          (if-let [objective (find-land-objective pos)]
-            (move-toward-objective pos objective)
-
-            ;; Priority 3: Board transport if no land objectives
-            (if (core/find-loading-transport)
-              (find-and-board-transport pos)
-
-              ;; Priority 4: Explore randomly
-              (explore-randomly pos))))))
+      (let [enemy-pos (find-adjacent-enemy pos)]
+        (cond
+          enemy-pos (attack-enemy pos enemy-pos)
+          (= :coast-walk (:mode unit)) (process-coast-walk pos)
+          :else (find-and-execute-land-action pos))))
     nil))

@@ -108,6 +108,16 @@
         (when valid-target
           (container-ops/disembark-army-with-target coords valid-target marching-orders))))))
 
+(defn- process-auto-movement [coords unit]
+  (let [new-coords (case (:mode unit)
+                     :explore (move-explore-unit coords)
+                     :coastline-follow (move-coastline-unit coords)
+                     :moving (move-current-unit coords)
+                     nil)]
+    (if new-coords
+      (do (swap! atoms/player-items #(cons new-coords (rest %))) :continue)
+      (do (swap! atoms/player-items rest) :done))))
+
 (defn- process-one-item
   "Processes a single player item. Returns :done if item was processed and removed,
    :continue if item needs more processing (e.g., movement), or :waiting if item needs user input."
@@ -115,26 +125,25 @@
   (let [coords (first @atoms/player-items)
         cell (get-in @atoms/game-map coords)
         unit (:contents cell)
-        satellite-with-target? (and (= (:type unit) :satellite) (:target unit))]
-    (if satellite-with-target?
+        satellite-with-target? (and (= (:type unit) :satellite) (:target unit))
+        auto-coords (when-not satellite-with-target?
+                      (or (auto-launch-fighter coords cell)
+                          (auto-disembark-army coords cell)))]
+    (cond
+      satellite-with-target?
       (do (swap! atoms/player-items rest) :done)
-      (if-let [auto-coords (or (auto-launch-fighter coords cell)
-                               (auto-disembark-army coords cell))]
-        (do (swap! atoms/player-items #(cons auto-coords (rest %))) :continue)
-        (if (attention/item-needs-attention? coords)
-          (do
-            (reset! atoms/cells-needing-attention [coords])
-            (attention/set-attention-message coords)
-            (reset! atoms/waiting-for-input true)
-            :waiting)
-          (let [new-coords (case (:mode unit)
-                             :explore (move-explore-unit coords)
-                             :coastline-follow (move-coastline-unit coords)
-                             :moving (move-current-unit coords)
-                             nil)]
-            (if new-coords
-              (do (swap! atoms/player-items #(cons new-coords (rest %))) :continue)
-              (do (swap! atoms/player-items rest) :done))))))))
+
+      auto-coords
+      (do (swap! atoms/player-items #(cons auto-coords (rest %))) :continue)
+
+      (attention/item-needs-attention? coords)
+      (do (reset! atoms/cells-needing-attention [coords])
+          (attention/set-attention-message coords)
+          (reset! atoms/waiting-for-input true)
+          :waiting)
+
+      :else
+      (process-auto-movement coords unit))))
 
 (defn- process-one-computer-item
   "Processes a single computer item. Returns :done when item processed."

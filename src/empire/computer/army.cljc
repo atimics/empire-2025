@@ -41,24 +41,33 @@
 
 ;; Standard army helpers
 
+(defn- sovereign-passable?
+  "Returns true if a computer army with country-id can enter the cell.
+   Foreign land (different non-nil country-id) is blocked. Cities are always passable."
+  [country-id cell]
+  (and cell
+       (#{:land :city} (:type cell))
+       (or (nil? country-id)
+           (= :city (:type cell))
+           (nil? (:country-id cell))
+           (= country-id (:country-id cell)))))
+
 (defn- get-passable-neighbors
-  "Returns passable land neighbors for an army."
-  [pos]
+  "Returns passable land neighbors for an army, respecting sovereignty."
+  [pos country-id]
   (let [game-map @atoms/game-map]
     (filter (fn [neighbor]
-              (let [cell (get-in game-map neighbor)]
-                (and cell
-                     (#{:land :city} (:type cell)))))
+              (sovereign-passable? country-id (get-in game-map neighbor)))
             (core/get-neighbors pos))))
 
 (defn- get-empty-passable-neighbors
   "Returns passable land neighbors with no unit occupying them."
-  [pos]
+  [pos country-id]
   (let [game-map @atoms/game-map]
     (filter (fn [neighbor]
               (let [cell (get-in game-map neighbor)]
                 (nil? (:contents cell))))
-            (get-passable-neighbors pos))))
+            (get-passable-neighbors pos country-id))))
 
 (defn- find-adjacent-enemy
   "Finds an adjacent enemy unit or city to attack."
@@ -122,21 +131,27 @@
     (visibility/update-cell-visibility target :computer)
     target))
 
+(defn- sovereignty-passability-fn
+  "Returns a passability function for A* that respects sovereignty for the given country-id."
+  [country-id]
+  (fn [cell] (sovereign-passable? country-id cell)))
+
 (defn- move-toward-objective
   "Move army one step toward objective. If preferred step is occupied,
    try other empty neighbors sorted by distance to objective."
-  [pos objective]
-  (let [preferred (pathfinding/next-step pos objective :army)]
+  [pos objective country-id]
+  (let [pass-fn (when country-id (sovereignty-passability-fn country-id))
+        preferred (pathfinding/next-step pos objective :army pass-fn country-id)]
     (or (when preferred (try-move pos preferred))
         ;; Preferred blocked or no path - try empty neighbors closest to objective
-        (let [empty-neighbors (get-empty-passable-neighbors pos)]
+        (let [empty-neighbors (get-empty-passable-neighbors pos country-id)]
           (when (seq empty-neighbors)
             (let [sorted (sort-by #(core/distance % objective) empty-neighbors)]
               (try-move pos (first sorted))))))))
 
 (defn- find-and-board-transport
   "Look for a loading transport and move toward/board it."
-  [pos]
+  [pos country-id]
   ;; Check for adjacent loading transport first
   (if-let [transport-pos (core/find-adjacent-loading-transport pos)]
     (do
@@ -145,13 +160,13 @@
       nil)  ; Army is now on transport, return nil
     ;; Move toward nearest loading transport
     (when-let [transport-pos (core/find-loading-transport)]
-      (move-toward-objective pos transport-pos))))
+      (move-toward-objective pos transport-pos country-id))))
 
 (defn- explore-randomly
   "Move toward any unexplored territory adjacent to computer's explored area.
    Only considers empty cells. Randomizes to avoid all armies picking the same cell."
-  [pos]
-  (let [empty (get-empty-passable-neighbors pos)
+  [pos country-id]
+  (let [empty (get-empty-passable-neighbors pos country-id)
         frontier (filter core/adjacent-to-computer-unexplored? empty)]
     (when-let [target (if (seq frontier)
                         (rand-nth frontier)
@@ -160,16 +175,16 @@
 
 (defn- coast-walk-candidates
   "Returns empty land/city neighbors that are adjacent to sea."
-  [pos]
-  (filter adjacent-to-sea? (get-empty-passable-neighbors pos)))
+  [pos country-id]
+  (filter adjacent-to-sea? (get-empty-passable-neighbors pos country-id)))
 
 (defn- process-coast-walk
   "Handles coast-walk movement. Returns new position or nil."
-  [pos]
+  [pos country-id]
   (let [unit (get-in @atoms/game-map (conj pos :contents))
         coast-start (:coast-start unit)
         visited (set (:coast-visited unit))
-        candidates (coast-walk-candidates pos)]
+        candidates (coast-walk-candidates pos country-id)]
     (if (empty? candidates)
       (do (terminate-coast-walk pos) nil)
       (let [not-visited (remove visited candidates)
@@ -185,12 +200,12 @@
             (do (terminate-coast-walk target) target)
             target))))))
 
-(defn- find-and-execute-land-action [pos]
+(defn- find-and-execute-land-action [pos country-id]
   (if-let [objective (find-land-objective pos)]
-    (move-toward-objective pos objective)
+    (move-toward-objective pos objective country-id)
     (if (core/find-loading-transport)
-      (find-and-board-transport pos)
-      (explore-randomly pos))))
+      (find-and-board-transport pos country-id)
+      (explore-randomly pos country-id))))
 
 (defn process-army
   "Processes a computer army's turn using VMS Empire style logic.
@@ -200,9 +215,10 @@
   (let [cell (get-in @atoms/game-map pos)
         unit (:contents cell)]
     (when (and unit (= :computer (:owner unit)) (= :army (:type unit)))
-      (let [enemy-pos (find-adjacent-enemy pos)]
+      (let [enemy-pos (find-adjacent-enemy pos)
+            country-id (:country-id unit)]
         (cond
           enemy-pos (attack-enemy pos enemy-pos)
-          (= :coast-walk (:mode unit)) (process-coast-walk pos)
-          :else (find-and-execute-land-action pos))))
+          (= :coast-walk (:mode unit)) (process-coast-walk pos country-id)
+          :else (find-and-execute-land-action pos country-id))))
     nil))

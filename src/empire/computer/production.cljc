@@ -189,8 +189,8 @@
          (zero? (get unit-counts :satellite 0)))
     :satellite
 
-    ;; 9. Fighter fallback
-    :else :fighter))
+    ;; 9. No production needed — city stays idle
+    :else nil))
 
 (defn decide-production
   "Decide what a computer city should produce. Returns unit type keyword.

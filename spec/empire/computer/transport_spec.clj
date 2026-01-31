@@ -467,6 +467,82 @@
               target (transport/find-unload-target pickup-continent [1 1])]
           (should= [2 0] target)))))
 
+  (describe "unload target persistence"
+    (it "transport reuses stored unload-target-city"
+      ;; Two player cities on different continents. Transport has stored target [10,0].
+      ;; Even though [5,0] is closer, transport should use stored target.
+      ;; Transport at [3,2] with no adjacent land (surrounded by sea).
+      (let [game-map (build-test-map ["X####"
+                                      "#####"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "O####"
+                                      "#####"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "O####"
+                                      "#####"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (swap! atoms/game-map assoc-in [3 2 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :unloading :army-count 6
+                :pickup-continent-pos [0 1]
+                :unload-target-city [10 0]})
+        (transport/process-transport [3 2])
+        ;; Transport should still have [10,0] as its unload-target-city (not re-picked)
+        (let [transport-pos (first (for [r (range 12) c (range 5)
+                                        :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
+                                    [r c]))
+              transport (get-in @atoms/game-map (conj transport-pos :contents))]
+          (should= [10 0] (:unload-target-city transport)))))
+
+    (it "transport re-evaluates when stored target is computer-owned"
+      ;; Stored target city is now computer-owned — should re-pick a valid target.
+      ;; Transport at [3,2] with no adjacent land.
+      (let [game-map (build-test-map ["X####"
+                                      "#####"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "X####"
+                                      "#####"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "~~~~~"
+                                      "O####"
+                                      "#####"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (swap! atoms/game-map assoc-in [3 2 :contents]
+               {:type :transport :owner :computer
+                :transport-mission :unloading :army-count 6
+                :pickup-continent-pos [0 1]
+                :unload-target-city [5 0]})  ;; now computer-owned
+        (transport/process-transport [3 2])
+        ;; Transport should have re-picked to [10,0] (the only player city)
+        (let [transport-pos (first (for [r (range 12) c (range 5)
+                                        :when (= :transport (get-in @atoms/game-map [r c :contents :type]))]
+                                    [r c]))
+              transport (get-in @atoms/game-map (conj transport-pos :contents))]
+          (should= [10 0] (:unload-target-city transport)))))
+
+    (it "unload-target-city cleared when transport transitions to loading"
+      ;; Transport with 1 army unloads completely, transitioning to loading.
+      ;; The stored unload-target-city should be cleared.
+      (reset! atoms/game-map [[{:type :land}
+                                {:type :sea :contents {:type :transport :owner :computer
+                                                        :transport-mission :unloading
+                                                        :army-count 1
+                                                        :unload-target-city [0 0]}}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (transport/process-transport [0 1])
+      (let [transport (:contents (get-in @atoms/game-map [0 1]))]
+        (should= :loading (:transport-mission transport))
+        (should-be-nil (:unload-target-city transport)))))
+
   (describe "find-unload-position bias fix"
     (it "picks sea cell closest to transport, not NW-biased"
       ;; Target city at [0,3]. Only row 1 has sea adjacent to land.

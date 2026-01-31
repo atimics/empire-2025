@@ -149,6 +149,104 @@
       (do (swap! atoms/game-map assoc-in (conj pos :contents :fuel) new-fuel)
           true))))
 
+;; --- Exploration helpers ---
+
+(def ^:private compass-directions
+  "All 8 compass directions as [dr dc] vectors."
+  [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]])
+
+(defn- count-unexplored-neighbors
+  "Count neighbors of pos that are unexplored on computer-map."
+  [pos]
+  (let [computer-map @atoms/computer-map
+        [r c] pos
+        height (count @atoms/game-map)
+        width (count (first @atoms/game-map))]
+    (count (filter (fn [[dr dc]]
+                     (let [nr (+ r dr) nc (+ c dc)]
+                       (and (>= nr 0) (< nr height)
+                            (>= nc 0) (< nc width)
+                            (nil? (get-in computer-map [nr nc])))))
+                   compass-directions))))
+
+(defn- count-unexplored-along-direction
+  "Project n steps from start in direction [dr dc], count unexplored cells
+   (including their visibility neighbors) along the ray."
+  [start direction n]
+  (let [computer-map @atoms/computer-map
+        game-map @atoms/game-map
+        height (count game-map)
+        width (count (first game-map))
+        [dr dc] direction]
+    (reduce (fn [total step]
+              (let [pr (+ (first start) (* step dr))
+                    pc (+ (second start) (* step dc))]
+                (if (and (>= pr 0) (< pr height)
+                         (>= pc 0) (< pc width))
+                  (+ total
+                     (count (filter (fn [[vr vc]]
+                                      (let [nr (+ pr vr) nc (+ pc vc)]
+                                        (and (>= nr 0) (< nr height)
+                                             (>= nc 0) (< nc width)
+                                             (nil? (get-in computer-map [nr nc])))))
+                                    (conj compass-directions [0 0]))))
+                  total)))
+            0
+            (range 1 (inc n)))))
+
+(defn- best-exploration-heading
+  "Score all 8 compass directions by unexplored cell count, return best.
+   Tie-break with rand-nth."
+  [pos projection-length]
+  (let [scored (map (fn [dir]
+                      [dir (count-unexplored-along-direction pos dir projection-length)])
+                    compass-directions)
+        best-score (apply max (map second scored))
+        best-dirs (map first (filter #(= best-score (second %)) scored))]
+    (rand-nth (vec best-dirs))))
+
+(defn- explore-move-step
+  "Shared movement logic for sorties and drones.
+   Pick unoccupied passable neighbor with most unexplored neighbors;
+   break ties by proximity to endpoint. Move, update visibility, consume fuel."
+  [pos endpoint]
+  (let [passable (get-passable-neighbors pos)
+        unoccupied (filter (complement occupied?) passable)]
+    (when (seq unoccupied)
+      (let [scored (map (fn [n]
+                          [n (count-unexplored-neighbors n) (distance-to n endpoint)])
+                        unoccupied)
+            best-unexplored (apply max (map second scored))
+            at-best (filter #(= best-unexplored (second %)) scored)
+            best-pos (first (first (sort-by #(nth % 2) at-best)))]
+        (when (and best-pos (core/move-unit-to pos best-pos))
+          (visibility/update-cell-visibility pos :computer)
+          (visibility/update-cell-visibility best-pos :computer)
+          (when (consume-fighter-fuel best-pos)
+            best-pos))))))
+
+(defn- explore-step
+  "One outbound sortie step. Calls explore-move-step, decrements steps-remaining.
+   At zero, switches to :regular mode targeting origin."
+  [pos unit]
+  (let [endpoint (:flight-target-site unit)
+        result (explore-move-step pos endpoint)]
+    (when result
+      (let [remaining (dec (:explore-steps-remaining unit))]
+        (swap! atoms/game-map assoc-in
+               (conj result :contents :explore-steps-remaining) remaining)
+        (if (<= remaining 0)
+          (swap! atoms/game-map update-in (conj result :contents)
+                 assoc :flight-mode :regular
+                 :flight-target-site (:explore-origin unit))
+          nil))
+      result)))
+
+(defn- drone-step
+  "One drone step. Delegates to explore-move-step."
+  [pos unit]
+  (explore-move-step pos (:flight-target-site unit)))
+
 ;; --- Leg-based coverage ---
 
 (defn- current-refueling-site
@@ -186,16 +284,46 @@
     (when (seq scored)
       (first (first (sort-by second scored))))))
 
+(defn- assign-regular-leg
+  "Assign a regular leg flight: choose-leg, set target, origin, and :flight-mode :regular."
+  [pos site-pos]
+  (when-let [target (choose-leg site-pos)]
+    (swap! atoms/game-map update-in (conj pos :contents)
+           assoc :flight-target-site target
+           :flight-origin-site site-pos
+           :flight-mode :regular)))
+
+(def ^:private sortie-half-steps 16)
+
+(defn- assign-exploration-flight
+  "Assign exploration sortie or drone. Roll 1/20 for drone.
+   Pick heading, set exploration fields, project endpoint."
+  [pos site-pos]
+  (let [heading (best-exploration-heading pos sortie-half-steps)
+        drone? (< (rand) 0.05)
+        mode (if drone? :drone :explore)
+        [dr dc] heading
+        endpoint [(+ (first pos) (* sortie-half-steps dr))
+                  (+ (second pos) (* sortie-half-steps dc))]]
+    (swap! atoms/game-map update-in (conj pos :contents)
+           assoc :flight-mode mode
+           :explore-origin site-pos
+           :explore-heading heading
+           :explore-steps-remaining sortie-half-steps
+           :flight-target-site endpoint
+           :flight-origin-site site-pos)))
+
 (defn- ensure-flight-target
-  "If fighter at pos is at a refueling site with no target, pick a leg and refuel."
+  "If fighter at pos is at a refueling site with no flight-mode or target,
+   refuel and assign either a regular leg or exploration flight."
   [pos]
   (let [unit (get-in @atoms/game-map (conj pos :contents))]
-    (when (and unit (nil? (:flight-target-site unit)))
+    (when (and unit (nil? (:flight-mode unit)) (nil? (:flight-target-site unit)))
       (when-let [site-pos (current-refueling-site pos)]
-        (when-let [target (choose-leg site-pos)]
-          (swap! atoms/game-map assoc-in (conj pos :contents :fuel) config/fighter-fuel)
-          (swap! atoms/game-map update-in (conj pos :contents)
-                 assoc :flight-target-site target :flight-origin-site site-pos))))))
+        (swap! atoms/game-map assoc-in (conj pos :contents :fuel) config/fighter-fuel)
+        (if (>= (rand) 0.5)
+          (assign-regular-leg pos site-pos)
+          (assign-exploration-flight pos site-pos))))))
 
 (defn- at-flight-target?
   "True if pos has reached the flight target. City: at position. Carrier: adjacent."
@@ -211,16 +339,18 @@
   [pos unit]
   (let [target (:flight-target-site unit)
         origin (:flight-origin-site unit)]
-    ;; Record completed leg
-    (when origin
+    ;; Record completed leg (skip degenerate self-loops from returning sorties)
+    (when (and origin (not= origin target))
       (swap! atoms/fighter-leg-records assoc #{origin target}
              {:last-flown @atoms/round-number}))
     ;; Refuel
     (swap! atoms/game-map assoc-in (conj pos :contents :fuel) config/fighter-fuel)
-    ;; Pick new leg from target site
+    ;; Clear exploration fields and pick new leg from target site
     (let [new-target (choose-leg target)]
       (swap! atoms/game-map update-in (conj pos :contents)
-             assoc :flight-target-site new-target :flight-origin-site target))
+             #(-> %
+                  (dissoc :explore-origin :explore-heading :explore-steps-remaining :flight-mode)
+                  (assoc :flight-target-site new-target :flight-origin-site target))))
     pos))
 
 (defn- navigate-toward-target
@@ -233,7 +363,7 @@
                             (seq (filter (fn [n]
                                           (and (not (occupied? n))
                                                (nil? (get-in @atoms/computer-map n))
-                                               (<= (distance-to n target) direct-dist)))
+                                               (<= (distance-to n target) (inc direct-dist))))
                                         passable)))
         next-pos (or (when unexplored-toward
                        (apply min-key (partial distance-to target) unexplored-toward))
@@ -291,33 +421,53 @@
   (when-let [new-pos (do-patrol pos)]
     (if (consume-fighter-fuel new-pos) new-pos nil)))
 
-(defn- move-fighter-once
-  "Execute one step of fighter priority logic. CC=4.
-   Returns new position if moved and alive, :landed if landed, nil if died or stuck."
+(defn- exploring?
+  "True if unit is on an outbound exploration sortie with steps remaining."
+  [unit]
+  (and (= :explore (:flight-mode unit))
+       (pos? (:explore-steps-remaining unit 0))))
+
+(defn- handle-exploration-or-drone
+  "Dispatch to drone-step or explore-step based on flight-mode."
+  [pos unit]
+  (if (= :drone (:flight-mode unit))
+    (drone-step pos unit)
+    (explore-step pos unit)))
+
+(defn- move-fighter-toward-objective
+  "Non-combat movement priorities: explore/drone > arrival > low fuel > navigate > patrol. CC=5."
   [pos unit]
   (let [fuel (:fuel unit config/fighter-fuel)
-        target (:flight-target-site unit)
-        enemy-pos (find-adjacent-enemy pos)]
+        target (:flight-target-site unit)]
     (cond
-      ;; Priority 1: Attack adjacent enemy
-      enemy-pos
-      (when-let [new-pos (attack-enemy pos enemy-pos)]
-        (if (consume-fighter-fuel new-pos) new-pos nil))
+      ;; Priority: Exploration sortie or drone in progress
+      (or (exploring? unit) (= :drone (:flight-mode unit)))
+      (handle-exploration-or-drone pos unit)
 
-      ;; Priority 2: Arrived at target refueling site
+      ;; Arrived at target refueling site
       (and target (at-flight-target? pos target))
       (handle-arrival pos unit)
 
-      ;; Priority 3: Low fuel → return to nearest refueling site
+      ;; Low fuel → return to nearest refueling site
       (should-return-to-refuel? pos fuel)
       (handle-low-fuel pos)
 
-      ;; Priority 4: Navigate toward target or patrol
+      ;; Navigate toward target
       target
       (navigate-toward-target pos target fuel)
 
       :else
       (handle-patrol pos))))
+
+(defn- move-fighter-once
+  "Execute one step of fighter priority logic. CC=2.
+   Returns new position if moved and alive, :landed if landed, nil if died or stuck."
+  [pos unit]
+  (let [enemy-pos (find-adjacent-enemy pos)]
+    (if enemy-pos
+      (when-let [new-pos (attack-enemy pos enemy-pos)]
+        (if (consume-fighter-fuel new-pos) new-pos nil))
+      (move-fighter-toward-objective pos unit))))
 
 (defn- fighter-at?
   "Returns true if a fighter exists at pos on the game map."

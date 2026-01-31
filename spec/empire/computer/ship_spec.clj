@@ -142,6 +142,68 @@
         (should (or (nil? (:contents cell0))
                     (= :computer (:owner (:contents cell1)))))))
 
+    (it "patrol boat avoids recent positions when coast-patrolling"
+      ;; 3x5 map: land row at top, sea rows below. Patrol boat at [1,2] with history [[1,1]].
+      ;; Coastal cells adjacent to land row 0: [1,0],[1,1],[1,2],[1,3],[1,4]
+      ;; Patrol boat should move to a coastal cell NOT in history ([1,1]).
+      (reset! atoms/game-map (build-test-map ["#####"
+                                               "~~~~~"
+                                               "~~~~~"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      (swap! atoms/game-map assoc-in [1 2 :contents]
+             {:type :patrol-boat :owner :computer :hits 1
+              :patrol-country-id 1 :patrol-direction :clockwise :patrol-mode :patrolling
+              :patrol-history [[1 1]]})
+      ;; Run multiple times to confirm it never picks [1,1]
+      (dotimes [_ 10]
+        (reset! atoms/game-map (build-test-map ["#####"
+                                                 "~~~~~"
+                                                 "~~~~~"]))
+        (swap! atoms/game-map assoc-in [1 2 :contents]
+               {:type :patrol-boat :owner :computer :hits 1
+                :patrol-country-id 1 :patrol-direction :clockwise :patrol-mode :patrolling
+                :patrol-history [[1 1]]})
+        (reset! atoms/computer-map @atoms/game-map)
+        (ship/process-ship [1 2] :patrol-boat)
+        ;; Find where patrol boat moved
+        (let [new-pos (first (for [r (range 3) c (range 5)
+                                   :when (= :patrol-boat (get-in @atoms/game-map [r c :contents :type]))]
+                               [r c]))]
+          (should-not= [1 1] new-pos))))
+
+    (it "patrol boat falls back to any coastal cell when all filtered out"
+      ;; Patrol boat at [0,0]. Only coastal neighbor [0,1] is in history.
+      ;; Should still move there as fallback.
+      (reset! atoms/game-map [[{:type :sea} {:type :sea}]
+                                [{:type :land} {:type :land}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (swap! atoms/game-map assoc-in [0 0 :contents]
+             {:type :patrol-boat :owner :computer :hits 1
+              :patrol-country-id 1 :patrol-direction :clockwise :patrol-mode :patrolling
+              :patrol-history [[0 1]]})
+      (ship/process-ship [0 0] :patrol-boat)
+      ;; Only empty coastal neighbor is [0,1] which is in history.
+      ;; Should still move there as fallback.
+      (should= :patrol-boat (get-in @atoms/game-map [0 1 :contents :type])))
+
+    (it "patrol boat updates patrol-history after moving"
+      (reset! atoms/game-map (build-test-map ["#####"
+                                               "~~~~~"
+                                               "~~~~~"]))
+      (reset! atoms/computer-map @atoms/game-map)
+      (swap! atoms/game-map assoc-in [1 2 :contents]
+             {:type :patrol-boat :owner :computer :hits 1
+              :patrol-country-id 1 :patrol-direction :clockwise :patrol-mode :patrolling
+              :patrol-history [[1 3]]})
+      (ship/process-ship [1 2] :patrol-boat)
+      ;; Find where patrol boat moved
+      (let [new-pos (first (for [r (range 3) c (range 5)
+                                 :when (= :patrol-boat (get-in @atoms/game-map [r c :contents :type]))]
+                             [r c]))
+            unit (get-in @atoms/game-map (conj new-pos :contents))]
+        ;; History should now contain [1,2] (the position it just left)
+        (should (some #{[1 2]} (:patrol-history unit)))))
+
     (it "patrol boat flees from non-transport enemy"
       ;; Note: This test must come before the destroyer escort tests
       ;; Patrol boat at [0 1], destroyer at [0 2] -- should move away to [0 0]

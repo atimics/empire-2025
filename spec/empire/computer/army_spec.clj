@@ -291,4 +291,76 @@
 
     (it "returns nil for empty cell"
       (reset! atoms/game-map (build-test-map ["##"]))
-      (should-be-nil (army/process-army [0 0])))))
+      (should-be-nil (army/process-army [0 0]))))
+
+  (describe "country sovereignty"
+    (it "army is blocked by foreign territory"
+      ;; Army with country-id 1 at [0 0], target land has country-id 2
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1 :country-id 1}}
+                                {:type :land :country-id 2}
+                                {:type :land :country-id 2}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (army/process-army [0 0])
+      ;; Army should not have moved into foreign territory
+      (should= :army (get-in @atoms/game-map [0 0 :contents :type])))
+
+    (it "army passes through own territory"
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1 :country-id 1}}
+                                {:type :land :country-id 1}
+                                {:type :land :country-id 1}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (army/process-army [0 0])
+      ;; Army should have moved into own territory
+      (should= :army (get-in @atoms/game-map [0 1 :contents :type])))
+
+    (it "army passes through unclaimed land"
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1 :country-id 1}}
+                                {:type :land}
+                                {:type :land}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (army/process-army [0 0])
+      ;; Army should have moved into unclaimed land
+      (should= :army (get-in @atoms/game-map [0 1 :contents :type])))
+
+    (it "army with no country-id passes through any territory"
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1}}
+                                {:type :land :country-id 2}
+                                {:type :land :country-id 2}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (army/process-army [0 0])
+      ;; Army without country-id should move freely
+      (should= :army (get-in @atoms/game-map [0 1 :contents :type])))
+
+    (it "army can approach cities in foreign territory"
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1 :country-id 1}}
+                                {:type :city :city-status :free :country-id 2}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (army/process-army [0 0])
+      ;; Army should attack the city despite foreign country-id
+      ;; (army is removed after conquest attempt either way)
+      (should-be-nil (get-in @atoms/game-map [0 0 :contents])))
+
+    (it "coast-walk terminates at sovereignty boundary"
+      ;; Coast-walking army hits foreign territory - no valid candidates
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1
+                                                       :country-id 1
+                                                       :mode :coast-walk :coast-direction :clockwise
+                                                       :coast-start [0 0] :coast-visited [[0 0]]}}
+                                {:type :land :country-id 2}
+                                {:type :land :country-id 2}]
+                               [{:type :sea} {:type :sea} {:type :sea}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (army/process-army [0 0])
+      ;; Should terminate coast-walk and switch to explore
+      (let [unit (get-in @atoms/game-map [0 0 :contents])]
+        (should= :explore (:mode unit))
+        (should-be-nil (:coast-direction unit))))
+
+    (it "army can still attack adjacent enemy across sovereignty border"
+      ;; Army with country-id 1 adjacent to player army in foreign territory
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1 :country-id 1}}
+                                {:type :land :country-id 2 :contents {:type :army :owner :player :hits 1}}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (army/process-army [0 0])
+      ;; Combat should have occurred - computer army no longer at [0 0]
+      (should-be-nil (get-in @atoms/game-map [0 0 :contents])))))

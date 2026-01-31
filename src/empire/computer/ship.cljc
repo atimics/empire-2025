@@ -158,18 +158,26 @@
         farthest))))
 
 (defn- coastline-move
-  "Move patrol boat to an adjacent sea cell that is also adjacent to land."
+  "Move patrol boat to an adjacent sea cell that is also adjacent to land.
+   Avoids recent positions from patrol-history to prevent backtracking."
   [pos]
-  (let [passable (get-passable-sea-neighbors pos)
+  (let [unit (get-in @atoms/game-map (conj pos :contents))
+        history (set (:patrol-history unit []))
+        passable (get-passable-sea-neighbors pos)
         empty-passable (filter (fn [n]
                                  (nil? (:contents (get-in @atoms/game-map n))))
                                passable)
-        coastal-cells (filter adjacent-to-land? empty-passable)]
-    (when (seq coastal-cells)
-      (let [target (rand-nth coastal-cells)]
+        coastal-cells (filter adjacent-to-land? empty-passable)
+        preferred (remove history coastal-cells)
+        targets (if (seq preferred) preferred coastal-cells)]
+    (when (seq targets)
+      (let [target (rand-nth targets)]
         (core/move-unit-to pos target)
         (visibility/update-cell-visibility pos :computer)
         (visibility/update-cell-visibility target :computer)
+        ;; Update patrol history on the moved unit
+        (let [new-history (vec (take-last 3 (conj (:patrol-history unit []) pos)))]
+          (swap! atoms/game-map assoc-in (conj target :contents :patrol-history) new-history))
         target))))
 
 (defn- process-patrol-boat

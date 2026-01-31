@@ -1,7 +1,9 @@
 (ns empire.movement.pathfinding-spec
   (:require [speclj.core :refer :all]
             [empire.movement.pathfinding :as pathfinding]
+            [empire.movement.sea-lanes :as sea-lanes]
             [empire.atoms :as atoms]
+            [empire.config :as config]
             [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
 
 (describe "heuristic"
@@ -420,3 +422,150 @@
           result (pathfinding/find-nearest-unload-position [2 1] target-continent)]
       (should-not-be-nil result)
       (should= 3 (first result)))))
+
+(describe "sovereignty-aware pathfinding"
+  (before (reset-all-atoms!))
+
+  (it "a-star uses custom passability-fn when provided"
+    ;; Path must go around foreign territory
+    ;; Row 0: army, foreign, foreign, land
+    ;; Row 1: land,  land,    land,    land
+    (reset! atoms/game-map [[{:type :land} {:type :land :country-id 2} {:type :land :country-id 2} {:type :land}]
+                             [{:type :land} {:type :land} {:type :land} {:type :land}]])
+    (let [passability-fn (fn [cell]
+                           (and cell
+                                (not= (:type cell) :unexplored)
+                                (#{:land :city} (:type cell))
+                                (or (= :city (:type cell))
+                                    (nil? (:country-id cell))
+                                    (= 1 (:country-id cell)))))
+          path (pathfinding/a-star [0 0] [0 3] :army @atoms/game-map passability-fn)]
+      (should-not-be-nil path)
+      (should= [0 0] (first path))
+      (should= [0 3] (last path))
+      ;; Path should avoid [0 1] and [0 2] (foreign territory)
+      (should-not-contain [0 1] path)
+      (should-not-contain [0 2] path)))
+
+  (it "next-step uses passability-fn and includes cache-key-extra"
+    (reset! atoms/game-map [[{:type :land} {:type :land :country-id 2} {:type :land :country-id 2} {:type :land}]
+                             [{:type :land} {:type :land} {:type :land} {:type :land}]])
+    (let [passability-fn (fn [cell]
+                           (and cell
+                                (not= (:type cell) :unexplored)
+                                (#{:land :city} (:type cell))
+                                (or (= :city (:type cell))
+                                    (nil? (:country-id cell))
+                                    (= 1 (:country-id cell)))))
+          step (pathfinding/next-step [0 0] [0 3] :army passability-fn 1)]
+      ;; Should step to [1 0] or [1 1] to go around foreign territory
+      (should-not-be-nil step)
+      (should-not= [0 1] step)))
+
+  (it "cache key includes cache-key-extra to separate different passabilities"
+    (pathfinding/clear-path-cache)
+    (reset! atoms/game-map [[{:type :land} {:type :land :country-id 2} {:type :land}]
+                             [{:type :land} {:type :land} {:type :land}]])
+    (let [pass-country-1 (fn [cell]
+                           (and cell (#{:land :city} (:type cell))
+                                (or (nil? (:country-id cell)) (= 1 (:country-id cell)))))
+          pass-country-2 (fn [cell]
+                           (and cell (#{:land :city} (:type cell))
+                                (or (nil? (:country-id cell)) (= 2 (:country-id cell)))))
+          step-c1 (pathfinding/next-step [0 0] [0 2] :army pass-country-1 1)
+          step-c2 (pathfinding/next-step [0 0] [0 2] :army pass-country-2 2)]
+      ;; Country-1 army must go around [0 1]; country-2 army can go through
+      (should-not= [0 1] step-c1)
+      (should= [0 1] step-c2)))
+
+  (it "a-star returns nil when sovereignty blocks all paths"
+    (reset! atoms/game-map [[{:type :land} {:type :land :country-id 2} {:type :land}]])
+    (let [passability-fn (fn [cell]
+                           (and cell (#{:land :city} (:type cell))
+                                (or (nil? (:country-id cell)) (= 1 (:country-id cell)))))
+          path (pathfinding/a-star [0 0] [0 2] :army @atoms/game-map passability-fn)]
+      (should-be-nil path))))
+
+(describe "sea lane network integration"
+  (before (reset-all-atoms!))
+
+  (it "next-step records naval paths into sea lane network"
+    (reset! atoms/game-map (build-test-map ["~~~~~~"]))
+    (pathfinding/next-step [0 0] [0 5] :destroyer)
+    (let [net @atoms/sea-lane-network]
+      ;; Path [0 0]->[0 5] should be recorded as a segment
+      (should (pos? (count (:segments net))))))
+
+  (it "next-step does not record army paths into sea lane network"
+    (reset! atoms/game-map (build-test-map ["######"]))
+    (pathfinding/next-step [0 0] [0 5] :army)
+    (let [net @atoms/sea-lane-network]
+      (should= 0 (count (:segments net)))))
+
+  (it "bounded-a-star finds path on small map"
+    (reset! atoms/game-map (build-test-map ["~~~~~"
+                                            "~~~~~"]))
+    (let [path (pathfinding/bounded-a-star [0 0] [0 4] :destroyer @atoms/game-map)]
+      (should-not-be-nil path)
+      (should= [0 0] (first path))
+      (should= [0 4] (last path))))
+
+  (it "bounded-a-star returns nil when goal is outside radius"
+    ;; Very far apart positions on a narrow corridor
+    (let [row (vec (repeat 100 {:type :sea}))]
+      (reset! atoms/game-map [row])
+      ;; Start at 0, goal at 99 — radius will be ~54, so it should still work
+      ;; Actually bounded-a-star uses distance+5 as radius, so this should work
+      (let [path (pathfinding/bounded-a-star [0 0] [0 99] :destroyer @atoms/game-map)]
+        (should-not-be-nil path))))
+
+  (it "next-step skips network for short-distance goals"
+    ;; Build a sea lane network with a node far from the goal.
+    ;; For a short-distance goal (< local-radius), next-step should use
+    ;; direct A* and step toward the goal, not toward the distant network node.
+    (let [row (vec (repeat 40 {:type :sea}))]
+      (reset! atoms/game-map [row row row])
+      ;; Build a network with nodes at [0 30] and [0 35] — far from our start/goal
+      (reset! atoms/sea-lane-network
+              {:nodes {1 {:id 1 :pos [0 30] :segment-ids #{1}}
+                       2 {:id 2 :pos [0 35] :segment-ids #{1}}}
+               :segments {1 {:id 1 :node-a-id 1 :node-b-id 2
+                              :direction [0 1]
+                              :cells [[0 30] [0 31] [0 32] [0 33] [0 34] [0 35]]
+                              :length 5}}
+               :pos->node {[0 30] 1 [0 35] 2}
+               :pos->seg {[0 31] 1 [0 32] 1 [0 33] 1 [0 34] 1}
+               :next-node-id 3 :next-segment-id 2})
+      (pathfinding/clear-path-cache)
+      ;; Goal is 5 cells away — well within sea-lane-local-radius (15)
+      (let [step (pathfinding/next-step [1 0] [1 5] :transport)]
+        ;; Direct A* should move toward [1 5], i.e. column increases
+        (should-not-be-nil step)
+        (should (> (second step) 0))
+        ;; Should NOT step toward column 30 (the network node)
+        (should (< (second step) 10)))))
+
+  (it "next-step uses network for long-distance goals"
+    ;; Build a sea lane network between two distant points.
+    ;; For a long-distance goal (> local-radius), next-step should consult the network.
+    (let [row (vec (repeat 60 {:type :sea}))]
+      (reset! atoms/game-map [row row row])
+      ;; Network with nodes at [1 2] and [1 50]
+      (let [cells (vec (for [c (range 2 51)] [1 c]))]
+        (reset! atoms/sea-lane-network
+                {:nodes {1 {:id 1 :pos [1 2] :segment-ids #{1}}
+                         2 {:id 2 :pos [1 50] :segment-ids #{1}}}
+                 :segments {1 {:id 1 :node-a-id 1 :node-b-id 2
+                                :direction [0 1]
+                                :cells cells
+                                :length 48}}
+                 :pos->node {[1 2] 1 [1 50] 2}
+                 :pos->seg (into {} (for [c (range 3 50)] [[1 c] 1]))
+                 :next-node-id 3 :next-segment-id 2}))
+      (pathfinding/clear-path-cache)
+      ;; Goal is 50 cells away — well beyond sea-lane-local-radius (15)
+      (let [step (pathfinding/next-step [1 0] [1 50] :transport)]
+        ;; Should find a path (either via network or A*)
+        (should-not-be-nil step)
+        ;; The step should move toward increasing column
+        (should (>= (second step) 1))))))

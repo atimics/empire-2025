@@ -208,6 +208,7 @@
           ;; If fully unloaded, change mission to loading and update pickup continent
           (when (<= (- army-count to-unload) 0)
             (swap! atoms/game-map assoc-in (conj pos :contents :transport-mission) :loading)
+            (swap! atoms/game-map update-in (conj pos :contents) dissoc :unload-target-city)
             (let [current-continent (when-let [land-pos (find-adjacent-land-pos pos)]
                                      (continent/flood-fill-continent land-pos))
                   next-pickup (find-next-pickup-continent-pos pos current-continent)]
@@ -238,11 +239,35 @@
       (swap! atoms/game-map assoc-in
              (conj pos :contents :pickup-continent-pos) land-pos))))
 
+(defn- valid-unload-target?
+  "Returns true if city-pos is still a valid unload target (player or free, not on pickup continent)."
+  [city-pos pickup-continent]
+  (let [cell (get-in @atoms/game-map city-pos)]
+    (and cell
+         (= :city (:type cell))
+         (#{:player :free} (:city-status cell))
+         (or (nil? pickup-continent)
+             (not (contains? pickup-continent city-pos))))))
+
+(defn- resolve-unload-target
+  "Returns the unload target city, reusing the stored one if still valid."
+  [pos pickup-continent]
+  (let [transport (get-in @atoms/game-map (conj pos :contents))
+        stored (:unload-target-city transport)]
+    (if (and stored (valid-unload-target? stored pickup-continent))
+      (do (swap! atoms/claimed-transport-targets conj stored)
+          stored)
+      (let [target (find-unload-target pickup-continent pos)]
+        (when target
+          (swap! atoms/game-map assoc-in (conj pos :contents :unload-target-city) target))
+        target))))
+
 (defn- move-toward-unload-or-explore
   "Pick an enemy/free city off the pickup continent, then BFS for the nearest
-   sea cell adjacent to that city's continent. Falls back to explore-sea."
+   sea cell adjacent to that city's continent. Falls back to explore-sea.
+   Reuses stored unload-target-city for stability."
   [pos pickup-continent]
-  (if-let [target-city (find-unload-target pickup-continent pos)]
+  (if-let [target-city (resolve-unload-target pos pickup-continent)]
     (let [target-continent (continent/flood-fill-continent target-city)]
       (if-let [unload-pos (pathfinding/find-nearest-unload-position pos target-continent)]
         (move-toward-position pos unload-pos)

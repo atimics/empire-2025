@@ -58,6 +58,14 @@
 (def coastline-steps 100)
 (def satellite-turns 50)    ; empire.units.satellite/turns
 (def max-sidesteps 10)
+
+;; Sea lane network constants
+(def max-sea-lane-nodes 500)
+(def max-sea-lane-segments 1000)
+(def sea-lane-local-radius 15)
+(def sea-lane-extended-radius 25)
+(def sea-lane-min-segment-length 2)
+(def sea-lane-min-network-nodes 4)
 (def carrier-spacing 26)  ;; 80% of fighter-fuel (0.8 * 32 = 25.6, rounded up)
 (def bingo-fuel-divisor 4)
 (def max-placement-attempts 1000)

@@ -1,7 +1,9 @@
 (ns empire.movement.pathfinding-spec
   (:require [speclj.core :refer :all]
             [empire.movement.pathfinding :as pathfinding]
+            [empire.movement.sea-lanes :as sea-lanes]
             [empire.atoms :as atoms]
+            [empire.config :as config]
             [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
 
 (describe "heuristic"
@@ -515,4 +517,55 @@
       ;; Start at 0, goal at 99 — radius will be ~54, so it should still work
       ;; Actually bounded-a-star uses distance+5 as radius, so this should work
       (let [path (pathfinding/bounded-a-star [0 0] [0 99] :destroyer @atoms/game-map)]
-        (should-not-be-nil path)))))
+        (should-not-be-nil path))))
+
+  (it "next-step skips network for short-distance goals"
+    ;; Build a sea lane network with a node far from the goal.
+    ;; For a short-distance goal (< local-radius), next-step should use
+    ;; direct A* and step toward the goal, not toward the distant network node.
+    (let [row (vec (repeat 40 {:type :sea}))]
+      (reset! atoms/game-map [row row row])
+      ;; Build a network with nodes at [0 30] and [0 35] — far from our start/goal
+      (reset! atoms/sea-lane-network
+              {:nodes {1 {:id 1 :pos [0 30] :segment-ids #{1}}
+                       2 {:id 2 :pos [0 35] :segment-ids #{1}}}
+               :segments {1 {:id 1 :node-a-id 1 :node-b-id 2
+                              :direction [0 1]
+                              :cells [[0 30] [0 31] [0 32] [0 33] [0 34] [0 35]]
+                              :length 5}}
+               :pos->node {[0 30] 1 [0 35] 2}
+               :pos->seg {[0 31] 1 [0 32] 1 [0 33] 1 [0 34] 1}
+               :next-node-id 3 :next-segment-id 2})
+      (pathfinding/clear-path-cache)
+      ;; Goal is 5 cells away — well within sea-lane-local-radius (15)
+      (let [step (pathfinding/next-step [1 0] [1 5] :transport)]
+        ;; Direct A* should move toward [1 5], i.e. column increases
+        (should-not-be-nil step)
+        (should (> (second step) 0))
+        ;; Should NOT step toward column 30 (the network node)
+        (should (< (second step) 10)))))
+
+  (it "next-step uses network for long-distance goals"
+    ;; Build a sea lane network between two distant points.
+    ;; For a long-distance goal (> local-radius), next-step should consult the network.
+    (let [row (vec (repeat 60 {:type :sea}))]
+      (reset! atoms/game-map [row row row])
+      ;; Network with nodes at [1 2] and [1 50]
+      (let [cells (vec (for [c (range 2 51)] [1 c]))]
+        (reset! atoms/sea-lane-network
+                {:nodes {1 {:id 1 :pos [1 2] :segment-ids #{1}}
+                         2 {:id 2 :pos [1 50] :segment-ids #{1}}}
+                 :segments {1 {:id 1 :node-a-id 1 :node-b-id 2
+                                :direction [0 1]
+                                :cells cells
+                                :length 48}}
+                 :pos->node {[1 2] 1 [1 50] 2}
+                 :pos->seg (into {} (for [c (range 3 50)] [[1 c] 1]))
+                 :next-node-id 3 :next-segment-id 2}))
+      (pathfinding/clear-path-cache)
+      ;; Goal is 50 cells away — well beyond sea-lane-local-radius (15)
+      (let [step (pathfinding/next-step [1 0] [1 50] :transport)]
+        ;; Should find a path (either via network or A*)
+        (should-not-be-nil step)
+        ;; The step should move toward increasing column
+        (should (>= (second step) 1))))))

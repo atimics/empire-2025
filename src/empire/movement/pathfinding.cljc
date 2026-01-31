@@ -3,6 +3,7 @@
    Provides efficient pathfinding that respects terrain constraints."
   (:require [empire.atoms :as atoms]
             [empire.computer.core :as core]
+            [empire.config :as config]
             [empire.units.dispatcher :as dispatcher]
             [empire.movement.sea-lanes :as sea-lanes]))
 
@@ -307,6 +308,11 @@
       (swap! path-cache assoc [(first remaining) goal unit-type cache-key-extra] remaining)
       (recur (subvec remaining 1)))))
 
+(defn- chebyshev
+  "Chebyshev (chessboard) distance between two positions."
+  [[sr sc] [gr gc]]
+  (max (Math/abs (- sr gr)) (Math/abs (- sc gc))))
+
 (def ^:private naval-types
   #{:transport :destroyer :submarine :carrier :battleship :patrol-boat})
 
@@ -336,10 +342,12 @@
        (if cached
          (second cached)
          ;; Try network route for naval units without custom passability
+         ;; Skip network for short distances to avoid oscillation
          (or (when-not passability-fn
-               (when-let [net-path (try-network-route start goal unit-type)]
-                 (cache-sub-paths! net-path goal unit-type cache-key-extra)
-                 (second net-path)))
+               (when (> (chebyshev start goal) config/sea-lane-local-radius)
+                 (when-let [net-path (try-network-route start goal unit-type)]
+                   (cache-sub-paths! net-path goal unit-type cache-key-extra)
+                   (second net-path))))
              ;; Fall back to full A*
              (let [game-map @atoms/game-map
                    path (a-star start goal unit-type game-map passability-fn)]

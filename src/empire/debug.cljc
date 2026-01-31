@@ -65,8 +65,8 @@
                             :let [v (get contents k)]
                             :when v]
                         (str " " label ":" v))]
-    (str " contents:{type:" (name (:type contents))
-         " owner:" (name (:owner contents))
+    (str " contents:{type:" (some-> (:type contents) name)
+         " owner:" (some-> (:owner contents) name)
          (apply str optional-strs)
          "}")))
 
@@ -97,6 +97,34 @@
   "Format a single action log entry for display."
   [{:keys [timestamp action]}]
   (str "  " timestamp " " (pr-str action)))
+
+(defn- format-sea-lane-section
+  "Format the sea lane network for the debug dump."
+  []
+  (let [network @atoms/sea-lane-network
+        nodes (:nodes network)
+        segments (:segments network)
+        node-count (count nodes)
+        seg-count (count segments)
+        header (str "=== Sea Lane Network ===\n"
+                    "nodes: " node-count " segments: " seg-count "\n")
+        node-lines (when (pos? node-count)
+                     (str/join "\n"
+                               (for [[id node] (sort-by first nodes)
+                                     :let [[r c] (:pos node)]]
+                                 (str "  node " id ": [" r "," c "]"))))
+        seg-lines (when (pos? seg-count)
+                    (str/join "\n"
+                              (for [[id seg] (sort-by first segments)
+                                    :let [node-a (get nodes (:node-a-id seg))
+                                          node-b (get nodes (:node-b-id seg))
+                                          [ar ac] (:pos node-a)
+                                          [br bc] (:pos node-b)]]
+                                (str "  seg " id ": [" ar "," ac "]->[" br "," bc "] length:" (:length seg)))))]
+    (str header
+         (when node-lines (str node-lines "\n"))
+         (when seg-lines (str seg-lines "\n"))
+         "\n")))
 
 (defn- format-map-section
   "Format a map section (game-map, player-map, or computer-map) for display."
@@ -138,13 +166,14 @@
                                "  (none)\n"
                                (str (str/join "\n" (map format-action-entry actions)) "\n"))
                              "\n")
+        sea-lane-section (format-sea-lane-section)
         maps-section (str "=== Map Data ===\n"
                           (format-map-section "game-map" (:game-map region-data))
                           "\n"
                           (format-map-section "player-map" (:player-map region-data))
                           "\n"
                           (format-map-section "computer-map" (:computer-map region-data)))]
-    (str header global-state actions-section maps-section)))
+    (str header global-state actions-section sea-lane-section maps-section)))
 
 (defn generate-dump-filename
   "Generate a timestamped filename for the dump file.

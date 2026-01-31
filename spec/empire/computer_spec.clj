@@ -297,11 +297,11 @@
   (before (reset-all-atoms!))
 
   (it "process-computer-city sets production"
-    (reset! atoms/game-map (build-test-map ["X#"]))
-    (reset! atoms/computer-map (build-test-map ["X#"]))
+    (reset! atoms/game-map (build-test-map ["X+#"]))
+    (reset! atoms/computer-map (build-test-map ["X+#"]))
     (reset! atoms/production {})
     (computer-production/process-computer-city [0 0])
-    ;; Production should be set
+    ;; Production should be set (free city on continent provides an army objective)
     (should-not-be-nil (get @atoms/production [0 0]))))
 
 ;; ============================================================================

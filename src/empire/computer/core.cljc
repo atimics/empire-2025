@@ -61,14 +61,28 @@
              (= :land (:type (get-in @atoms/game-map pos))))
     (swap! atoms/game-map assoc-in (conj pos :country-id) (:country-id unit))))
 
+(defn- foreign-territory?
+  "Returns true if unit is a computer army with a country-id and the target
+   land cell has a different country-id. Cities are always passable."
+  [unit to-cell]
+  (and (= :army (:type unit))
+       (= :computer (:owner unit))
+       (:country-id unit)
+       (= :land (:type to-cell))
+       (:country-id to-cell)
+       (not= (:country-id unit) (:country-id to-cell))))
+
 (defn move-unit-to
-  "Moves a unit from from-pos to to-pos. Returns to-pos if moved, nil if target occupied."
+  "Moves a unit from from-pos to to-pos. Returns to-pos if moved, nil if target
+   occupied or blocked by sovereignty."
   [from-pos to-pos]
   (let [from-cell (get-in @atoms/game-map from-pos)
         to-cell (get-in @atoms/game-map to-pos)
         unit (:contents from-cell)]
-    (if (:contents to-cell)
-      nil
+    (cond
+      (:contents to-cell) nil
+      (foreign-territory? unit to-cell) nil
+      :else
       (do
         (swap! atoms/game-map assoc-in from-pos (dissoc from-cell :contents))
         (swap! atoms/game-map assoc-in (conj to-pos :contents) unit)

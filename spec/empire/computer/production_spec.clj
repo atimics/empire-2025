@@ -50,9 +50,9 @@
     (reset! atoms/computer-map (build-test-map ["~X+"]))
     (should= :army (production/decide-production [0 1])))
 
-  (it "country city produces fighter when all per-country and global caps met"
+  (it "country city produces fighter via per-country priority when 0 fighters exist"
     ;; Coastal city with country-id 1, 2 transports (with escorts), 10 armies, 1 patrol boat
-    ;; All per-country priorities met. No carriers, so global priorities don't fire.
+    ;; All per-country priorities met except fighters (0 < 2). Per-country fighter priority fires.
     (reset! atoms/game-map (build-test-map ["~X#aaaaaaaaaattdd~p"]))
     (reset! atoms/computer-map @atoms/game-map)
     (swap! atoms/game-map assoc-in [0 1 :country-id] 1)
@@ -86,34 +86,23 @@
     ;; Continent has free city - should produce army
     (should= :army (production/decide-production [0 0])))
 
-  (it "landlocked city produces army or fighter only"
+  (it "landlocked non-country city with no objectives produces nil"
     (reset! atoms/game-map (build-test-map ["###"
                                              "#X#"
                                              "###"]))
     (reset! atoms/computer-map (build-test-map ["###"
                                                  "#X#"
                                                  "###"]))
-    (let [unit-type (production/decide-production [1 1])]
-      (should (#{:army :fighter} unit-type))))
+    (should-be-nil (production/decide-production [1 1])))
 
-  (it "coastal city can produce naval units"
-    ;; With many cities, ratio allows naval production
-    (reset! atoms/game-map (build-test-map ["~X~X~X~X~X~X~X~X~X~X~"]))
-    (reset! atoms/computer-map (build-test-map ["~X~X~X~X~X~X~X~X~X~X~"]))
-    ;; After many units exist, should eventually produce naval
-    (reset! atoms/game-map
-            (vec (concat
-                   [(vec (concat [{:type :city :city-status :computer}]
-                                 (repeat 20 {:type :sea})))]
-                   ;; Add some existing armies
-                   [(vec (concat
-                           (for [_ (range 10)]
-                             {:type :land :contents {:type :army :owner :computer}})
-                           (repeat 11 {:type :sea})))])))
-    (reset! atoms/computer-map @atoms/game-map)
-    ;; With 10+ existing armies, coastal city might produce transport
-    (let [unit-type (production/decide-production [0 0])]
-      (should-not-be-nil unit-type))))
+  (it "coastal country city with 6+ armies produces transport"
+    ;; Coastal city with country-id 1, 6 armies with country-id 1, 0 transports
+    (reset! atoms/game-map (build-test-map ["~X#aaaaaa"]))
+    (reset! atoms/computer-map (build-test-map ["~X#aaaaaa"]))
+    (swap! atoms/game-map assoc-in [0 1 :country-id] 1)
+    (doseq [col (range 3 9)]
+      (swap! atoms/game-map assoc-in [0 col :contents :country-id] 1))
+    (should= :transport (production/decide-production [0 1]))))
 
 (describe "country-aware production"
   (before (reset-all-atoms!))
@@ -184,11 +173,12 @@
     (reset! atoms/production {[0 1] {:item :army :remaining-rounds 3}})
     (should-not= :army (production/decide-production [0 3])))
 
-  (it "non-country city without objectives falls through to global priorities"
-    ;; City with no country-id and no objectives on continent falls to global (fighter fallback)
+  (it "non-country city without objectives produces nil when all global priorities met"
+    ;; City with no country-id and no objectives on continent falls to global
+    ;; With no carrier/BB/sub/satellite needs, city stays idle (no overproduction)
     (reset! atoms/game-map (build-test-map ["~X#"]))
     (reset! atoms/computer-map (build-test-map ["~X#"]))
-    (should= :fighter (production/decide-production [0 1]))))
+    (should-be-nil (production/decide-production [0 1]))))
 
 (describe "satellite production gate"
   (before (reset-all-atoms!))
@@ -232,9 +222,10 @@
 (describe "process-computer-city"
   (before (reset-all-atoms!))
 
-  (it "sets production when none exists"
-    (reset! atoms/game-map (build-test-map ["X#"]))
-    (reset! atoms/computer-map (build-test-map ["X#"]))
+  (it "sets production when none exists and city has an objective"
+    ;; City with a free city on its continent — produces army
+    (reset! atoms/game-map (build-test-map ["X+#"]))
+    (reset! atoms/computer-map (build-test-map ["X+#"]))
     (reset! atoms/production {})
     (production/process-computer-city [0 0])
     (should-not-be-nil (get @atoms/production [0 0])))
@@ -498,7 +489,7 @@
     (swap! atoms/game-map assoc-in [0 19 :contents :country-id] 1)
     (should= :fighter (production/decide-production [0 1])))
 
-  (it "does not produce fighter per-country when country already has 2 fighters"
+  (it "produces nil when country already has 2 fighters and all priorities met"
     ;; Same setup but with 2 fighters with matching country-id
     (reset! atoms/game-map (build-test-map ["~X#aaaaaaaaaattdd~pff"]))
     (reset! atoms/computer-map @atoms/game-map)
@@ -515,9 +506,6 @@
     ;; Assign country-id to both fighters at cols 19 and 20
     (swap! atoms/game-map assoc-in [0 19 :contents :country-id] 1)
     (swap! atoms/game-map assoc-in [0 20 :contents :country-id] 1)
-    ;; Per-country fighter priority should NOT fire; falls through to global fighter fallback
-    ;; Result is still :fighter but via global, not per-country.
-    ;; To verify it's NOT the per-country path, we check decide-country-production returns nil.
-    (let [result (production/decide-production [0 1])]
-      ;; Still produces fighter (via global fallback), but per-country returns nil
-      (should= :fighter result))))
+    ;; Per-country fighter priority should NOT fire (2 fighters >= limit of 2).
+    ;; Global fallback is nil — city stays idle to prevent overproduction.
+    (should-be-nil (production/decide-production [0 1]))))

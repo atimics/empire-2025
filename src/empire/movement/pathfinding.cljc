@@ -3,7 +3,8 @@
    Provides efficient pathfinding that respects terrain constraints."
   (:require [empire.atoms :as atoms]
             [empire.computer.core :as core]
-            [empire.units.dispatcher :as dispatcher]))
+            [empire.units.dispatcher :as dispatcher]
+            [empire.movement.sea-lanes :as sea-lanes]))
 
 (def path-cache
   "Cache for computed paths: {[start goal unit-type] path-vector}"
@@ -41,13 +42,17 @@
    [1 -1]  [1 0]  [1 1]])
 
 (defn get-passable-neighbors
-  "Returns neighbors that the unit type can traverse."
-  [pos unit-type game-map]
-  (let [[x y] pos]
-    (filter (fn [[nx ny]]
-              (let [cell (get-in game-map [nx ny])]
-                (passable? unit-type cell)))
-            (map (fn [[dx dy]] [(+ x dx) (+ y dy)]) neighbor-offsets))))
+  "Returns neighbors that the unit type can traverse.
+   When passability-fn is provided, uses it instead of the default passable? check."
+  ([pos unit-type game-map]
+   (get-passable-neighbors pos unit-type game-map nil))
+  ([pos unit-type game-map passability-fn]
+   (let [[x y] pos
+         check-fn (or passability-fn (partial passable? unit-type))]
+     (filter (fn [[nx ny]]
+               (let [cell (get-in game-map [nx ny])]
+                 (check-fn cell)))
+             (map (fn [[dx dy]] [(+ x dx) (+ y dy)]) neighbor-offsets)))))
 
 (defn- reconstruct-path
   "Walks came-from map from goal back to start, returns path vector [start ... goal]."
@@ -63,52 +68,111 @@
   "Finds shortest path from start to goal for unit-type.
    Returns vector of positions from start to goal (inclusive), or nil if no path.
    Uses A* with came-from map for path reconstruction and a counter for
-   tiebreaking in the sorted-set priority queue."
+   tiebreaking in the sorted-set priority queue.
+   When passability-fn is provided, uses it instead of default passable? check."
+  ([start goal unit-type game-map]
+   (a-star start goal unit-type game-map nil))
+  ([start goal unit-type game-map passability-fn]
+   (if (= start goal)
+     [start]
+     (loop [open-set (sorted-set [(heuristic start goal) 0 0 start])
+            closed-set #{}
+            best-g {start 0}
+            came-from {}
+            counter 1]
+       (when-let [[_f g _cnt current] (first open-set)]
+         (cond
+           ;; Reached goal
+           (= current goal)
+           (reconstruct-path came-from start goal)
+
+           ;; Already processed this node with better cost
+           (closed-set current)
+           (recur (disj open-set (first open-set)) closed-set best-g came-from counter)
+
+           :else
+           (let [new-closed (conj closed-set current)
+                 neighbors (get-passable-neighbors current unit-type game-map passability-fn)
+                 valid-neighbors (remove closed-set neighbors)
+                 new-g (inc g)
+                 {:keys [better new-best-g new-came-from new-counter]}
+                 (reduce (fn [{:keys [better new-best-g new-came-from new-counter]} n]
+                           (let [existing-g (get new-best-g n Long/MAX_VALUE)]
+                             (if (< new-g existing-g)
+                               {:better (conj better [n new-counter])
+                                :new-best-g (assoc new-best-g n new-g)
+                                :new-came-from (assoc new-came-from n current)
+                                :new-counter (inc new-counter)}
+                               {:better better
+                                :new-best-g new-best-g
+                                :new-came-from new-came-from
+                                :new-counter new-counter})))
+                         {:better [] :new-best-g best-g :new-came-from came-from :new-counter counter}
+                         valid-neighbors)
+                 new-entries (for [[n cnt] better
+                                   :let [new-f (+ new-g (heuristic n goal))]]
+                               [new-f new-g cnt n])]
+             (recur (into (disj open-set (first open-set)) new-entries)
+                    new-closed
+                    new-best-g
+                    new-came-from
+                    new-counter))))))))
+
+(defn bounded-a-star
+  "Radius-limited variant of a-star. Only explores cells within radius of the
+   midpoint between start and goal. Returns path vector or nil."
   [start goal unit-type game-map]
   (if (= start goal)
     [start]
-    (loop [open-set (sorted-set [(heuristic start goal) 0 0 start])
-           closed-set #{}
-           best-g {start 0}
-           came-from {}
-           counter 1]
-      (when-let [[_f g _cnt current] (first open-set)]
-        (cond
-          ;; Reached goal
-          (= current goal)
-          (reconstruct-path came-from start goal)
+    (let [[sr sc] start
+          [gr gc] goal
+          mid-r (quot (+ sr gr) 2)
+          mid-c (quot (+ sc gc) 2)
+          radius (+ (max (Math/abs (- sr gr)) (Math/abs (- sc gc))) 5)
+          in-bounds? (fn [[r c]]
+                       (and (<= (Math/abs (- r mid-r)) radius)
+                            (<= (Math/abs (- c mid-c)) radius)))]
+      (loop [open-set (sorted-set [(heuristic start goal) 0 0 start])
+             closed-set #{}
+             best-g {start 0}
+             came-from {}
+             counter 1]
+        (when-let [[_f g _cnt current] (first open-set)]
+          (cond
+            (= current goal)
+            (reconstruct-path came-from start goal)
 
-          ;; Already processed this node with better cost
-          (closed-set current)
-          (recur (disj open-set (first open-set)) closed-set best-g came-from counter)
+            (closed-set current)
+            (recur (disj open-set (first open-set)) closed-set best-g came-from counter)
 
-          :else
-          (let [new-closed (conj closed-set current)
-                neighbors (get-passable-neighbors current unit-type game-map)
-                valid-neighbors (remove closed-set neighbors)
-                new-g (inc g)
-                {:keys [better new-best-g new-came-from new-counter]}
-                (reduce (fn [{:keys [better new-best-g new-came-from new-counter]} n]
-                          (let [existing-g (get new-best-g n Long/MAX_VALUE)]
-                            (if (< new-g existing-g)
-                              {:better (conj better [n new-counter])
-                               :new-best-g (assoc new-best-g n new-g)
-                               :new-came-from (assoc new-came-from n current)
-                               :new-counter (inc new-counter)}
-                              {:better better
-                               :new-best-g new-best-g
-                               :new-came-from new-came-from
-                               :new-counter new-counter})))
-                        {:better [] :new-best-g best-g :new-came-from came-from :new-counter counter}
-                        valid-neighbors)
-                new-entries (for [[n cnt] better
-                                  :let [new-f (+ new-g (heuristic n goal))]]
-                              [new-f new-g cnt n])]
-            (recur (into (disj open-set (first open-set)) new-entries)
-                   new-closed
-                   new-best-g
-                   new-came-from
-                   new-counter)))))))
+            :else
+            (let [new-closed (conj closed-set current)
+                  neighbors (filter in-bounds?
+                                    (get-passable-neighbors current unit-type game-map))
+                  valid-neighbors (remove closed-set neighbors)
+                  new-g (inc g)
+                  {:keys [better new-best-g new-came-from new-counter]}
+                  (reduce (fn [{:keys [better new-best-g new-came-from new-counter]} n]
+                            (let [existing-g (get new-best-g n Long/MAX_VALUE)]
+                              (if (< new-g existing-g)
+                                {:better (conj better [n new-counter])
+                                 :new-best-g (assoc new-best-g n new-g)
+                                 :new-came-from (assoc new-came-from n current)
+                                 :new-counter (inc new-counter)}
+                                {:better better
+                                 :new-best-g new-best-g
+                                 :new-came-from new-came-from
+                                 :new-counter new-counter})))
+                          {:better [] :new-best-g best-g :new-came-from came-from :new-counter counter}
+                          valid-neighbors)
+                  new-entries (for [[n cnt] better
+                                    :let [new-f (+ new-g (heuristic n goal))]]
+                                [new-f new-g cnt n])]
+              (recur (into (disj open-set (first open-set)) new-entries)
+                     new-closed
+                     new-best-g
+                     new-came-from
+                     new-counter))))))))
 
 (defn sea-reaches-edge?
   "BFS flood-fill from pos over sea cells. Returns true if any
@@ -235,27 +299,53 @@
         result))))
 
 (defn- cache-sub-paths!
-  "Caches all sub-paths of a computed path so subsequent steps are O(1) lookups."
-  [path goal unit-type]
+  "Caches all sub-paths of a computed path so subsequent steps are O(1) lookups.
+   cache-key-extra distinguishes paths with different passability constraints."
+  [path goal unit-type cache-key-extra]
   (loop [remaining path]
     (when (>= (count remaining) 2)
-      (swap! path-cache assoc [(first remaining) goal unit-type] remaining)
+      (swap! path-cache assoc [(first remaining) goal unit-type cache-key-extra] remaining)
       (recur (subvec remaining 1)))))
+
+(def ^:private naval-types
+  #{:transport :destroyer :submarine :carrier :battleship :patrol-boat})
+
+(defn- try-network-route
+  "Attempts to route through the sea lane network for naval units.
+   Returns a path or nil."
+  [start goal unit-type]
+  (when (naval-types unit-type)
+    (let [network @atoms/sea-lane-network
+          game-map @atoms/game-map]
+      (sea-lanes/route-through-network network start goal unit-type game-map bounded-a-star))))
 
 (defn next-step
   "Returns the next step toward goal, or nil if unreachable or already at goal.
    This is the main function computer.cljc will call.
    Uses caching to avoid recomputing paths. Caches sub-paths so that
-   subsequent steps along the same path are O(1) lookups."
-  [start goal unit-type]
-  (if (= start goal)
-    nil
-    (let [cache-key [start goal unit-type]
-          cached (get @path-cache cache-key)]
-      (if cached
-        (second cached)
-        (let [game-map @atoms/game-map
-              path (a-star start goal unit-type game-map)]
-          (when path
-            (cache-sub-paths! path goal unit-type)
-            (second path)))))))
+   subsequent steps along the same path are O(1) lookups.
+   When passability-fn and cache-key-extra are provided, uses custom passability
+   and includes cache-key-extra in the cache key."
+  ([start goal unit-type]
+   (next-step start goal unit-type nil nil))
+  ([start goal unit-type passability-fn cache-key-extra]
+   (if (= start goal)
+     nil
+     (let [cache-key [start goal unit-type cache-key-extra]
+           cached (get @path-cache cache-key)]
+       (if cached
+         (second cached)
+         ;; Try network route for naval units without custom passability
+         (or (when-not passability-fn
+               (when-let [net-path (try-network-route start goal unit-type)]
+                 (cache-sub-paths! net-path goal unit-type cache-key-extra)
+                 (second net-path)))
+             ;; Fall back to full A*
+             (let [game-map @atoms/game-map
+                   path (a-star start goal unit-type game-map passability-fn)]
+               (when path
+                 ;; Record path into sea lane network for naval types
+                 (when (and (naval-types unit-type) (not passability-fn))
+                   (sea-lanes/record-path! path))
+                 (cache-sub-paths! path goal unit-type cache-key-extra)
+                 (second path)))))))))

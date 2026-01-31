@@ -4,7 +4,8 @@
             [empire.movement.map-utils :as map-utils]
             [empire.containers.helpers :as uc]
             [empire.movement.visibility :as visibility]
-            [empire.units.dispatcher :as dispatcher]))
+            [empire.units.dispatcher :as dispatcher]
+            [empire.player.production :as production]))
 
 ;; Transport operations
 
@@ -209,11 +210,12 @@
                 :player :player
                 :computer :computer
                 :player)  ; default to player for free cities
-        ship {:type (:type ship-data)
-              :owner owner
-              :hits (:hits ship-data)
-              :mode :awake
-              :steps-remaining (dispatcher/effective-speed (:type ship-data) (:hits ship-data))}
+        ship (-> {:type (:type ship-data)
+                  :owner owner
+                  :hits (:hits ship-data)
+                  :mode :awake
+                  :steps-remaining (dispatcher/effective-speed (:type ship-data) (:hits ship-data))}
+                 (production/stamp-unit-fields cell))
         updated-city (uc/remove-ship-from-shipyard cell ship-index)]
     (swap! atoms/game-map assoc-in city-coords (assoc updated-city :contents ship))
     (visibility/update-cell-visibility city-coords owner)))

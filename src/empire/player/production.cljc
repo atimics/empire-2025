@@ -96,6 +96,22 @@
       (assoc unit :destroyer-id id :escort-mode :seeking))
     unit))
 
+(defn stamp-unit-fields
+  "Applies all type-specific fields to a unit based on its :type and :owner.
+   Used by spawn-unit and launch-ship-from-shipyard to ensure computer ships
+   get their required fields (carrier-mode, escort-id, etc.).
+   cell is the city cell (needed for country-id / patrol fields); may be nil."
+  [unit cell]
+  (let [item (:type unit)
+        owner (:owner unit)]
+    (-> unit
+        (apply-unit-type-attributes item owner)
+        (apply-destroyer-fields item owner)
+        (apply-carrier-fields item owner)
+        (apply-escort-fields item owner)
+        (apply-country-id item cell)
+        (apply-patrol-fields item cell))))
+
 (defn- apply-coast-walk-fields
   "Stamps coast-walk mode on first 2 computer armies per country.
    First army gets clockwise, second gets counter-clockwise."
@@ -130,12 +146,7 @@
         marching-orders (:marching-orders cell)
         flight-path (:flight-path cell)
         unit (-> (create-base-unit item owner)
-                 (apply-unit-type-attributes item owner)
-                 (apply-destroyer-fields item owner)
-                 (apply-carrier-fields item owner)
-                 (apply-escort-fields item owner)
-                 (apply-country-id item cell)
-                 (apply-patrol-fields item cell)
+                 (stamp-unit-fields cell)
                  (apply-coast-walk-fields item cell coords)
                  (apply-movement-orders item marching-orders flight-path))]
     (swap! atoms/game-map assoc-in (conj coords :contents) unit)

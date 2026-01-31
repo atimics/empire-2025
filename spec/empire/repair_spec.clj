@@ -6,7 +6,8 @@
             [empire.test-utils :as tu]
             [empire.movement.movement :as movement]
             [empire.game-loop :as game-loop]
-            [empire.containers.ops :as container-ops]))
+            [empire.containers.ops :as container-ops]
+            [empire.player.production :as production]))
 
 (describe "Shipyard helpers"
   (describe "add-ship-to-shipyard"
@@ -294,6 +295,76 @@
       (swap! atoms/game-map assoc-in [0 1 :shipyard] [{:type :battleship :hits 5}])
       (container-ops/launch-ship-from-shipyard [0 1] 0)
       (let [ship (get-in @atoms/game-map [0 1 :contents])]
-        (should= 1 (:steps-remaining ship))))))
+        (should= 1 (:steps-remaining ship)))))
+
+  (it "stamps carrier fields on computer carrier"
+    (let [game-map (tu/build-test-map ["~X~"])]
+      (reset! atoms/game-map game-map)
+      (swap! atoms/game-map assoc-in [0 1 :shipyard] [{:type :carrier :hits 8}])
+      (container-ops/launch-ship-from-shipyard [0 1] 0)
+      (let [ship (get-in @atoms/game-map [0 1 :contents])]
+        (should= :carrier (:type ship))
+        (should= :computer (:owner ship))
+        (should= :positioning (:carrier-mode ship))
+        (should (integer? (:carrier-id ship)))
+        (should= nil (:group-battleship-id ship))
+        (should= [] (:group-submarine-ids ship)))))
+
+  (it "stamps destroyer fields on computer destroyer"
+    (let [game-map (tu/build-test-map ["~X~"])]
+      (reset! atoms/game-map game-map)
+      (swap! atoms/game-map assoc-in [0 1 :shipyard] [{:type :destroyer :hits 3}])
+      (container-ops/launch-ship-from-shipyard [0 1] 0)
+      (let [ship (get-in @atoms/game-map [0 1 :contents])]
+        (should= :destroyer (:type ship))
+        (should= :computer (:owner ship))
+        (should (integer? (:destroyer-id ship)))
+        (should= :seeking (:escort-mode ship)))))
+
+  (it "stamps escort fields on computer battleship"
+    (let [game-map (tu/build-test-map ["~X~"])]
+      (reset! atoms/game-map game-map)
+      (swap! atoms/game-map assoc-in [0 1 :shipyard] [{:type :battleship :hits 10}])
+      (container-ops/launch-ship-from-shipyard [0 1] 0)
+      (let [ship (get-in @atoms/game-map [0 1 :contents])]
+        (should= :battleship (:type ship))
+        (should= :computer (:owner ship))
+        (should (integer? (:escort-id ship)))
+        (should= :seeking (:escort-mode ship)))))
+
+  (it "stamps transport fields on computer transport"
+    (let [game-map (tu/build-test-map ["~X~"])]
+      (reset! atoms/game-map game-map)
+      (swap! atoms/game-map assoc-in [0 1 :shipyard] [{:type :transport :hits 3}])
+      (container-ops/launch-ship-from-shipyard [0 1] 0)
+      (let [ship (get-in @atoms/game-map [0 1 :contents])]
+        (should= :transport (:type ship))
+        (should= :computer (:owner ship))
+        (should= :idle (:transport-mission ship))
+        (should (integer? (:transport-id ship))))))
+
+  (it "stamps patrol fields on computer patrol-boat from country city"
+    (let [game-map (tu/build-test-map ["~X~"])]
+      (reset! atoms/game-map game-map)
+      (swap! atoms/game-map assoc-in [0 1 :country-id] 5)
+      (swap! atoms/game-map assoc-in [0 1 :shipyard] [{:type :patrol-boat :hits 2}])
+      (container-ops/launch-ship-from-shipyard [0 1] 0)
+      (let [ship (get-in @atoms/game-map [0 1 :contents])]
+        (should= :patrol-boat (:type ship))
+        (should= :computer (:owner ship))
+        (should= 5 (:patrol-country-id ship))
+        (should= :clockwise (:patrol-direction ship))
+        (should= :homing (:patrol-mode ship)))))
+
+  (it "does not stamp computer fields on player ships"
+    (let [game-map (tu/build-test-map ["~O~"])]
+      (reset! atoms/game-map game-map)
+      (swap! atoms/game-map assoc-in [0 1 :shipyard] [{:type :carrier :hits 8}])
+      (container-ops/launch-ship-from-shipyard [0 1] 0)
+      (let [ship (get-in @atoms/game-map [0 1 :contents])]
+        (should= :carrier (:type ship))
+        (should= :player (:owner ship))
+        (should-be-nil (:carrier-mode ship))
+        (should-be-nil (:carrier-id ship))))))
 
 (run-specs)

@@ -101,6 +101,16 @@ Functions in `input.cljc` and `rendering.cljc` that do not depend on Quil should
 
 Remove unused function arguments before committing. If an argument must be retained for API consistency (e.g., polymorphic dispatch where all implementations share the same signature), prefix it with `_` to indicate it is intentionally unused.
 
+### Parenthesis Safety
+
+LLMs lose track of parentheses in deeply nested s-expressions. Follow these practices to limit errors:
+
+1. **Smaller edits**: Use find-and-replace on specific fragments rather than rewriting whole functions.
+2. **Lower cyclomatic complexity**: Simpler functions mean shallower nesting and fewer parens to track. Keep CC <= 5.
+3. **Extract before modifying**: If changing a deeply nested branch, extract the logic into a named helper first, then modify in the simpler context.
+4. **Run tests immediately**: Run specs after every code change to catch paren errors early.
+5. **Read before editing**: Always read the current source before editing — never reconstruct code from memory.
+
 ### Test Utilities
 
 When adding new atoms to `atoms.cljc`, also add them to `reset-all-atoms!` in `test_utils.cljc`.

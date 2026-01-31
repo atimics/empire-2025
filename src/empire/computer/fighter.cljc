@@ -296,24 +296,28 @@
    Returns new position if moved and alive, :landed if landed, nil if died or stuck."
   [pos unit]
   (let [fuel (:fuel unit config/fighter-fuel)
-        target (:flight-target-site unit)]
-    ;; Priority 1: Attack adjacent enemy
-    (if-let [enemy-pos (find-adjacent-enemy pos)]
+        target (:flight-target-site unit)
+        enemy-pos (find-adjacent-enemy pos)]
+    (cond
+      ;; Priority 1: Attack adjacent enemy
+      enemy-pos
       (when-let [new-pos (attack-enemy pos enemy-pos)]
         (if (consume-fighter-fuel new-pos) new-pos nil))
 
       ;; Priority 2: Arrived at target refueling site
-      (if (and target (at-flight-target? pos target))
-        (handle-arrival pos unit)
+      (and target (at-flight-target? pos target))
+      (handle-arrival pos unit)
 
-        ;; Priority 3: Low fuel → return to nearest refueling site
-        (if (should-return-to-refuel? pos fuel)
-          (handle-low-fuel pos)
+      ;; Priority 3: Low fuel → return to nearest refueling site
+      (should-return-to-refuel? pos fuel)
+      (handle-low-fuel pos)
 
-          ;; Priority 4: Navigate toward target or patrol
-          (if target
-            (navigate-toward-target pos target fuel)
-            (handle-patrol pos)))))))
+      ;; Priority 4: Navigate toward target or patrol
+      target
+      (navigate-toward-target pos target fuel)
+
+      :else
+      (handle-patrol pos))))
 
 (defn- fighter-at?
   "Returns true if a fighter exists at pos on the game map."

@@ -147,9 +147,10 @@
   "Global production priorities. Returns unit type. CC=5."
   [coastal? unit-counts]
   (cond
-    ;; 5. Carrier: >10 cities, <2 producing, valid position
+    ;; 5. Carrier: >10 cities, <8 live, <2 producing, valid position
     (and coastal?
          (> (count-computer-cities) 10)
+         (< (get unit-counts :carrier 0) 8)
          (< (count-carrier-producers) 2)
          (ship/find-carrier-position))
     :carrier

@@ -1,6 +1,32 @@
 (ns empire.config
   (:require [empire.units.dispatcher :as dispatcher]))
 
+;; Window dimensions (pixels)
+(def window-size [1400 900])
+
+;; Font for cell-size calculation and message area text
+(def text-font-name "Courier New")
+(def text-font-size 22)
+
+;; Font for unit characters and production indicators within cells
+(def cell-char-font-name "CourierNewPS-BoldMT")
+(def cell-char-font-size 15)
+
+;; Layout of text area below the map
+(def text-area-rows 4)
+(def text-area-gap 7)
+
+;; Pixel offsets for characters drawn inside map cells
+(def cell-char-x-offset 2)
+(def cell-char-y-offset 15)
+
+;; Message area pixel offsets (relative to text-area top)
+(def msg-left-padding 10)
+(def msg-line-1-y 12)
+(def msg-line-2-y 36)
+(def msg-line-3-y 60)
+(def msg-separator-offset 4)
+
 (def smooth-count 10)
 
 (def land-fraction 0.3)

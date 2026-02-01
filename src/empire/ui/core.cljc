@@ -11,21 +11,19 @@
 (defn create-fonts
   "Creates and caches font objects."
   []
-  (reset! atoms/text-font (q/create-font "Courier New" 18))
-  (reset! atoms/production-char-font (q/create-font "CourierNewPS-BoldMT" 12)))
+  (reset! atoms/text-font (q/create-font config/text-font-name config/text-font-size))
+  (reset! atoms/production-char-font (q/create-font config/cell-char-font-name config/cell-char-font-size)))
 
 (defn compute-screen-dimensions
   "Pure calculation of screen dimensions. Returns a map with :map-size, :map-screen-dimensions, and :text-area-dimensions."
   [char-width char-height screen-w screen-h]
   (let [cols (quot screen-w char-width)
-        text-rows 4
-        text-gap 7
-        text-h (* text-rows char-height)
-        rows (quot (+ (- screen-h text-h) text-gap) char-height)
+        text-h (* config/text-area-rows char-height)
+        rows (quot (+ (- screen-h text-h) config/text-area-gap) char-height)
         map-display-w (* cols char-width)
         map-display-h (* rows char-height)
         text-x 0
-        text-y (+ map-display-h text-gap)
+        text-y (+ map-display-h config/text-area-gap)
         text-w screen-w]
     {:map-size [cols rows]
      :map-screen-dimensions [map-display-w map-display-h]
@@ -123,7 +121,7 @@
   (println "empire has begun.")
   (q/defsketch empire
                :title "Empire: Global Conquest"
-               :size :fullscreen
+               :size config/window-size
                :setup setup
                :update update-state
                :draw draw-state

@@ -26,7 +26,7 @@
         ;; Draw production character
         (let [[r g b] config/production-color]
           (q/fill r g b))
-        (q/text (config/item-chars (:item prod)) (+ (* j cell-w) 2) (+ (* i cell-h) 12))))))
+        (q/text (config/item-chars (:item prod)) (+ (* j cell-w) config/cell-char-x-offset) (+ (* i cell-h) config/cell-char-y-offset))))))
 
 
 (defn- draw-unit
@@ -38,7 +38,7 @@
           char (config/item-chars (:type display-unit))
           char (if (= :computer (:owner display-unit)) (str/lower-case char) char)]
       (q/fill r g b)
-      (q/text char (+ (* col cell-w) 2) (+ (* row cell-h) 12)))))
+      (q/text char (+ (* col cell-w) config/cell-char-x-offset) (+ (* row cell-h) config/cell-char-y-offset)))))
 
 (defn- draw-waypoint
   "Draws a waypoint marker on the map cell if it has a waypoint and no contents.
@@ -47,7 +47,7 @@
   (when (and (:waypoint cell) (nil? (:contents cell)))
     (let [[r g b] config/waypoint-color]
       (q/fill r g b)
-      (q/text "*" (+ (* col cell-w) 2) (+ (* row cell-h) 12)))))
+      (q/text "*" (+ (* col cell-w) config/cell-char-x-offset) (+ (* row cell-h) config/cell-char-y-offset)))))
 
 (defn draw-debug-selection-rectangle
   "Draws the debug selection rectangle if a drag is active.
@@ -125,13 +125,13 @@
   "Draws the main message on line 1."
   [text-x text-y]
   (when (seq @atoms/message)
-    (q/text @atoms/message (+ text-x 10) (+ text-y 10))))
+    (q/text @atoms/message (+ text-x config/msg-left-padding) (+ text-y config/msg-line-1-y))))
 
 (defn- draw-line-2
   "Draws content on line 2."
   [text-x text-y]
   (when (seq @atoms/line2-message)
-    (q/text @atoms/line2-message (+ text-x 10) (+ text-y 30))))
+    (q/text @atoms/line2-message (+ text-x config/msg-left-padding) (+ text-y config/msg-line-2-y))))
 
 (defn- draw-line-3
   "Draws flashing red warning on line 3 if active."
@@ -140,7 +140,7 @@
     (when (and (seq @atoms/line3-message)
                (map-utils/blink? 500))
       (q/fill 255 0 0)
-      (q/text @atoms/line3-message (+ text-x 10) (+ text-y 50))
+      (q/text @atoms/line3-message (+ text-x config/msg-left-padding) (+ text-y config/msg-line-3-y))
       (q/fill 255))))
 
 (defn- draw-text-right-justified
@@ -159,7 +159,7 @@
           msg-width (q/text-width @atoms/debug-message)
           msg-x (- center-x (/ msg-width 2))]
       (q/fill 0 255 255)  ;; Cyan for debug messages
-      (q/text @atoms/debug-message msg-x (+ text-y 50))
+      (q/text @atoms/debug-message msg-x (+ text-y config/msg-line-3-y))
       (q/fill 255))))
 
 (defn- draw-status
@@ -169,22 +169,22 @@
         round-str (str "Round: " @atoms/round-number)
         dest @atoms/destination
         dest-str (if dest (str "Dest: " (first dest) "," (second dest)) "")]
-    (draw-text-right-justified round-str right-edge (+ text-y 10))
+    (draw-text-right-justified round-str right-edge (+ text-y config/msg-line-1-y))
     (if (ru/should-show-paused? @atoms/paused @atoms/pause-requested)
       (do
         (q/fill 255 0 0)
-        (draw-text-right-justified "PAUSED" right-edge (+ text-y 30))
+        (draw-text-right-justified "PAUSED" right-edge (+ text-y config/msg-line-2-y))
         (q/fill 255))
-      (draw-text-right-justified dest-str right-edge (+ text-y 30)))
+      (draw-text-right-justified dest-str right-edge (+ text-y config/msg-line-2-y)))
     (when (seq @atoms/hover-message)
-      (draw-text-right-justified @atoms/hover-message right-edge (+ text-y 50)))))
+      (draw-text-right-justified @atoms/hover-message right-edge (+ text-y config/msg-line-3-y)))))
 
 (defn draw-message-area
   "Draws the message area including separator line and messages."
   []
   (let [[text-x text-y text-w _] @atoms/text-area-dimensions]
     (q/stroke 255)
-    (q/line text-x (- text-y 4) (+ text-x text-w) (- text-y 4))
+    (q/line text-x (- text-y config/msg-separator-offset) (+ text-x text-w) (- text-y config/msg-separator-offset))
     (q/text-font @atoms/text-font)
     (q/fill 255)
     (draw-line-1 text-x text-y)

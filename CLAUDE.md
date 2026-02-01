@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Empire is a Clojure implementation of the classic VMS Empire wargame - a turn-based strategy game of global conquest between a human player and computer opponent. The game uses Quil for rendering a grid-based map where players produce and command military units (armies, fighters, ships) to capture cities and destroy enemy forces. Source files use `.cljc` extension for cross-platform Clojure/ClojureScript compatibility.
 
+## Permissions
+allow git, sed, cp, ls, cat, and all standard unix tools.
+
+## Local rules
+If the working directory is named <x> then local rules will be stored in <x>.md
+
 ## Development Commands
 
 ```bash
@@ -14,7 +20,7 @@ clj -M:run
 
 # Run all tests with Speclj
 clj -M:spec
-
+ 
 # Run specific test file or directory
 clj -M:spec spec/empire/movement_spec.clj
 clj -M:spec spec/empire/units/
@@ -114,3 +120,30 @@ LLMs lose track of parentheses in deeply nested s-expressions. Follow these prac
 ### Test Utilities
 
 When adding new atoms to `atoms.cljc`, also add them to `reset-all-atoms!` in `test_utils.cljc`.
+
+## VMS Empire Reference
+
+The original VMS Empire C source code is at:
+```
+/Users/unclebob/projects/clojure/empire/Empire-for-VMS
+```
+
+Key files:
+- `compmove.c` — Computer movement logic (transport_move at line 877)
+- `data.c` — Movement objectives and direction offsets
+- `map.c` — Pathfinding, direction selection (vmap_find_dir at line 1065)
+- `empire.h` — Constants and data structures
+
+## Debug Log Files
+
+Debug logs are written to the project root directory with the pattern:
+```
+debug-YYYY-MM-DD-HHMMSS.txt
+```
+
+Example: `debug-2026-01-29-070715.txt`
+
+To find the latest debug log:
+```bash
+ls -la /Users/unclebob/projects/clojure/empire/debug-*.txt | tail -1
+```

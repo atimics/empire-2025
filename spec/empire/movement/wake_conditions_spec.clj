@@ -71,6 +71,22 @@
       (should= :cant-move-into-city (:reason result))
       (should should-wake?)))
 
+  (it "wakes army when trying to move into free city"
+    (let [unit {:type :army :mode :moving :owner :player :target [4 5] :steps-remaining 1}
+          next-cell {:type :city :city-status :free}
+          [result should-wake?] (wake-before-move unit next-cell)]
+      (should= :awake (:mode result))
+      (should= :army-found-city (:reason result))
+      (should should-wake?)))
+
+  (it "wakes army when trying to move into computer city"
+    (let [unit {:type :army :mode :moving :owner :player :target [4 5] :steps-remaining 1}
+          next-cell {:type :city :city-status :computer}
+          [result should-wake?] (wake-before-move unit next-cell)]
+      (should= :awake (:mode result))
+      (should= :army-found-city (:reason result))
+      (should should-wake?)))
+
   (it "wakes fighter when trying to fly over hostile city"
     (let [unit {:type :fighter :mode :moving :owner :player :target [4 6] :fuel 10}
           next-cell {:type :city :city-status :computer}

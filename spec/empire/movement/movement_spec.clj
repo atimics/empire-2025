@@ -808,7 +808,21 @@
   (it "returns nil for enemy city"
     (swap! atoms/game-map assoc-in [3 4]
            {:type :city :city-status :computer})
-    (should-not (wake-at [3 4]))))
+    (should-not (wake-at [3 4])))
+
+  (it "wakes armies aboard a sentry transport"
+    (swap! atoms/game-map assoc-in [3 4 :contents]
+           {:type :transport :owner :player :mode :sentry :army-count 3 :awake-armies 0})
+    (should (wake-at [3 4]))
+    (let [transport (get-in @atoms/game-map [3 4 :contents])]
+      (should= :awake (:mode transport))
+      (should= 3 (:awake-armies transport))))
+
+  (it "wakes armies aboard an already-awake transport"
+    (swap! atoms/game-map assoc-in [3 4 :contents]
+           {:type :transport :owner :player :mode :awake :army-count 4 :awake-armies 0})
+    (should (wake-at [3 4]))
+    (should= 4 (get-in @atoms/game-map [3 4 :contents :awake-armies]))))
 
 (describe "combat during movement"
   (before (reset-all-atoms!))

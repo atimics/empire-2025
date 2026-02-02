@@ -72,6 +72,9 @@
     (and (= (:type unit) :army) (= (:type next-cell) :city) (= (:city-status next-cell) :player))
     :cant-move-into-city
 
+    (and (= (:type unit) :army) (= (:type next-cell) :city) (config/hostile-city? (:city-status next-cell)))
+    :army-found-city
+
     (and (= (:type unit) :fighter)
          (= (:type next-cell) :city)
          (config/hostile-city? (:city-status next-cell)))

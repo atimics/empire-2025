@@ -368,6 +368,7 @@
 
 (defn wake-at
   "Wakes a city (removes production so it needs attention) or a sleeping unit.
+   For transports with armies, also wakes the armies aboard.
    Returns true if something was woken, nil otherwise."
   [[cx cy]]
   (let [cell (get-in @atoms/game-map [cx cy])
@@ -377,6 +378,17 @@
       (and (= (:type cell) :city)
            (= (:city-status cell) :player))
       (do (swap! atoms/production dissoc [cx cy])
+          true)
+
+      ;; Wake a player transport with armies - wake transport and armies
+      (and contents
+           (= (:owner contents) :player)
+           (= (:type contents) :transport)
+           (pos? (:army-count contents 0)))
+      (do (swap! atoms/game-map update-in [cx cy :contents]
+                 #(-> %
+                      (assoc :mode :awake)
+                      (uc/wake-all :army-count :awake-armies)))
           true)
 
       ;; Wake a sleeping/sentry/explore friendly unit (not already awake)

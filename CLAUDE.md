@@ -24,7 +24,8 @@ Rules:
 - Before a push, ask whether acceptance tests should be run.
 - On failure, report file name and line number of the first GIVEN line.
 - If a directive is ambiguous, report the ambiguity rather than guessing.
-- Tests are translated to temporary Speclj specs and run with `clj -M:spec`.
+- Tests are translated to Speclj specs in `generated-acceptance-specs/` and run with `clj -M:spec`.
+- Generated specs in `generated-acceptance-specs/` should be committed after regeneration.
 
 ## Development Commands
 

@@ -2,15 +2,18 @@
 
 ## Overview
 
-Acceptance tests are plain-text `.txt` files in the `acceptanceTests/` directory, written in Given/When/Then format. Claude Code is the test runner — it reads each `.txt` file, interprets the directives, translates each test into a temporary Speclj spec file, and runs it with `clj -M:spec`. The source filename and GIVEN line number are embedded in the spec's `it` description so that failures trace back to the original acceptance test.
+Acceptance tests are plain-text `.txt` files in the `acceptanceTests/` directory, written in Given/When/Then format. Claude Code is the test runner — it reads each `.txt` file, interprets the directives, translates each test into a Speclj spec file in `generated-acceptance-specs/`, and runs it with `clj -M:spec`. The source filename and GIVEN line number are embedded in the spec's `it` description so that failures trace back to the original acceptance test.
 
 ## Execution Mechanism
 
-Claude translates each acceptance test into a temporary Speclj spec file in the scratchpad directory. Each test (GIVEN...WHEN...THEN group) becomes one `it` block. The `it` description contains the source filename and line number of the first GIVEN line, plus the preceding comment as a human-readable label.
+Generated specs live in `generated-acceptance-specs/` at the project root, tracked in git. Claude translates each acceptance test into a Speclj spec file in that directory. Each test (GIVEN...WHEN...THEN group) becomes one `it` block. The `it` description contains the source filename and line number of the first GIVEN line, plus the preceding comment as a human-readable label.
+
+- Naming convention: `acceptanceTests/transports.txt` → `generated-acceptance-specs/acceptance/transports_spec.clj`
+- Namespace convention: `acceptance.transports-spec`
 
 ### Generated Spec Structure
 
-For a file `acceptanceTests/fighter-fuel-attention.txt` with a test starting at line 3:
+For a file `acceptanceTests/fighter-fuel-attention.txt` with a test starting at line 3, the generated spec lives at `generated-acceptance-specs/acceptance/fighter_fuel_attention_spec.clj`:
 
 ```clojure
 (ns acceptance.fighter-fuel-attention-spec
@@ -45,12 +48,12 @@ For a file `acceptanceTests/fighter-fuel-attention.txt` with a test starting at 
 
 ### Execution Flow
 
-1. Read each `.txt` file from `acceptanceTests/`.
-2. Parse into tests (each GIVEN...WHEN...THEN group).
-3. Generate a temporary `.clj` spec file in the scratchpad directory.
-4. Run with `clj -M:spec <path-to-generated-spec>`.
-5. Report results. Speclj failure output will include the `it` description which contains the source file and line number.
-6. The temporary spec file is disposable — regenerated fresh each run.
+1. For each `.txt` file in `acceptanceTests/`:
+   a. Compute the corresponding spec path in `generated-acceptance-specs/acceptance/`.
+   b. Compare file modification dates: if the spec doesn't exist, or the `.txt` is newer than the `.clj`, regenerate the spec.
+   c. If the spec is up-to-date, skip regeneration.
+2. Run all specs: `clj -M:spec generated-acceptance-specs/`.
+3. Report results. Speclj failure output will include the `it` description which contains the source file and line number.
 
 ### Failure Reporting
 
@@ -60,10 +63,10 @@ When a test fails, Speclj displays:
 1) fighter-fuel-attention.txt:3 - Regular fighter shows fuel in attention message
    Expected: "fuel:20"
    to be in: "fighter needs attention"
-   /path/to/scratchpad/acceptance_fighter_fuel_attention_spec.clj:14
+   generated-acceptance-specs/acceptance/fighter_fuel_attention_spec.clj:14
 ```
 
-The `it` description traces back to the acceptance test source. The Speclj file path points to the generated spec for debugging the translation if needed.
+The `it` description traces back to the acceptance test source. The generated spec file path is a stable, version-controlled path, making failures easier to debug.
 
 ## File Format
 
@@ -298,13 +301,14 @@ THEN destination is [3 7].
 3. Before a push, ask whether acceptance tests should be run.
 4. On failure, report file name and line number of the first GIVEN line of the failing test.
 5. If a directive is ambiguous, report the ambiguity rather than guessing.
+6. Generated specs in `generated-acceptance-specs/` should be committed after regeneration.
 
 ## CLAUDE.md Updates
 
 The Acceptance Tests section in CLAUDE.md should be updated to:
 - Reference this plan for the full directive catalog.
-- Include the five rules above.
-- Note that acceptance tests are translated to temporary Speclj specs and run with `clj -M:spec`.
+- Include the six rules above.
+- Note that acceptance tests are translated to Speclj specs in `generated-acceptance-specs/` and run with `clj -M:spec`.
 
 ## Example Acceptance Test File
 

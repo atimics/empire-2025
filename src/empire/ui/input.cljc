@@ -195,7 +195,7 @@
 (defn- handle-unload-key [coords cell]
   (let [contents (:contents cell)]
     (cond
-      (uc/transport-at-beach? contents)
+      (uc/transport-with-armies? contents)
       (do (container-ops/wake-armies-on-transport coords)
           (game-loop/item-processed)
           true)

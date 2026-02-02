@@ -50,6 +50,12 @@
   [entity count-key capacity]
   (>= (get entity count-key 0) capacity))
 
+(defn transport-with-armies?
+  "Returns true if the unit is a transport with armies aboard."
+  [contents]
+  (and (= (:type contents) :transport)
+       (pos? (:army-count contents 0))))
+
 (defn transport-at-beach?
   "Returns true if the unit is a transport with armies aboard that can unload.
    Accepts transports with beach/bay reason or awake transports with no reason."

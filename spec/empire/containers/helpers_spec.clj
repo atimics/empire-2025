@@ -83,6 +83,19 @@
   (it "returns false when count is missing"
     (should-not (uc/full? {} :army-count 6))))
 
+(describe "transport-with-armies?"
+  (it "returns true for transport with armies"
+    (should (uc/transport-with-armies? {:type :transport :army-count 3})))
+
+  (it "returns false for transport with no armies"
+    (should-not (uc/transport-with-armies? {:type :transport :army-count 0})))
+
+  (it "returns false for transport with nil army-count"
+    (should-not (uc/transport-with-armies? {:type :transport})))
+
+  (it "returns false for non-transport"
+    (should-not (uc/transport-with-armies? {:type :carrier :army-count 3}))))
+
 (describe "transport-at-beach?"
   (it "returns true for transport at beach with armies"
     (should (uc/transport-at-beach? {:type :transport :reason :transport-at-beach :army-count 2})))

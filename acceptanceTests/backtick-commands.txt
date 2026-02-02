@@ -1,0 +1,142 @@
+; Backtick-prefixed debug commands for spawning units and owning cities.
+
+;===============================================================
+; Spawn player army on land.
+;===============================================================
+GIVEN game map
+  ##
+
+WHEN the mouse is at cell [0 0] and the player presses backtick then A.
+
+THEN there is an A at [0 0].
+THEN A has owner player.
+
+;===============================================================
+; Spawn player fighter on land.
+;===============================================================
+GIVEN game map
+  ##
+
+WHEN the mouse is at cell [0 0] and the player presses backtick then F.
+
+THEN there is an F at [0 0].
+THEN F has owner player.
+
+;===============================================================
+; Spawn player transport on sea.
+;===============================================================
+GIVEN game map
+  ~~
+
+WHEN the mouse is at cell [0 0] and the player presses backtick then T.
+
+THEN there is a T at [0 0].
+THEN T has owner player.
+
+;===============================================================
+; Spawn player destroyer on sea.
+;===============================================================
+GIVEN game map
+  ~~
+
+WHEN the mouse is at cell [0 0] and the player presses backtick then D.
+
+THEN there is a D at [0 0].
+THEN D has owner player.
+
+;===============================================================
+; Spawn player carrier on sea.
+;===============================================================
+GIVEN game map
+  ~~
+
+WHEN the mouse is at cell [0 0] and the player presses backtick then C.
+
+THEN there is a C at [0 0].
+THEN C has owner player.
+
+;===============================================================
+; Spawn player submarine on sea.
+;===============================================================
+GIVEN game map
+  ~~
+
+WHEN the mouse is at cell [0 0] and the player presses backtick then S.
+
+THEN there is an S at [0 0].
+THEN S has owner player.
+
+;===============================================================
+; Spawn player patrol-boat on sea.
+;===============================================================
+GIVEN game map
+  ~~
+
+WHEN the mouse is at cell [0 0] and the player presses backtick then P.
+
+THEN there is a P at [0 0].
+THEN P has owner player.
+
+;===============================================================
+; Spawn player battleship on sea.
+;===============================================================
+GIVEN game map
+  ~~
+
+WHEN the mouse is at cell [0 0] and the player presses backtick then B.
+
+THEN there is a B at [0 0].
+THEN B has owner player.
+
+;===============================================================
+; Spawn player satellite on land.
+;===============================================================
+GIVEN game map
+  ##
+
+WHEN the mouse is at cell [0 0] and the player presses backtick then Z.
+
+THEN there is a V at [0 0].
+THEN V has owner player.
+
+;===============================================================
+; Spawn computer army on land.
+;===============================================================
+GIVEN game map
+  ##
+
+WHEN the mouse is at cell [0 0] and the player presses backtick then a.
+
+THEN there is an a at [0 0].
+THEN a has owner computer.
+
+;===============================================================
+; Spawn computer fighter on land.
+;===============================================================
+GIVEN game map
+  ##
+
+WHEN the mouse is at cell [0 0] and the player presses backtick then f.
+
+THEN there is an f at [0 0].
+THEN f has owner computer.
+
+;===============================================================
+; Own free city at mouse.
+;===============================================================
+GIVEN game map
+  +#
+
+WHEN the mouse is at cell [0 0] and the player presses backtick then o.
+
+THEN cell [0 0] has city-status player.
+
+;===============================================================
+; Own computer city at mouse.
+;===============================================================
+GIVEN game map
+  X#
+
+WHEN the mouse is at cell [0 0] and the player presses backtick then o.
+
+THEN cell [0 0] has city-status player.

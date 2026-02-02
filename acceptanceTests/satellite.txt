@@ -1,0 +1,52 @@
+; Satellite-specific behavior tests.
+
+;===============================================================
+; Satellite needs attention only without target.
+;===============================================================
+GIVEN game map
+  V#
+GIVEN V is waiting for input.
+
+THEN waiting-for-input.
+
+;===============================================================
+; Satellite with target does not need attention.
+;===============================================================
+GIVEN game map
+  V####
+V has target [4 0].
+GIVEN player-items V.
+
+WHEN player items are processed.
+
+THEN not waiting-for-input.
+
+;===============================================================
+; Satellite has 2-cell visibility radius.
+;===============================================================
+GIVEN game map
+  #####
+  #####
+  ##V##
+  #####
+  #####
+GIVEN player map
+  .....
+  .....
+  .....
+  .....
+  .....
+
+WHEN visibility updates for V.
+
+THEN player-map cell [2 2] is not nil.
+THEN player-map cell [0 0] is not nil.
+THEN player-map cell [4 4] is not nil.
+
+;===============================================================
+; Satellite spawns with turns-remaining 50.
+;===============================================================
+GIVEN game map
+  V#
+
+THEN V has turns-remaining 50.

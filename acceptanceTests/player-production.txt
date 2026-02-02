@@ -1,0 +1,278 @@
+; Player city production mechanics.
+
+;===============================================================
+; Press a at city sets army production with 5 rounds remaining.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN O is waiting for input.
+
+WHEN the player presses a.
+
+THEN production at O is army with 5 rounds remaining.
+
+;===============================================================
+; Press f at city sets fighter production with 10 rounds remaining.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN O is waiting for input.
+
+WHEN the player presses f.
+
+THEN production at O is fighter with 10 rounds remaining.
+
+;===============================================================
+; Press t at coastal city sets transport production.
+;===============================================================
+GIVEN game map
+  ~O
+  ~~
+GIVEN O is waiting for input.
+
+WHEN the player presses t.
+
+THEN production at O is transport with 30 rounds remaining.
+
+;===============================================================
+; Non-coastal city rejects ship production.
+;===============================================================
+GIVEN game map
+  #O#
+  ###
+GIVEN O is waiting for input.
+
+WHEN the player presses t.
+
+THEN there is no production at O.
+THEN line3-message contains "coastal".
+
+;===============================================================
+; Press x cancels production.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN production at O is army.
+GIVEN O is waiting for input.
+
+WHEN the player presses x.
+
+THEN there is no production at O.
+
+;===============================================================
+; Press space skips city.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN O is waiting for input.
+
+WHEN the player presses space.
+
+THEN not waiting-for-input.
+
+;===============================================================
+; Army spawns when production completes.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN production at O is army with 1 round remaining.
+
+WHEN a new round starts.
+
+THEN there is an A at [0 0].
+THEN A has mode awake.
+THEN A has owner player.
+
+;===============================================================
+; Fighter spawns with fuel 32.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN production at O is fighter with 1 round remaining.
+
+WHEN a new round starts.
+
+THEN there is an F at [0 0].
+THEN F has fuel 32.
+
+;===============================================================
+; Satellite spawns with turns-remaining 50.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN production at O is satellite with 1 round remaining.
+
+WHEN a new round starts.
+
+THEN there is a V at [0 0].
+THEN V has turns-remaining 50.
+
+;===============================================================
+; Player production repeats after spawning.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN production at O is army with 1 round remaining.
+
+WHEN a new round starts.
+
+THEN there is an A at [0 0].
+THEN production at O is army with 5 rounds remaining.
+
+;===============================================================
+; Unit not spawned if city occupied.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN production at O is army with 1 round remaining.
+GIVEN cell [0 0] has contents with type army and owner player.
+
+WHEN a new round starts.
+
+THEN production at O is army with 1 round remaining.
+
+;===============================================================
+; Army spawns with marching orders.
+;===============================================================
+GIVEN game map
+  O###%
+GIVEN production at O is army with 1 round remaining.
+GIVEN cell [0 0] has marching-orders [4 0].
+
+WHEN a new round starts.
+
+THEN there is an A at [0 0].
+THEN A has mode moving.
+THEN A has target [4 0].
+
+;===============================================================
+; Army spawns in explore from lookaround.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN production at O is army with 1 round remaining.
+GIVEN cell [0 0] has marching-orders lookaround.
+
+WHEN a new round starts.
+
+THEN there is an A at [0 0].
+THEN A has mode explore.
+
+;===============================================================
+; Fighter spawns with flight path.
+;===============================================================
+GIVEN game map
+  O###%
+GIVEN production at O is fighter with 1 round remaining.
+GIVEN cell [0 0] has flight-path [4 0].
+
+WHEN a new round starts.
+
+THEN there is an F at [0 0].
+THEN F has mode moving.
+THEN F has target [4 0].
+
+;===============================================================
+; Army costs 5 rounds.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN O is waiting for input.
+
+WHEN the player presses a.
+
+THEN production at O is army with 5 rounds remaining.
+
+;===============================================================
+; Fighter costs 10 rounds.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN O is waiting for input.
+
+WHEN the player presses f.
+
+THEN production at O is fighter with 10 rounds remaining.
+
+;===============================================================
+; Satellite costs 50 rounds.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN O is waiting for input.
+
+WHEN the player presses z.
+
+THEN production at O is satellite with 50 rounds remaining.
+
+;===============================================================
+; Transport costs 30 rounds.
+;===============================================================
+GIVEN game map
+  ~O
+  ~~
+GIVEN O is waiting for input.
+
+WHEN the player presses t.
+
+THEN production at O is transport with 30 rounds remaining.
+
+;===============================================================
+; Patrol-boat costs 15 rounds.
+;===============================================================
+GIVEN game map
+  ~O
+  ~~
+GIVEN O is waiting for input.
+
+WHEN the player presses p.
+
+THEN production at O is patrol-boat with 15 rounds remaining.
+
+;===============================================================
+; Destroyer costs 20 rounds.
+;===============================================================
+GIVEN game map
+  ~O
+  ~~
+GIVEN O is waiting for input.
+
+WHEN the player presses d.
+
+THEN production at O is destroyer with 20 rounds remaining.
+
+;===============================================================
+; Submarine costs 20 rounds.
+;===============================================================
+GIVEN game map
+  ~O
+  ~~
+GIVEN O is waiting for input.
+
+WHEN the player presses s.
+
+THEN production at O is submarine with 20 rounds remaining.
+
+;===============================================================
+; Carrier costs 30 rounds.
+;===============================================================
+GIVEN game map
+  ~O
+  ~~
+GIVEN O is waiting for input.
+
+WHEN the player presses c.
+
+THEN production at O is carrier with 30 rounds remaining.
+
+;===============================================================
+; Battleship costs 40 rounds.
+;===============================================================
+GIVEN game map
+  ~O
+  ~~
+GIVEN O is waiting for input.
+
+WHEN the player presses b.
+
+THEN production at O is battleship with 40 rounds remaining.

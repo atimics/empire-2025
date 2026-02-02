@@ -1,0 +1,103 @@
+; Fog of war and visibility tests.
+
+;===============================================================
+; Army reveals 3x3 around itself.
+;===============================================================
+GIVEN game map
+  #####
+  ##A##
+  #####
+GIVEN player map
+  .....
+  .....
+  .....
+
+WHEN visibility updates.
+
+THEN player-map cell [1 0] is not nil.
+THEN player-map cell [2 0] is not nil.
+THEN player-map cell [3 0] is not nil.
+THEN player-map cell [1 1] is not nil.
+THEN player-map cell [2 1] is not nil.
+THEN player-map cell [3 1] is not nil.
+THEN player-map cell [1 2] is not nil.
+THEN player-map cell [2 2] is not nil.
+THEN player-map cell [3 2] is not nil.
+
+;===============================================================
+; Unexplored cells are not visible.
+;===============================================================
+GIVEN game map
+  ###
+  ###
+  ###
+GIVEN player map
+  ...
+  ...
+  ...
+
+THEN player-map cell [0 0] is nil.
+THEN player-map cell [1 1] is nil.
+THEN player-map cell [2 2] is nil.
+
+;===============================================================
+; City reveals surroundings.
+;===============================================================
+GIVEN game map
+  ###
+  #O#
+  ###
+GIVEN player map
+  ...
+  ...
+  ...
+
+WHEN visibility updates.
+
+THEN player-map cell [0 0] is not nil.
+THEN player-map cell [1 0] is not nil.
+THEN player-map cell [2 0] is not nil.
+THEN player-map cell [0 1] is not nil.
+THEN player-map cell [1 1] is not nil.
+THEN player-map cell [2 1] is not nil.
+THEN player-map cell [0 2] is not nil.
+THEN player-map cell [1 2] is not nil.
+THEN player-map cell [2 2] is not nil.
+
+;===============================================================
+; Enemy units hidden in fog.
+;===============================================================
+GIVEN game map
+  A####a
+GIVEN player map
+  ......
+
+WHEN visibility updates.
+
+THEN player-map cell [0 0] is not nil.
+THEN player-map cell [1 0] is not nil.
+THEN player-map cell [5 0] is nil.
+
+;===============================================================
+; Satellite reveals 5x5 area.
+;===============================================================
+GIVEN game map
+  #####
+  #####
+  ##V##
+  #####
+  #####
+GIVEN player map
+  .....
+  .....
+  .....
+  .....
+  .....
+
+WHEN visibility updates.
+
+THEN player-map cell [0 0] is not nil.
+THEN player-map cell [4 4] is not nil.
+THEN player-map cell [0 4] is not nil.
+THEN player-map cell [4 0] is not nil.
+THEN player-map cell [2 2] is not nil.

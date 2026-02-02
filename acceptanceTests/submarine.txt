@@ -1,0 +1,43 @@
+; Submarine-specific behavior tests.
+
+;===============================================================
+; Submarine has 2 hits.
+;===============================================================
+GIVEN game map
+  S~
+
+THEN S has hits 2.
+
+;===============================================================
+; Submarine moves on sea only.
+;===============================================================
+GIVEN game map
+  S#
+GIVEN S is waiting for input.
+
+WHEN the player presses d.
+
+THEN message contains "Ships don't drive on land".
+
+;===============================================================
+; Submarine attacks destroyer and wins.
+;===============================================================
+GIVEN game map
+  Sd
+GIVEN S is waiting for input.
+
+WHEN the player presses d and wins the battle.
+
+THEN S is at [1 0].
+THEN there is no d on the map.
+
+;===============================================================
+; Submarine put to sentry mode.
+;===============================================================
+GIVEN game map
+  S~
+GIVEN S is waiting for input.
+
+WHEN the player presses s.
+
+THEN S has mode sentry.

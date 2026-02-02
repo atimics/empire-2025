@@ -1,0 +1,71 @@
+; Army-specific behavior tests.
+; Basic movement already covered in unit-movement.txt.
+
+;===============================================================
+; Army put to sentry mode.
+;===============================================================
+GIVEN game map
+  A#
+GIVEN A is waiting for input.
+
+WHEN the player presses s.
+
+THEN A has mode sentry.
+
+;===============================================================
+; Army set to explore mode.
+;===============================================================
+GIVEN game map
+  A#
+GIVEN A is waiting for input.
+
+WHEN the player presses l.
+
+THEN A has mode explore.
+
+;===============================================================
+; Army wakes near hostile city with reason.
+;===============================================================
+GIVEN game map
+  A+
+A is explore.
+GIVEN player-items A.
+
+WHEN player items are processed.
+
+THEN A has mode awake.
+THEN waiting-for-input.
+THEN message contains "Army found a city".
+
+;===============================================================
+; Army conquers free city.
+;===============================================================
+GIVEN game map
+  A+
+GIVEN A is waiting for input.
+
+WHEN the player presses d and wins the battle.
+
+THEN cell [1 0] has city-status player.
+
+;===============================================================
+; Army skips round with space.
+;===============================================================
+GIVEN game map
+  A#
+GIVEN A is waiting for input.
+
+WHEN the player presses space.
+
+THEN not waiting-for-input.
+
+;===============================================================
+; Army blocked by friendly city.
+;===============================================================
+GIVEN game map
+  AO
+GIVEN A is waiting for input.
+
+WHEN the player presses d.
+
+THEN message contains "Can't move into city".

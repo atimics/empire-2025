@@ -1,0 +1,44 @@
+; Destroyer-specific behavior tests.
+
+;===============================================================
+; Destroyer moves 2 cells in one round.
+;===============================================================
+GIVEN game map
+  D~~=
+GIVEN D is waiting for input.
+
+WHEN the player presses D.
+
+THEN at next round D will be at =.
+
+;===============================================================
+; Destroyer has 3 hits.
+;===============================================================
+GIVEN game map
+  D~
+GIVEN D is waiting for input.
+
+THEN D has hits 3.
+
+;===============================================================
+; Destroyer attacks enemy ship and wins.
+;===============================================================
+GIVEN game map
+  Ds
+GIVEN D is waiting for input.
+
+WHEN the player presses d and wins the battle.
+
+THEN D is at [1 0].
+THEN there is no s on the map.
+
+;===============================================================
+; Destroyer put to sentry mode.
+;===============================================================
+GIVEN game map
+  D~
+GIVEN D is waiting for input.
+
+WHEN the player presses s.
+
+THEN D has mode sentry.

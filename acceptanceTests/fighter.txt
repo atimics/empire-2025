@@ -1,0 +1,112 @@
+; Fighter-specific behavior tests.
+
+;===============================================================
+; Fighter consumes fuel when moving over non-city terrain.
+;===============================================================
+GIVEN game map
+  F~=
+F has fuel 32.
+GIVEN F is waiting for input.
+
+WHEN the player presses d.
+
+THEN at next round F will be at =.
+THEN F has fuel 31.
+
+;===============================================================
+; Fighter refuels at player city.
+;===============================================================
+GIVEN game map
+  FO
+F has fuel 10.
+GIVEN F is waiting for input.
+
+WHEN the player presses d.
+
+THEN cell [1 0] has fighter-count 1.
+
+;===============================================================
+; Fighter bingo wakes when fuel low and city nearby.
+;===============================================================
+GIVEN game map
+  OF
+F is sentry with fuel 9.
+GIVEN round 1.
+
+WHEN a new round starts.
+
+THEN F has mode awake.
+THEN F has reason fighter-bingo.
+
+;===============================================================
+; Fighter out of fuel wakes.
+;===============================================================
+GIVEN game map
+  #F
+F is sentry with fuel 2.
+GIVEN round 1.
+
+WHEN a new round starts.
+
+THEN F has mode awake.
+THEN F has reason fighter-out-of-fuel.
+
+;===============================================================
+; Fighter crashes when fuel reaches zero.
+;===============================================================
+GIVEN game map
+  #F
+F is sentry with fuel 1.
+GIVEN round 1.
+
+WHEN a new round starts.
+
+THEN there is no F on the map.
+
+;===============================================================
+; Fighter lands on carrier.
+;===============================================================
+GIVEN game map
+  FC
+C has fighter-count 0 and awake-fighters 0.
+GIVEN F is waiting for input.
+
+WHEN the player presses d.
+
+THEN C has fighter-count 1.
+THEN there is no F on the map.
+
+;===============================================================
+; Fighter launched from airport.
+;===============================================================
+GIVEN game map
+  O%
+GIVEN cell [0 0] has awake-fighters 1 and fighter-count 1.
+GIVEN O is waiting for input.
+
+WHEN the player presses d.
+
+THEN there is an F at %.
+THEN cell [0 0] has awake-fighters 0.
+
+;===============================================================
+; Fighter attention shows fuel.
+;===============================================================
+GIVEN game map
+  F#
+F has fuel 20.
+GIVEN F is waiting for input.
+
+THEN waiting-for-input.
+THEN message contains "fuel:20".
+
+;===============================================================
+; Fighter speed is 8 per round.
+;===============================================================
+GIVEN game map
+  F~~~~~~~~=
+GIVEN F is waiting for input.
+
+WHEN the player presses D.
+
+THEN at next round F will be at =.

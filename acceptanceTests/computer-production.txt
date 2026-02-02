@@ -1,0 +1,170 @@
+; Computer AI production decision tests.
+
+;===============================================================
+; Computer city with no country produces army when continent has free city.
+;===============================================================
+GIVEN game map
+  X+
+  ##
+
+WHEN computer city at X is processed.
+
+THEN production at X is army.
+
+;===============================================================
+; Country produces army first when zero armies.
+;===============================================================
+GIVEN game map
+  X#
+  ##
+GIVEN cell [0 0] has country-id 1.
+
+WHEN computer city at X is processed.
+
+THEN production at X is army.
+
+;===============================================================
+; Country stops armies at cap of 10.
+;===============================================================
+GIVEN game map
+  X#########
+  aaaaaaaaaa
+GIVEN cell [0 0] has country-id 1.
+GIVEN all computer armies have country-id 1.
+
+WHEN computer city at X is processed.
+
+THEN production at X is not army.
+
+;===============================================================
+; Country produces transport after 6 armies at coastal city.
+;===============================================================
+GIVEN game map
+  ~X
+  aa
+  aa
+  aa
+GIVEN cell [1 0] has country-id 1.
+GIVEN all computer armies have country-id 1.
+
+WHEN computer city at X is processed.
+
+THEN production at X is transport.
+
+;===============================================================
+; Country transport cap is 2.
+;===============================================================
+GIVEN game map
+  ~X~
+  aaa
+  aaa
+  ttt
+GIVEN cell [1 0] has country-id 1.
+GIVEN all computer armies have country-id 1.
+GIVEN all computer transports have country-id 1.
+
+WHEN computer city at X is processed.
+
+THEN production at X is not transport.
+
+;===============================================================
+; Country produces patrol-boat at coastal city.
+;===============================================================
+GIVEN game map
+  ~X
+  ##
+GIVEN cell [1 0] has country-id 1.
+GIVEN 10 computer armies with country-id 1 exist.
+
+WHEN computer city at X is processed.
+
+THEN production at X is patrol-boat.
+
+;===============================================================
+; Country patrol-boat cap is 1.
+;===============================================================
+GIVEN game map
+  ~X
+  p#
+GIVEN cell [1 0] has country-id 1.
+GIVEN 10 computer armies with country-id 1 exist.
+GIVEN p has patrol-country-id 1.
+
+WHEN computer city at X is processed.
+
+THEN production at X is not patrol-boat.
+
+;===============================================================
+; Country produces fighter when other needs met.
+;===============================================================
+GIVEN game map
+  X#
+  ##
+GIVEN cell [0 0] has country-id 1.
+GIVEN 10 computer armies with country-id 1 exist.
+
+WHEN computer city at X is processed.
+
+THEN production at X is fighter.
+
+;===============================================================
+; Country fighter cap is 2.
+;===============================================================
+GIVEN game map
+  X#
+  ff
+GIVEN cell [0 0] has country-id 1.
+GIVEN 10 computer armies with country-id 1 exist.
+GIVEN all computer fighters have country-id 1.
+
+WHEN computer city at X is processed.
+
+THEN production at X is not fighter.
+
+;===============================================================
+; Carrier needs more than 10 cities.
+;===============================================================
+GIVEN game map with 11 computer cities and a coastal city.
+
+WHEN computer city at coastal X is processed.
+
+THEN production at X is carrier.
+
+;===============================================================
+; Carrier blocked under 10 cities.
+;===============================================================
+GIVEN game map with 5 computer cities and a coastal city.
+
+WHEN computer city at coastal X is processed.
+
+THEN production at X is not carrier.
+
+;===============================================================
+; Satellite needs more than 15 cities.
+;===============================================================
+GIVEN game map with 16 computer cities and an inland city.
+
+WHEN computer city at inland X is processed.
+
+THEN production at X is satellite.
+
+;===============================================================
+; Satellite cap is 1.
+;===============================================================
+GIVEN game map with 16 computer cities, an inland city, and 1 satellite.
+
+WHEN computer city at inland X is processed.
+
+THEN production at X is not satellite.
+
+;===============================================================
+; Computer production does not repeat.
+;===============================================================
+GIVEN game map
+  X#
+GIVEN production at X is army with 1 round remaining.
+
+WHEN a new round starts.
+
+THEN there is an a at [0 0].
+THEN there is no production at X.

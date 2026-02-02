@@ -1,0 +1,147 @@
+; Hover key commands — commands that act on the cell under the mouse cursor.
+; Also includes pause, step, and map display commands that don't need mouse.
+
+;===============================================================
+; Set destination at mouse position.
+;===============================================================
+GIVEN game map
+  A#
+GIVEN A is waiting for input.
+
+WHEN the mouse is at cell [0 1] and the player presses period.
+
+THEN destination is [0 1].
+
+;===============================================================
+; Set marching orders on city from destination.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN production at O is army.
+GIVEN destination [1 0].
+
+WHEN the mouse is at cell [0 0] and the player presses m.
+
+THEN cell [0 0] has marching-orders [1 0].
+THEN destination is nil.
+
+;===============================================================
+; Set flight path on city from destination.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN production at O is fighter.
+GIVEN destination [1 0].
+
+WHEN the mouse is at cell [0 0] and the player presses f.
+
+THEN cell [0 0] has flight-path [1 0].
+THEN destination is nil.
+
+;===============================================================
+; Wake sentry unit at mouse.
+;===============================================================
+GIVEN game map
+  A#
+A is sentry.
+
+WHEN the mouse is at cell [0 0] and the player presses u.
+
+THEN A has mode awake.
+
+;===============================================================
+; Set lookaround on city at mouse.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN production at O is army.
+
+WHEN the mouse is at cell [0 0] and the player presses l.
+
+THEN cell [0 0] has marching-orders lookaround.
+
+;===============================================================
+; Set waypoint at cell.
+;===============================================================
+GIVEN game map
+  ##
+
+WHEN the mouse is at cell [0 0] and the player presses *.
+
+THEN cell [0 0] has waypoint.
+
+;===============================================================
+; Remove waypoint at cell.
+;===============================================================
+GIVEN game map
+  *#
+
+WHEN the mouse is at cell [0 0] and the player presses *.
+
+THEN cell [0 0] does not have waypoint.
+
+;===============================================================
+; Toggle pause requests pause.
+;===============================================================
+GIVEN game map
+  A#
+
+WHEN the player presses P.
+
+THEN pause-requested.
+
+;===============================================================
+; Unpause from paused state.
+;===============================================================
+GIVEN game map
+  A#
+GIVEN paused.
+
+WHEN the player presses P.
+
+THEN not paused.
+
+;===============================================================
+; Step one round when paused.
+;===============================================================
+GIVEN game map
+  A#
+GIVEN paused.
+GIVEN round 1.
+
+WHEN the player presses space.
+
+THEN not paused.
+THEN pause-requested.
+
+;===============================================================
+; Toggle map display from player-map to computer-map.
+;===============================================================
+GIVEN game map
+  A#
+
+WHEN the player presses +.
+
+THEN map-to-display is computer-map.
+
+;===============================================================
+; Cycle map display from computer-map to actual-map.
+;===============================================================
+GIVEN game map
+  A#
+GIVEN map-to-display computer-map.
+
+WHEN the player presses +.
+
+THEN map-to-display is actual-map.
+
+;===============================================================
+; Cycle map display from actual-map back to player-map.
+;===============================================================
+GIVEN game map
+  A#
+GIVEN map-to-display actual-map.
+
+WHEN the player presses +.
+
+THEN map-to-display is player-map.

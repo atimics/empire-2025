@@ -1,0 +1,40 @@
+; Battleship-specific behavior tests.
+
+;===============================================================
+; Battleship has 10 hits.
+;===============================================================
+GIVEN game map
+  B~
+
+THEN B has hits 10.
+
+;===============================================================
+; Battleship survives many hits.
+;===============================================================
+GIVEN game map
+  B~
+B has hits 5.
+
+THEN B has hits 5.
+
+;===============================================================
+; Battleship moves 2 cells per round.
+;===============================================================
+GIVEN game map
+  B~~=
+GIVEN B is waiting for input.
+
+WHEN the player presses D.
+
+THEN at next round B will be at =.
+
+;===============================================================
+; Battleship put to sentry mode.
+;===============================================================
+GIVEN game map
+  B~
+GIVEN B is waiting for input.
+
+WHEN the player presses s.
+
+THEN B has mode sentry.

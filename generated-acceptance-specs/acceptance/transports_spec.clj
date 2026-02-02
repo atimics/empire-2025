@@ -115,7 +115,7 @@
       (should-be-nil (:reason unit))))
 
   ;; transports.txt:72 - Disembarking army removes it from transport.
-  ;; Map columns: col0="-T-" col1="-%- ". Land is east of transport.
+  ;; Land % is to the right of transport.
   (it "transports.txt:72 - Disembarking army removes it from transport"
     (reset-all-atoms!)
     (reset! atoms/game-map (build-test-map ["-T-" "-%-"]))
@@ -135,7 +135,7 @@
       (should= :army (:type (:contents (get-in @atoms/game-map land-pos))))))
 
   ;; transports.txt:86 - Transport wakes when last army disembarks.
-  ;; Map columns: col0="-T-" col1="-#-". Land is east of transport.
+  ;; Land is to the right of transport.
   (it "transports.txt:86 - Transport wakes when last army disembarks"
     (reset-all-atoms!)
     (reset! atoms/game-map (build-test-map ["-T-" "-#-"]))

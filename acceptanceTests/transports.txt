@@ -35,7 +35,7 @@ THEN no unit at A2 original position.
 GIVEN game map
   ~T=~
   ~~#~
-T is moving with army-count 1 and target = and steps-remaining 1.
+T is moving to the right with army-count 1 and target = and steps-remaining 1.
 
 WHEN the game advances.
 
@@ -47,7 +47,7 @@ THEN T has reason transport-at-beach.
 GIVEN game map
   ~T=~
   ~~#~
-T is moving with target = and steps-remaining 1.
+T is moving to the right with target = and steps-remaining 1.
 
 WHEN the game advances.
 
@@ -69,7 +69,7 @@ THEN T has awake-armies 2.
 THEN T does not have reason.
 
 ; Disembarking army removes it from transport.
-; Map columns: col0="-T-" col1="-%- ". Land is east of transport.
+; Land % is to the right of transport.
 GIVEN game map
   -T-
   -%-
@@ -84,7 +84,7 @@ THEN T has awake-armies 2.
 THEN there is an A at %.
 
 ; Transport wakes when last army disembarks.
-; Map columns: col0="-T-" col1="-#-". Land is east of transport.
+; Land is to the right of transport.
 GIVEN game map
   -T-
   -#-
@@ -102,7 +102,7 @@ GIVEN game map
   ~~~#
   ~T=~
   ~~~~
-T is moving with army-count 1 and target = and steps-remaining 1.
+T is moving to the right with army-count 1 and target = and steps-remaining 1.
 
 WHEN the game advances.
 
@@ -114,7 +114,7 @@ THEN T has reason transport-found-land.
 GIVEN game map
   #~~~
   ~T=#
-T is moving with army-count 1 and been-to-sea true and target = and steps-remaining 1.
+T is moving to the right with army-count 1 and been-to-sea true and target = and steps-remaining 1.
 
 WHEN the game advances.
 

@@ -121,6 +121,10 @@ LLMs lose track of parentheses in deeply nested s-expressions. Follow these prac
 
 When adding new atoms to `atoms.cljc`, also add them to `reset-all-atoms!` in `test_utils.cljc`.
 
+## Plans
+
+Implementation plans are stored in the `plans/` directory. Upon completion, move finished plans into `plans/complete/`.
+
 ## VMS Empire Reference
 
 The original VMS Empire C source code is at:

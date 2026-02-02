@@ -1,30 +1,33 @@
 (ns empire.config
   (:require [empire.units.dispatcher :as dispatcher]))
 
-;; Window dimensions (pixels)
-(def window-size [1400 900])
+;; Default map size [cols rows]
+(def default-map-size [100 60])
+
+;; Cell dimensions (pixels) — derived from Courier New 18pt font metrics
+(def cell-size [11 16])   ;; [width height] in pixels per map cell
 
 ;; Font for cell-size calculation and message area text
 (def text-font-name "Courier New")
-(def text-font-size 22)
+(def text-font-size 18)
 
 ;; Font for unit characters and production indicators within cells
 (def cell-char-font-name "CourierNewPS-BoldMT")
-(def cell-char-font-size 15)
+(def cell-char-font-size 12)
 
 ;; Layout of text area below the map
-(def text-area-rows 4)
+(def text-area-rows 3)
 (def text-area-gap 7)
 
 ;; Pixel offsets for characters drawn inside map cells
 (def cell-char-x-offset 2)
-(def cell-char-y-offset 15)
+(def cell-char-y-offset 12)
 
 ;; Message area pixel offsets (relative to text-area top)
 (def msg-left-padding 10)
-(def msg-line-1-y 12)
-(def msg-line-2-y 36)
-(def msg-line-3-y 60)
+(def msg-line-1-y 10)
+(def msg-line-2-y 26)
+(def msg-line-3-y 42)
 (def msg-separator-offset 4)
 
 (def smooth-count 10)
@@ -32,6 +35,16 @@
 (def land-fraction 0.3)
 
 (def number-of-cities 70)
+
+(defn compute-size-constants
+  "Computes constants derived from the map size [cols rows].
+   Returns a map to be stored in atoms/map-size-constants."
+  [cols rows]
+  (let [area (* cols rows)
+        ref-area 6000]
+    {:cols cols
+     :rows rows
+     :number-of-cities (max 10 (int (* 70 (/ area ref-area))))}))
 
 (def min-city-distance 5)
 
@@ -96,6 +109,26 @@
 (def bingo-fuel-divisor 4)
 (def max-placement-attempts 1000)
 (def min-surrounding-land 10)
+
+;; --- Computer production thresholds ---
+
+;; Per-country unit caps
+(def max-transports-per-country 2)     ;; transports one country will build
+(def armies-before-transport 6)        ;; army count before country starts building transports
+(def max-armies-per-country 10)        ;; cap on armies per country (includes armies aboard transports)
+(def max-non-country-armies 10)        ;; cap on armies from cities not assigned to any country
+(def max-patrol-boats-per-country 1)   ;; patrol boats per country
+(def max-fighters-per-country 2)       ;; fighters per country
+
+;; Global production gates for expensive units
+(def carrier-city-threshold 10)        ;; computer needs >N cities before building carriers
+(def max-live-carriers 8)              ;; global fleet cap on live carriers
+(def max-carrier-producers 2)          ;; max cities simultaneously producing carriers
+(def satellite-city-threshold 15)      ;; computer needs >N cities before building satellites
+(def max-satellites 1)                 ;; global cap on live satellites
+
+;; Game loop speed
+(def advances-per-frame 10)            ;; max advance-game calls per frame
 
 ;; Messages and reasons
 (def messages

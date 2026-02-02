@@ -138,6 +138,7 @@
 
 (defn reset-all-atoms! []
   (reset! atoms/map-size [0 0])
+  (reset! atoms/map-size-constants {})
   (reset! atoms/last-key nil)
   (reset! atoms/backtick-pressed false)
   (reset! atoms/map-screen-dimensions [0 0])

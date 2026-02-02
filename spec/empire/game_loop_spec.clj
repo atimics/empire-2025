@@ -528,3 +528,64 @@
         (game-loop/advance-game)
         ;; Round should advance
         (should= (inc round-before) @atoms/round-number)))))
+
+(describe "advance-game-batch"
+  (before (reset-all-atoms!))
+
+  (it "processes multiple sentry units in one batch"
+    ;; 3 sentry units that don't need attention
+    (reset! atoms/game-map (build-test-map ["AAA"]))
+    (set-test-unit atoms/game-map "A1" :mode :sentry)
+    (set-test-unit atoms/game-map "A2" :mode :sentry)
+    (set-test-unit atoms/game-map "A3" :mode :sentry)
+    (reset! atoms/player-map (build-test-map ["###"]))
+    (reset! atoms/computer-map (build-test-map ["###"]))
+    (reset! atoms/production {})
+    (reset! atoms/player-items [[0 0] [0 1] [0 2]])
+    (reset! atoms/waiting-for-input false)
+    (game-loop/advance-game-batch)
+    ;; All 3 should be processed in one batch call
+    (should= [] (vec @atoms/player-items)))
+
+  (it "stops when items exhausted before reaching limit"
+    ;; 2 sentry units, advances-per-frame is 10
+    (reset! atoms/game-map (build-test-map ["AA"]))
+    (set-test-unit atoms/game-map "A1" :mode :sentry)
+    (set-test-unit atoms/game-map "A2" :mode :sentry)
+    (reset! atoms/player-map (build-test-map ["##"]))
+    (reset! atoms/computer-map (build-test-map ["##"]))
+    (reset! atoms/production {})
+    (reset! atoms/player-items [[0 0] [0 1]])
+    (reset! atoms/waiting-for-input false)
+    (game-loop/advance-game-batch)
+    ;; Both processed, started new round, player-items rebuilt
+    (should-not @atoms/waiting-for-input))
+
+  (it "stops when waiting for input"
+    ;; First unit needs attention (awake), should block
+    (reset! atoms/game-map (build-test-map ["AA"]))
+    (set-test-unit atoms/game-map "A1" :mode :awake)
+    (set-test-unit atoms/game-map "A2" :mode :sentry)
+    (reset! atoms/player-map (build-test-map ["##"]))
+    (reset! atoms/computer-map (build-test-map ["##"]))
+    (reset! atoms/production {})
+    (reset! atoms/player-items [[0 0] [0 1]])
+    (reset! atoms/waiting-for-input false)
+    (game-loop/advance-game-batch)
+    ;; Should be waiting for input after first item
+    (should @atoms/waiting-for-input)
+    ;; Second item should still be in list
+    (should (some #{[0 1]} @atoms/player-items)))
+
+  (it "stops when paused"
+    (reset! atoms/game-map (build-test-map ["A"]))
+    (set-test-unit atoms/game-map "A" :mode :sentry)
+    (reset! atoms/player-map (build-test-map ["#"]))
+    (reset! atoms/computer-map (build-test-map ["#"]))
+    (reset! atoms/production {})
+    (reset! atoms/player-items [[0 0]])
+    (reset! atoms/paused true)
+    (let [items-before (vec @atoms/player-items)]
+      (game-loop/advance-game-batch)
+      ;; Items should be unchanged since game is paused
+      (should= items-before (vec @atoms/player-items)))))

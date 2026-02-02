@@ -2,6 +2,7 @@
   "Round orchestration: start-new-round, advance-game, update-map.
    Delegates round setup to round-setup and item processing to item-processing."
   (:require [empire.atoms :as atoms]
+            [empire.config :as config]
             [empire.movement.pathfinding :as pathfinding]
             [empire.movement.visibility :as visibility]
             [empire.player.production :as production]
@@ -105,6 +106,19 @@
     ;; Computer items to process
     :else
     (item-processing/process-computer-items)))
+
+(defn advance-game-batch
+  "Calls advance-game up to advances-per-frame times per frame.
+   Stops early when paused, waiting for input, or no items to process."
+  []
+  (loop [remaining config/advances-per-frame]
+    (when (pos? remaining)
+      (advance-game)
+      (when (and (> remaining 1)
+                 (not @atoms/paused)
+                 (not @atoms/waiting-for-input)
+                 (or (seq @atoms/player-items) (seq @atoms/computer-items)))
+        (recur (dec remaining))))))
 
 (defn toggle-pause
   "Toggles pause state. If running, requests pause at end of round.

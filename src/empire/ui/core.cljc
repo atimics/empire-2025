@@ -15,30 +15,24 @@
   (reset! atoms/production-char-font (q/create-font config/cell-char-font-name config/cell-char-font-size)))
 
 (defn compute-screen-dimensions
-  "Pure calculation of screen dimensions. Returns a map with :map-size, :map-screen-dimensions, and :text-area-dimensions."
-  [char-width char-height screen-w screen-h]
-  (let [cols (quot screen-w char-width)
-        text-h (* config/text-area-rows char-height)
-        rows (quot (+ (- screen-h text-h) config/text-area-gap) char-height)
-        map-display-w (* cols char-width)
-        map-display-h (* rows char-height)
+  "Computes pixel rendering dimensions from known map-size and fixed cell-size.
+   Returns a map with :map-screen-dimensions and :text-area-dimensions."
+  [cols rows cell-w cell-h]
+  (let [map-display-w (* cols cell-w)
+        map-display-h (* rows cell-h)
+        text-h (* config/text-area-rows cell-h)
         text-x 0
         text-y (+ map-display-h config/text-area-gap)
-        text-w screen-w]
-    {:map-size [cols rows]
-     :map-screen-dimensions [map-display-w map-display-h]
+        text-w map-display-w]
+    {:map-screen-dimensions [map-display-w map-display-h]
      :text-area-dimensions [text-x text-y text-w text-h]}))
 
 (defn calculate-screen-dimensions
-  "Calculates map size and display dimensions based on screen and sets config values."
+  "Sets pixel rendering dimensions from known map-size and fixed cell-size."
   []
-  (q/text-font @atoms/text-font)
-  (let [char-width (q/text-width "M")
-        char-height (+ (q/text-ascent) (q/text-descent))
-        screen-w (q/width)
-        screen-h (q/height)
-        dims (compute-screen-dimensions char-width char-height screen-w screen-h)]
-    (reset! atoms/map-size (:map-size dims))
+  (let [[cols rows] @atoms/map-size
+        [cell-w cell-h] config/cell-size
+        dims (compute-screen-dimensions cols rows cell-w cell-h)]
     (reset! atoms/map-screen-dimensions (:map-screen-dimensions dims))
     (reset! atoms/text-area-dimensions (:text-area-dimensions dims))))
 
@@ -47,7 +41,8 @@
   []
   (create-fonts)
   (calculate-screen-dimensions)
-  (init/make-initial-map @atoms/map-size config/smooth-count config/land-fraction config/number-of-cities config/min-city-distance)
+  (let [num-cities (:number-of-cities @atoms/map-size-constants config/number-of-cities)]
+    (init/make-initial-map @atoms/map-size config/smooth-count config/land-fraction num-cities config/min-city-distance))
   (q/frame-rate 30)
   {})
 
@@ -56,7 +51,7 @@
   [state]
   (game-loop/update-player-map)
   (game-loop/update-computer-map)
-  (game-loop/advance-game)
+  (game-loop/advance-game-batch)
   (rendering/update-hover-status)
   state)
 
@@ -116,21 +111,44 @@
   (println "Empire closed.")
   (System/exit 0))
 
+(defn- screen-dimensions []
+  (let [screen (.getScreenSize (java.awt.Toolkit/getDefaultToolkit))]
+    [(.width screen) (.height screen)]))
+
 (declare empire)
-(defn -main [& _args]
-  (println "empire has begun.")
-  (q/defsketch empire
-               :title "Empire: Global Conquest"
-               :size config/window-size
-               :setup setup
-               :update update-state
-               :draw draw-state
-               :key-pressed key-pressed
-               :key-released key-released
-               :mouse-pressed mouse-pressed
-               :mouse-dragged mouse-dragged
-               :mouse-released mouse-released
-               :features []
-               :middleware [m/fun-mode]
-               :on-close on-close
-               :host "empire"))
+(defn -main [& args]
+  (let [[cols rows] (if (>= (count args) 2)
+                      [(Integer/parseInt (first args))
+                       (Integer/parseInt (second args))]
+                      config/default-map-size)
+        [cell-w cell-h] config/cell-size
+        text-area-h (* config/text-area-rows cell-h)
+        window-w (* cols cell-w)
+        window-h (+ (* rows cell-h) text-area-h config/text-area-gap)
+        [screen-w screen-h] (screen-dimensions)
+        max-cols (quot screen-w cell-w)
+        max-rows (quot (- screen-h text-area-h config/text-area-gap) cell-h)]
+    (when (or (> window-w screen-w) (> window-h screen-h))
+      (println (format "Map size [%d %d] exceeds monitor bounds (%dx%d pixels)."
+                       cols rows screen-w screen-h))
+      (println (format "Maximum map size for this monitor: [%d %d]"
+                       max-cols max-rows))
+      (System/exit 1))
+    (reset! atoms/map-size [cols rows])
+    (reset! atoms/map-size-constants (config/compute-size-constants cols rows))
+    (println (format "empire has begun. Map size: [%d %d]" cols rows))
+    (q/defsketch empire
+                 :title "Empire: Global Conquest"
+                 :size [window-w window-h]
+                 :setup setup
+                 :update update-state
+                 :draw draw-state
+                 :key-pressed key-pressed
+                 :key-released key-released
+                 :mouse-pressed mouse-pressed
+                 :mouse-dragged mouse-dragged
+                 :mouse-released mouse-released
+                 :features []
+                 :middleware [m/fun-mode]
+                 :on-close on-close
+                 :host "empire")))

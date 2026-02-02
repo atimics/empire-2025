@@ -1,6 +1,7 @@
 (ns empire.computer.core
   "Shared utilities for computer AI modules."
   (:require [empire.atoms :as atoms]
+            [empire.config :as config]
             [empire.movement.map-utils :as map-utils]
             [empire.movement.visibility :as visibility]
             [empire.combat :as combat]
@@ -133,7 +134,7 @@
               count-country-armies (requiring-resolve 'empire.computer.production/count-country-armies)
               country-city-producing-armies? (requiring-resolve 'empire.computer.production/country-city-producing-armies?)]
           (when (and (or (nil? city-country-id)
-                        (< (count-country-armies city-country-id) 10))
+                        (< (count-country-armies city-country-id) config/max-armies-per-country))
                     (not (and city-country-id
                               (country-city-producing-armies? city-pos city-country-id))))
             (production/set-city-production city-pos :army)))

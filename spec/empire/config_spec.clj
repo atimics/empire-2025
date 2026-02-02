@@ -74,4 +74,30 @@
     (should= [255 128 128] (config/unit->color {:type :transport :owner :computer :mode :sentry}))
     (should= [144 238 144] (config/unit->color {:type :destroyer :owner :computer :mode :explore}))))
 
+(describe "compute-size-constants"
+  (it "returns correct values for default 100x60 map"
+    (let [result (config/compute-size-constants 100 60)]
+      (should= 100 (:cols result))
+      (should= 60 (:rows result))
+      (should= 70 (:number-of-cities result))))
+
+  (it "scales number-of-cities with map area"
+    (let [result (config/compute-size-constants 120 200)]
+      ;; area = 24000, ref = 6000, ratio = 4.0
+      ;; number-of-cities = 70 * 4 = 280
+      (should= 280 (:number-of-cities result))))
+
+  (it "enforces minimum of 10 cities for tiny maps"
+    (let [result (config/compute-size-constants 10 10)]
+      ;; area = 100, ref = 6000, ratio = 0.0167
+      ;; 70 * 0.0167 = 1.17 -> 1, but min is 10
+      (should= 10 (:number-of-cities result))))
+
+  (it "computes correct values for medium map"
+    (let [result (config/compute-size-constants 80 120)]
+      ;; area = 9600, ref = 6000, ratio = 1.6
+      ;; number-of-cities = 70 * 1.6 = 112
+      (should= 80 (:cols result))
+      (should= 120 (:rows result))
+      (should= 112 (:number-of-cities result)))))
 

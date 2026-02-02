@@ -1,6 +1,7 @@
 (ns empire.computer.production
   "Computer production module - priority-based production."
   (:require [empire.atoms :as atoms]
+            [empire.config :as config]
             [empire.movement.map-utils :as map-utils]
             [empire.player.production :as production]
             [empire.computer.continent :as continent]
@@ -155,20 +156,20 @@
   "Per-country production priorities. Returns unit type or nil. CC=5."
   [city-pos country-id coastal? unit-counts]
   (cond
-    ;; 1. Transport: < 2 per country, coastal, need 6+ armies first
+    ;; 1. Transport: < max per country, coastal, need enough armies first
     (and coastal?
-         (< (count-country-transports country-id) 2)
-         (>= (count-country-armies country-id) 6))
+         (< (count-country-transports country-id) config/max-transports-per-country)
+         (>= (count-country-armies country-id) config/armies-before-transport))
     :transport
 
-    ;; 2. Army: < 10 per country, no other city producing armies
-    (and (< (count-country-armies country-id) 10)
+    ;; 2. Army: < max per country, no other city producing armies
+    (and (< (count-country-armies country-id) config/max-armies-per-country)
          (not (country-city-producing-armies? city-pos country-id)))
     :army
 
-    ;; 3. Patrol boat: 1 per country, coastal
+    ;; 3. Patrol boat: < max per country, coastal
     (and coastal?
-         (zero? (count-country-patrol-boats country-id)))
+         (< (count-country-patrol-boats country-id) config/max-patrol-boats-per-country))
     :patrol-boat
 
     ;; 4. Destroyer: global cap, country has unadopted transport
@@ -177,8 +178,8 @@
          (country-has-unadopted-transport? country-id))
     :destroyer
 
-    ;; 5. Fighter: < 2 per country
-    (< (count-country-fighters country-id) 2)
+    ;; 5. Fighter: < max per country
+    (< (count-country-fighters country-id) config/max-fighters-per-country)
     :fighter))
 
 (defn- count-carrier-producers
@@ -193,11 +194,11 @@
   "Global production priorities. Returns unit type. CC=5."
   [coastal? unit-counts]
   (cond
-    ;; 5. Carrier: >10 cities, <8 live, <2 producing, valid position
+    ;; 5. Carrier: enough cities, under fleet cap, under producer cap, valid position
     (and coastal?
-         (> (count-computer-cities) 10)
-         (< (get unit-counts :carrier 0) 8)
-         (< (count-carrier-producers) 2)
+         (> (count-computer-cities) config/carrier-city-threshold)
+         (< (get unit-counts :carrier 0) config/max-live-carriers)
+         (< (count-carrier-producers) config/max-carrier-producers)
          (ship/find-carrier-position))
     :carrier
 
@@ -213,9 +214,9 @@
             (* 2 (get unit-counts :carrier 0))))
     :submarine
 
-    ;; 8. Satellite: >15 cities, max 1
-    (and (> (count-computer-cities) 15)
-         (zero? (get unit-counts :satellite 0)))
+    ;; 8. Satellite: enough cities, under cap
+    (and (> (count-computer-cities) config/satellite-city-threshold)
+         (< (get unit-counts :satellite 0) config/max-satellites))
     :satellite
 
     ;; 9. No production needed — city stays idle
@@ -235,7 +236,7 @@
 
         ;; Non-country cities: army if continent has objectives and under cap
         (when (and (not country-id)
-                   (< (count-non-country-armies) 10)
+                   (< (count-non-country-armies) config/max-non-country-armies)
                    (continent/has-land-objective?
                      (continent/scan-continent
                        (continent/flood-fill-continent city-pos))))

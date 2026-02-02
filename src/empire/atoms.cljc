@@ -2,6 +2,10 @@
 
 (def map-size (atom [0 0]))
 
+(def map-size-constants
+  "Map of all constants derived from the [cols rows] map size."
+  (atom {}))
+
 (def last-key (atom nil))
 
 (def backtick-pressed (atom false))

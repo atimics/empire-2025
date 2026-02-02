@@ -25,22 +25,25 @@
             stamped (stamping/stamp-computer-fields unit cell)]
         (should-not-contain :direction stamped))))
 
-  (describe "transport-id"
-    (it "assigns transport-id to computer transports"
+  (describe "transport fields"
+    (it "assigns transport-mission, stuck-since-round, and transport-id to computer transports"
       (reset! atoms/next-transport-id 5)
-      (let [unit {:type :transport :owner :computer :hits 3 :mode :awake
-                  :transport-mission :idle :stuck-since-round 0}
+      (reset! atoms/round-number 7)
+      (let [unit {:type :transport :owner :computer :hits 3 :mode :awake}
             cell {:type :city :city-status :computer}
             stamped (stamping/stamp-computer-fields unit cell)]
+        (should= :idle (:transport-mission stamped))
+        (should= 7 (:stuck-since-round stamped))
         (should= 5 (:transport-id stamped))
         (should= 6 @atoms/next-transport-id)))
 
-    (it "does not assign transport-id to player transports"
+    (it "does not assign transport fields to player transports"
       (reset! atoms/next-transport-id 5)
-      (let [unit {:type :transport :owner :player :hits 3 :mode :awake
-                  :transport-mission :idle :stuck-since-round 0}
+      (let [unit {:type :transport :owner :player :hits 3 :mode :awake}
             cell {:type :city :city-status :player}
             stamped (stamping/stamp-computer-fields unit cell)]
+        (should-not-contain :transport-mission stamped)
+        (should-not-contain :stuck-since-round stamped)
         (should-not-contain :transport-id stamped)
         (should= 5 @atoms/next-transport-id))))
 
@@ -52,8 +55,7 @@
         (should= 3 (:country-id stamped))))
 
     (it "assigns city country-id to computer transports"
-      (let [unit {:type :transport :owner :computer :hits 3 :mode :awake
-                  :transport-mission :idle :stuck-since-round 0}
+      (let [unit {:type :transport :owner :computer :hits 3 :mode :awake}
             cell {:type :city :city-status :computer :country-id 7}
             stamped (stamping/stamp-computer-fields unit cell)]
         (should= 7 (:country-id stamped))))

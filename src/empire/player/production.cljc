@@ -14,18 +14,14 @@
   {:type item :hits (config/item-hits item) :mode :awake :owner owner})
 
 (defn- apply-unit-type-attributes
-  "Adds type-specific attributes (fuel, turns, transport mission)."
+  "Adds type-specific attributes (fuel, turns)."
   [unit item]
   (cond-> unit
     (= item :fighter)
     (assoc :fuel config/fighter-fuel)
 
     (= item :satellite)
-    (assoc :turns-remaining config/satellite-turns)
-
-    (= item :transport)
-    (assoc :transport-mission :idle
-           :stuck-since-round @atoms/round-number)))
+    (assoc :turns-remaining config/satellite-turns)))
 
 (defn- apply-movement-orders
   "Applies marching orders or flight path to unit."

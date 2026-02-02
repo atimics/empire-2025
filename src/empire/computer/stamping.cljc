@@ -8,13 +8,15 @@
     (assoc unit :direction (rand-nth [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]]))
     unit))
 
-(defn- apply-computer-transport-id
-  "Assigns a unique transport-id to computer transports."
+(defn- apply-computer-transport-fields
+  "Stamps transport-mission, stuck-since-round, and transport-id on computer transports."
   [unit]
   (if (and (= :transport (:type unit)) (= :computer (:owner unit)))
     (let [id @atoms/next-transport-id]
       (swap! atoms/next-transport-id inc)
-      (assoc unit :transport-id id))
+      (assoc unit :transport-mission :idle
+                  :stuck-since-round @atoms/round-number
+                  :transport-id id))
     unit))
 
 (defn- apply-country-id
@@ -71,7 +73,7 @@
   [unit cell]
   (-> unit
       (apply-computer-satellite-direction)
-      (apply-computer-transport-id)
+      (apply-computer-transport-fields)
       (apply-destroyer-fields)
       (apply-carrier-fields)
       (apply-escort-fields)

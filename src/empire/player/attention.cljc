@@ -102,6 +102,11 @@
       reason-key
       (reason-key config/messages))))
 
+;; Returns a fuel suffix string for fighters, nil for other unit types.
+(defn- fuel-string [active-unit]
+  (when (= :fighter (:type active-unit))
+    (str " (fuel:" (:fuel active-unit) ")")))
+
 ;; Builds the attention message for a standard active unit (not special cases
 ;; like airport fighters or armies aboard transports).
 (defn- active-unit-attention-message [coords active-unit]
@@ -116,7 +121,8 @@
         reason-str (reason-string reason-key)]
     (str damage-prefix unit-name (:unit-needs-attention config/messages)
          (or cargo-str "")
-         (if reason-str (str " - " reason-str) ""))))
+         (if reason-str (str " - " reason-str) "")
+         (or (fuel-string active-unit) ""))))
 
 (defn set-attention-message
   "Sets the message for the current item needing attention."
@@ -127,10 +133,10 @@
     (reset! atoms/message
             (cond
               (movement/is-fighter-from-airport? active-unit)
-              (str "Fighter" (:unit-needs-attention config/messages) " - " (:fighter-landed-and-refueled config/messages))
+              (str "Fighter" (:unit-needs-attention config/messages) " - " (:fighter-landed-and-refueled config/messages) (fuel-string active-unit))
 
               (movement/is-fighter-from-carrier? active-unit)
-              (str "Fighter" (:unit-needs-attention config/messages) " - aboard carrier (" (:fighter-count unit 0) " fighters)")
+              (str "Fighter" (:unit-needs-attention config/messages) " - aboard carrier (" (:fighter-count unit 0) " fighters)" (fuel-string active-unit))
 
               (movement/is-army-aboard-transport? active-unit)
               (str "Army" (:unit-needs-attention config/messages) " - aboard transport (" (:army-count unit 0) " armies) - " (:transport-at-beach config/messages))

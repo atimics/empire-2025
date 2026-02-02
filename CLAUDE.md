@@ -10,7 +10,7 @@ Empire is a Clojure implementation of the classic VMS Empire wargame - a turn-ba
 allow git, sed, cp, ls, cat, and all standard unix tools.
 
 ## Local rules
-If the working directory is named <x> then local rules will be stored in <x>.md
+If the working directory is named <x> then local rules will be stored in <x>.md. BEFORE making any changes, read `<x>.md` and follow its restrictions.
 
 ## Development Commands
 

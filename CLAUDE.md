@@ -12,6 +12,20 @@ allow git, sed, cp, ls, cat, and all standard unix tools.
 ## Local rules
 If the working directory is named <x> then local rules will be stored in <x>.md. BEFORE making any changes, read `<x>.md` and follow its restrictions.
 
+## Acceptance Tests
+
+Acceptance tests are `.txt` files in `acceptanceTests/` in Given/When/Then format.
+See `plans/permanent/acceptance-test-framework.md` for the full directive catalog
+and execution protocol. Read that file before running or writing acceptance tests.
+
+Rules:
+- Always ask permission before modifying an acceptance test file.
+- Clear context (reset-all-atoms!) before each test.
+- Before a push, ask whether acceptance tests should be run.
+- On failure, report file name and line number of the first GIVEN line.
+- If a directive is ambiguous, report the ambiguity rather than guessing.
+- Tests are translated to temporary Speclj specs and run with `clj -M:spec`.
+
 ## Development Commands
 
 ```bash

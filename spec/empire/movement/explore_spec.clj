@@ -75,8 +75,8 @@
                                                  "##-"]))
       ;; From [1 1], moves to column 2 should be adjacent to unexplored
       (let [moves (get-unexplored-explore-moves [1 1] game-map)]
-        (should (some #{[0 2]} moves))
-        (should (some #{[1 2]} moves))
+        (should (some #{[2 0]} moves))
+        (should (some #{[2 1]} moves))
         (should (some #{[2 2]} moves))))))
 
 (describe "pick-explore-move"
@@ -89,8 +89,8 @@
                                                  "###"
                                                  "###"]))
       (let [move (pick-explore-move [1 1] game-map #{})]
-        ;; Should pick a move adjacent to unexplored [0 2]
-        (should (some #{move} [[0 1] [0 2] [1 2]])))))
+        ;; Should pick a move adjacent to unexplored [2 0]
+        (should (some #{move} [[1 0] [2 0] [2 1]])))))
 
   (it "returns visited cell when all cells visited"
     (let [game-map (atom (build-test-map ["~~~"
@@ -98,10 +98,10 @@
                                     "###"]))]
       (reset! atoms/player-map @game-map)
       ;; All valid moves are visited
-      (let [visited #{[2 0] [2 1] [2 2]}
+      (let [visited #{[0 2] [1 2] [2 2]}
             move (pick-explore-move [1 1] game-map visited)]
         ;; Should still return a move even though all are visited
-        (should (some #{move} [[2 0] [2 1] [2 2]])))))
+        (should (some #{move} [[0 2] [1 2] [2 2]])))))
 
   (it "returns nil when no valid moves"
     (let [game-map (atom (build-test-map ["~~~"
@@ -161,7 +161,7 @@
     (reset! atoms/game-map (build-test-map ["A#X"]))
     (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 10 :visited #{})
     (let [unit-coords (:pos (get-test-unit atoms/game-map "A"))
-          dest-coords [(first unit-coords) (inc (second unit-coords))]]
+          dest-coords [(inc (first unit-coords)) (second unit-coords)]]
       (reset! atoms/player-map (build-test-map ["##X"]))
       (move-explore-unit unit-coords)
       ;; After moving to dest-coords which is adjacent to hostile city, unit should wake

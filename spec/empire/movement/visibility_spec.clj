@@ -21,8 +21,8 @@
     (update-cell-visibility [4 4] :player)
     ;; Check that the unit's cell and neighbors are revealed
     (should= {:type :land :contents {:type :army :owner :player :hits 1 :mode :awake}} (get-in @atoms/player-map [4 4]))
-    (should= {:type :land} (get-in @atoms/player-map [4 5]))
     (should= {:type :land} (get-in @atoms/player-map [5 4]))
+    (should= {:type :land} (get-in @atoms/player-map [4 5]))
     ;; Check that distant cells are not revealed
     (should= nil (get-in @atoms/player-map [0 0]))
     (should= nil (get-in @atoms/player-map [8 8])))
@@ -53,18 +53,18 @@
     (update-combatant-map atoms/player-map :player)
     ;; All 9 cells around [2 2] should be revealed
     (should= {:type :sea} (get-in @atoms/player-map [1 1]))
-    (should= {:type :sea} (get-in @atoms/player-map [1 2]))
-    (should= {:type :sea} (get-in @atoms/player-map [1 3]))
     (should= {:type :sea} (get-in @atoms/player-map [2 1]))
-    (should= {:type :land :contents {:type :army :owner :player :hits 1}} (get-in @atoms/player-map [2 2]))
-    (should= {:type :sea} (get-in @atoms/player-map [2 3]))
     (should= {:type :sea} (get-in @atoms/player-map [3 1]))
+    (should= {:type :sea} (get-in @atoms/player-map [1 2]))
+    (should= {:type :land :contents {:type :army :owner :player :hits 1}} (get-in @atoms/player-map [2 2]))
     (should= {:type :sea} (get-in @atoms/player-map [3 2]))
+    (should= {:type :sea} (get-in @atoms/player-map [1 3]))
+    (should= {:type :sea} (get-in @atoms/player-map [2 3]))
     (should= {:type :sea} (get-in @atoms/player-map [3 3]))
     ;; Corners should not be revealed
     (should= nil (get-in @atoms/player-map [0 0]))
-    (should= nil (get-in @atoms/player-map [0 4]))
     (should= nil (get-in @atoms/player-map [4 0]))
+    (should= nil (get-in @atoms/player-map [0 4]))
     (should= nil (get-in @atoms/player-map [4 4])))
 
   (it "clamps visibility at map edges for unit in corner"
@@ -77,8 +77,8 @@
     (update-combatant-map atoms/player-map :player)
     ;; Cells at and adjacent to [0 0] should be revealed (clamped)
     (should= {:type :land :contents {:type :army :owner :player :hits 1}} (get-in @atoms/player-map [0 0]))
-    (should= {:type :sea} (get-in @atoms/player-map [0 1]))
     (should= {:type :sea} (get-in @atoms/player-map [1 0]))
+    (should= {:type :sea} (get-in @atoms/player-map [0 1]))
     (should= {:type :sea} (get-in @atoms/player-map [1 1]))
     ;; Far cells should not be revealed
     (should= nil (get-in @atoms/player-map [2 2])))

@@ -13,7 +13,7 @@
   (it "moves fighter and decrements fuel"
     (reset! atoms/game-map (build-test-map ["-F#"]))
     (let [fighter-coords (:pos (get-test-unit atoms/game-map "F"))
-          target-coords [(first fighter-coords) (inc (second fighter-coords))]]
+          target-coords [(inc (first fighter-coords)) (second fighter-coords)]]
       (set-test-unit atoms/game-map "F" :mode :moving :target target-coords :fuel 10 :steps-remaining 1)
       (reset! atoms/player-map (make-initial-test-map 1 3 nil))
       (game-loop/move-current-unit fighter-coords)
@@ -23,7 +23,7 @@
   (it "fighter wakes when fuel reaches 0"
     (reset! atoms/game-map (build-test-map ["-F#"]))
     (let [fighter-coords (:pos (get-test-unit atoms/game-map "F"))
-          target-coords [(first fighter-coords) (inc (second fighter-coords))]]
+          target-coords [(inc (first fighter-coords)) (second fighter-coords)]]
       (set-test-unit atoms/game-map "F" :mode :moving :target target-coords :fuel 1 :steps-remaining 1)
       (reset! atoms/player-map (make-initial-test-map 1 3 nil))
       (game-loop/move-current-unit fighter-coords)
@@ -33,7 +33,7 @@
   (it "fighter crashes when trying to move with 0 fuel"
     (reset! atoms/game-map (build-test-map ["-F#"]))
     (let [fighter-coords (:pos (get-test-unit atoms/game-map "F"))
-          target-coords [(first fighter-coords) (inc (second fighter-coords))]]
+          target-coords [(inc (first fighter-coords)) (second fighter-coords)]]
       (set-test-unit atoms/game-map "F" :mode :moving :target target-coords :fuel 0 :steps-remaining 1)
       (reset! atoms/player-map (make-initial-test-map 1 3 nil))
       (game-loop/move-current-unit fighter-coords)
@@ -73,7 +73,7 @@
     (reset! atoms/game-map (build-test-map ["F+#"]))
     (let [fighter-coords (:pos (get-test-unit atoms/game-map "F"))
           city-coords (:pos (get-test-city atoms/game-map "+"))
-          target-coords [(first fighter-coords) (+ (second fighter-coords) 2)]]
+          target-coords [(+ (first fighter-coords) 2) (second fighter-coords)]]
       (set-test-unit atoms/game-map "F" :mode :moving :target target-coords :fuel 10 :steps-remaining 1)
       (reset! atoms/player-map (make-initial-test-map 1 3 nil))
       (game-loop/move-current-unit fighter-coords)
@@ -89,7 +89,7 @@
     (reset! atoms/game-map (build-test-map ["FX#"]))
     (let [fighter-coords (:pos (get-test-unit atoms/game-map "F"))
           city-coords (:pos (get-test-city atoms/game-map "X"))
-          target-coords [(first fighter-coords) (+ (second fighter-coords) 2)]]
+          target-coords [(+ (first fighter-coords) 2) (second fighter-coords)]]
       (set-test-unit atoms/game-map "F" :mode :moving :target target-coords :fuel 10 :steps-remaining 1)
       (reset! atoms/player-map (make-initial-test-map 1 3 nil))
       (game-loop/move-current-unit fighter-coords)
@@ -104,8 +104,8 @@
   (it "fighter wakes with bingo warning when fuel at 25% and friendly city in range"
     (reset! atoms/game-map (build-test-map ["O--F#-#"]))
     (let [fighter-coords (:pos (get-test-unit atoms/game-map "F"))
-          target-coords [(first fighter-coords) 6]
-          dest-coords [(first fighter-coords) (inc (second fighter-coords))]]
+          target-coords [6 (second fighter-coords)]
+          dest-coords [(inc (first fighter-coords)) (second fighter-coords)]]
       (set-test-unit atoms/game-map "F" :mode :moving :target target-coords :fuel 8 :steps-remaining 1)
       (reset! atoms/player-map (make-initial-test-map 1 7 nil))
       (game-loop/move-current-unit fighter-coords)
@@ -122,7 +122,7 @@
                                              "---------"
                                              "----F#---"]))
     (let [fighter-coords (:pos (get-test-unit atoms/game-map "F"))
-          target-coords [(first fighter-coords) (inc (second fighter-coords))]]
+          target-coords [(inc (first fighter-coords)) (second fighter-coords)]]
       (set-test-unit atoms/game-map "F" :mode :moving :target target-coords :fuel 3 :steps-remaining 1)
       (reset! atoms/player-map (make-initial-test-map 5 9 nil))
       (game-loop/move-current-unit fighter-coords)
@@ -135,7 +135,7 @@
   (it "fighter does not wake with bingo warning when fuel above 25%"
     (reset! atoms/game-map (build-test-map ["O--F#"]))
     (let [fighter-coords (:pos (get-test-unit atoms/game-map "F"))
-          target-coords [(first fighter-coords) (inc (second fighter-coords))]]
+          target-coords [(inc (first fighter-coords)) (second fighter-coords)]]
       (set-test-unit atoms/game-map "F" :mode :moving :target target-coords :fuel 10 :steps-remaining 1)
       (reset! atoms/player-map (make-initial-test-map 1 5 nil))
       (game-loop/move-current-unit fighter-coords)
@@ -149,7 +149,7 @@
     (reset! atoms/game-map (build-test-map ["F#-O"]))
     (let [fighter-coords (:pos (get-test-unit atoms/game-map "F"))
           city-coords (:pos (get-test-city atoms/game-map "O"))
-          dest-coords [(first fighter-coords) (inc (second fighter-coords))]]
+          dest-coords [(inc (first fighter-coords)) (second fighter-coords)]]
       ;; Fighter with fuel 8 (bingo level), target is friendly city
       (set-test-unit atoms/game-map "F" :mode :moving :target city-coords :fuel 8 :steps-remaining 1)
       (reset! atoms/player-map (make-initial-test-map 1 4 nil))
@@ -165,7 +165,7 @@
                                              "F~C-"]))
     (let [fighter-coords (:pos (get-test-unit atoms/game-map "F"))
           carrier-coords (:pos (get-test-unit atoms/game-map "C"))
-          dest-coords [(first fighter-coords) (inc (second fighter-coords))]]
+          dest-coords [(inc (first fighter-coords)) (second fighter-coords)]]
       ;; Fighter with fuel 8 (bingo level), target is carrier
       ;; Distance to carrier is 2, worst-case fuel needed = 2 * 4/3 = 2.67, so 8 fuel is enough
       (set-test-unit atoms/game-map "F" :mode :moving :target carrier-coords :fuel 8 :steps-remaining 1)
@@ -183,7 +183,7 @@
                                              "F~------C-"]))
     (let [fighter-coords (:pos (get-test-unit atoms/game-map "F"))
           carrier-coords (:pos (get-test-unit atoms/game-map "C"))
-          dest-coords [(first fighter-coords) (inc (second fighter-coords))]]
+          dest-coords [(inc (first fighter-coords)) (second fighter-coords)]]
       ;; Fighter with fuel 6 (bingo level), target is carrier
       ;; Distance after move is 6, worst-case fuel needed = 6 * 4/3 = 8 > 5
       (set-test-unit atoms/game-map "F" :mode :moving :target carrier-coords :fuel 6 :steps-remaining 1)
@@ -235,8 +235,8 @@
   (it "launch-fighter-from-carrier removes fighter and places it at adjacent cell"
     (reset! atoms/game-map (build-test-map ["-C~-"]))
     (let [carrier-coords (:pos (get-test-unit atoms/game-map "C"))
-          adjacent-coords [(first carrier-coords) (inc (second carrier-coords))]
-          target-coords [(first carrier-coords) (+ (second carrier-coords) 2)]]
+          adjacent-coords [(inc (first carrier-coords)) (second carrier-coords)]
+          target-coords [(+ (first carrier-coords) 2) (second carrier-coords)]]
       (set-test-unit atoms/game-map "C" :mode :sentry :hits 8 :fighter-count 2 :awake-fighters 2)
       (reset! atoms/player-map (make-initial-test-map 1 4 nil))
       (container-ops/launch-fighter-from-carrier carrier-coords target-coords)
@@ -251,7 +251,7 @@
   (it "launch-fighter-from-carrier keeps carrier in sentry mode after last fighter launches"
     (reset! atoms/game-map (build-test-map ["-C~-"]))
     (let [carrier-coords (:pos (get-test-unit atoms/game-map "C"))
-          target-coords [(first carrier-coords) (+ (second carrier-coords) 2)]]
+          target-coords [(+ (first carrier-coords) 2) (second carrier-coords)]]
       (set-test-unit atoms/game-map "C" :mode :sentry :hits 8 :fighter-count 1 :awake-fighters 1)
       (reset! atoms/player-map (make-initial-test-map 1 4 nil))
       (container-ops/launch-fighter-from-carrier carrier-coords target-coords)
@@ -262,8 +262,8 @@
   (it "launch-fighter-from-carrier sets steps-remaining to speed minus one"
     (reset! atoms/game-map (build-test-map ["-C~-"]))
     (let [carrier-coords (:pos (get-test-unit atoms/game-map "C"))
-          adjacent-coords [(first carrier-coords) (inc (second carrier-coords))]
-          target-coords [(first carrier-coords) (+ (second carrier-coords) 2)]]
+          adjacent-coords [(inc (first carrier-coords)) (second carrier-coords)]
+          target-coords [(+ (first carrier-coords) 2) (second carrier-coords)]]
       (set-test-unit atoms/game-map "C" :mode :sentry :hits 8 :fighter-count 1 :awake-fighters 1)
       (reset! atoms/player-map (make-initial-test-map 1 4 nil))
       (container-ops/launch-fighter-from-carrier carrier-coords target-coords)
@@ -296,8 +296,8 @@
     ;; awake-fighters should be 0 after landing
     (reset! atoms/game-map (build-test-map ["-C~~"]))
     (let [carrier-coords (:pos (get-test-unit atoms/game-map "C"))
-          adjacent-coords [(first carrier-coords) (inc (second carrier-coords))]
-          target-coords [(first carrier-coords) (+ (second carrier-coords) 2)]]
+          adjacent-coords [(inc (first carrier-coords)) (second carrier-coords)]
+          target-coords [(+ (first carrier-coords) 2) (second carrier-coords)]]
       (set-test-unit atoms/game-map "C" :mode :sentry :hits 8 :fighter-count 1 :awake-fighters 1)
       (reset! atoms/player-map (make-initial-test-map 1 4 nil))
       ;; Launch fighter from carrier toward target
@@ -389,7 +389,7 @@
   (it "removes awake fighter from airport and places it moving"
     (reset! atoms/game-map (build-test-map ["-O#-"]))
     (let [city-coords (:pos (get-test-city atoms/game-map "O"))
-          target-coords [(first city-coords) (+ (second city-coords) 2)]]
+          target-coords [(+ (first city-coords) 2) (second city-coords)]]
       (swap! atoms/game-map assoc-in (conj city-coords :fighter-count) 2)
       (swap! atoms/game-map assoc-in (conj city-coords :awake-fighters) 2)
       (reset! atoms/player-map (make-initial-test-map 1 4 nil))

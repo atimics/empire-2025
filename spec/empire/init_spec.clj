@@ -14,9 +14,9 @@
       (should= input result)))
 
   (it "smooths a 2x2 map correctly"
-    (let [input [[2 3] [4 5]]
+    (let [input [[2 4] [3 5]]
           result (smooth-map input)
-          expected [[3 3] [4 4]]]
+          expected [[3 4] [3 4]]]
       (should= expected result))))
 
 (declare map-size smooth-count land-fraction num-cities min-distance initial-map)
@@ -102,35 +102,35 @@
 (describe "smooth-cell"
   (before (reset-all-atoms!))
   (it "smooths center cell correctly"
-    (let [test-map [[1 2 3] [4 5 6] [7 8 9]]
+    (let [test-map [[1 4 7] [2 5 8] [3 6 9]]
           result (smooth-cell 1 1 test-map)]
-      ;; Neighbors: 1,2,3,4,5,6,7,8,9 sum=45, avg=5.0, round=5
+      ;; Neighbors: 1,4,7,2,5,8,3,6,9 sum=45, avg=5.0, round=5
       (should= 5 result)))
 
   (it "smooths corner cell with clamping"
-    (let [test-map [[1 2 3] [4 5 6] [7 8 9]]
+    (let [test-map [[1 4 7] [2 5 8] [3 6 9]]
           result (smooth-cell 0 0 test-map)]
-      ;; Neighbors: [0,0]=1, [0,0]=1, [0,1]=2, [0,0]=1, [0,0]=1, [0,1]=2, [1,0]=4, [1,0]=4, [1,1]=5
-      ;; Sum: 1+1+2+1+1+2+4+4+5=21, avg=2.333, round=2
+      ;; Neighbors: 1,1,1,1,1,4,1,2,5
+      ;; Sum: 1+1+1+1+1+4+1+2+5=17, avg=1.889, round=2
       (should= 2 result)))
 
   (it "smooths edge cell with clamping"
-    (let [test-map [[1 2 3] [4 5 6] [7 8 9]]
-          result (smooth-cell 1 0 test-map)]
-      ;; Neighbors: [4 1 2] [4 4 5] [4 7 8] = 39/9=4.333.. round=4
+    (let [test-map [[1 4 7] [2 5 8] [3 6 9]]
+          result (smooth-cell 0 1 test-map)]
+      ;; Neighbors: [4 4 4] [1 4 7] [2 5 8] = 39/9=4.333.. round=4
       (should= 4 result)))
 
   (it "smooths another edge cell"
-    (let [test-map [[1 2 3] [4 5 6] [7 8 9]]
-          result (smooth-cell 0 1 test-map)]
-      ;; Neighbors: [1 1 1] [1 2 3] [4 5 6] = 24/9=2.666.. round=3
+    (let [test-map [[1 4 7] [2 5 8] [3 6 9]]
+          result (smooth-cell 1 0 test-map)]
+      ;; Neighbors: [2 1 4] [2 2 5] [2 3 6] = 27/9=3.0 round=3
       (should= 3 result))))
 
 (describe "coastal?"
   (before (reset-all-atoms!))
   (it "returns true for city adjacent to sea"
-    (let [test-map [[{:type :sea} {:type :land} {:type :land}]
-                    [{:type :sea} {:type :city :city-status :free} {:type :land}]
+    (let [test-map [[{:type :sea} {:type :sea} {:type :land}]
+                    [{:type :land} {:type :city :city-status :free} {:type :land}]
                     [{:type :land} {:type :land} {:type :land}]]]
       (should (coastal? [1 1] test-map))))
 
@@ -150,8 +150,8 @@
   (before (reset-all-atoms!))
   (it "selects only coastal cities for player"
     (let [;; Map with one inland city and one coastal city
-          test-map [[{:type :sea} {:type :land} {:type :land}]
-                    [{:type :sea} {:type :city :city-status :free} {:type :land}]
+          test-map [[{:type :sea} {:type :sea} {:type :land}]
+                    [{:type :land} {:type :city :city-status :free} {:type :land}]
                     [{:type :land} {:type :land} {:type :city :city-status :free}]]
           ;; Run multiple times to ensure coastal is always chosen
           results (repeatedly 10 #(occupy-random-free-city test-map :player))
@@ -172,12 +172,12 @@
       (should= :free (:city-status (get-in result [1 1])))))
 
   (it "player and computer starting cities are coastal"
-    (let [test-map [[{:type :sea}  {:type :land} {:type :land} {:type :city :city-status :free}]
-                    [{:type :sea}  {:type :city :city-status :free} {:type :land} {:type :land}]
+    (let [test-map [[{:type :sea}  {:type :sea}  {:type :land} {:type :land}]
+                    [{:type :land} {:type :city :city-status :free} {:type :land} {:type :city :city-status :free}]
                     [{:type :land} {:type :land} {:type :land} {:type :land}]
-                    [{:type :land} {:type :city :city-status :free} {:type :land} {:type :land}]]
-          ;; [1 1] is coastal (adjacent to [0,0] and [1,0] sea)
-          ;; [0 3] and [3 1] are inland (no adjacent sea)
+                    [{:type :city :city-status :free} {:type :land} {:type :land} {:type :land}]]
+          ;; [1 1] is coastal (adjacent to [0,0] and [0,1] sea)
+          ;; [3 0] and [1 3] are inland (no adjacent sea)
           with-player (occupy-random-free-city test-map :player)
           with-both (occupy-random-free-city with-player :computer)
           player-pos (first (for [i (range 4) j (range 4)
@@ -192,16 +192,16 @@
       (should= nil computer-pos)))
 
   (it "uses 3-arity version with min-distance-from"
-    (let [test-map [[{:type :sea} {:type :city :city-status :free} {:type :land} {:type :land} {:type :land}]
-                    [{:type :sea} {:type :land} {:type :land} {:type :land} {:type :land}]
+    (let [test-map [[{:type :sea} {:type :sea} {:type :land} {:type :land} {:type :land}]
+                    [{:type :city :city-status :free} {:type :land} {:type :land} {:type :land} {:type :land}]
                     [{:type :land} {:type :land} {:type :land} {:type :land} {:type :land}]
-                    [{:type :land} {:type :land} {:type :land} {:type :land} {:type :land}]
-                    [{:type :land} {:type :land} {:type :land} {:type :city :city-status :free} {:type :sea}]]
-          ;; Two coastal cities: [0 1] and [4 3]
-          ;; Distance from [0 0] to [0 1] = 1, to [4 3] = 7
+                    [{:type :land} {:type :land} {:type :land} {:type :land} {:type :city :city-status :free}]
+                    [{:type :land} {:type :land} {:type :land} {:type :land} {:type :sea}]]
+          ;; Two coastal cities: [1 0] and [3 4]
+          ;; Distance from [0 0] to [1 0] = 1, to [3 4] = 7
           result (occupy-random-free-city test-map :player [0 0 5])]
-      ;; Should only pick [4 3] since it's >= 5 away from [0 0]
-      (should= :player (:city-status (get-in result [4 3]))))))
+      ;; Should only pick [3 4] since it's >= 5 away from [0 0]
+      (should= :player (:city-status (get-in result [3 4]))))))
 
 (describe "generate-cities"
   (before (reset-all-atoms!))

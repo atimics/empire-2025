@@ -64,8 +64,8 @@
   (it "finds cities matching status predicate"
     (reset! atoms/computer-map (build-test-map ["X+O"]))
     (should= [[0 0]] (computer-core/find-visible-cities #{:computer}))
-    (should= [[0 1]] (computer-core/find-visible-cities #{:free}))
-    (should= [[0 2]] (computer-core/find-visible-cities #{:player}))))
+    (should= [[1 0]] (computer-core/find-visible-cities #{:free}))
+    (should= [[2 0]] (computer-core/find-visible-cities #{:player}))))
 
 (describe "computer-core/move-toward"
   (it "returns neighbor closest to target"
@@ -93,29 +93,29 @@
 
   (it "moves unit from one position to another"
     (reset! atoms/game-map (build-test-map ["a#"]))
-    (computer-core/move-unit-to [0 0] [0 1])
+    (computer-core/move-unit-to [0 0] [1 0])
     (should-be-nil (:contents (get-in @atoms/game-map [0 0])))
-    (should= :army (:type (:contents (get-in @atoms/game-map [0 1]))))))
+    (should= :army (:type (:contents (get-in @atoms/game-map [1 0]))))))
 
 (describe "computer-core/find-visible-player-units"
   (before (reset-all-atoms!))
 
   (it "finds player units on computer-map"
     (reset! atoms/computer-map (build-test-map ["aA#"]))
-    (should= [[0 1]] (computer-core/find-visible-player-units))))
+    (should= [[1 0]] (computer-core/find-visible-player-units))))
 
 (describe "computer-core/board-transport"
   (before (reset-all-atoms!))
 
   (it "loads army onto adjacent transport"
     (reset! atoms/game-map (build-test-map ["at"]))
-    (computer-core/board-transport [0 0] [0 1])
+    (computer-core/board-transport [0 0] [1 0])
     (should-be-nil (:contents (get-in @atoms/game-map [0 0])))
-    (should= 1 (:army-count (:contents (get-in @atoms/game-map [0 1])))))
+    (should= 1 (:army-count (:contents (get-in @atoms/game-map [1 0])))))
 
   (it "throws when positions are not adjacent"
     (reset! atoms/game-map (build-test-map ["a#t"]))
-    (should-throw (computer-core/board-transport [0 0] [0 2]))))
+    (should-throw (computer-core/board-transport [0 0] [2 0]))))
 
 ;; ============================================================================
 ;; Preserved Utilities: computer/threat.cljc
@@ -163,7 +163,7 @@
                                                  "~d~"
                                                  "~~~"]))
     (let [unit {:type :destroyer :hits 3}
-          moves [[0 1] [1 0] [1 2] [2 1]]]
+          moves [[1 0] [0 1] [2 1] [1 2]]]
       (should= moves (threat/safe-moves @atoms/computer-map [1 1] unit moves)))))
 
 (describe "threat/should-retreat?"
@@ -192,10 +192,10 @@
                                              "~~d~~"]))
     (reset! atoms/computer-map @atoms/game-map)
     (let [unit {:type :destroyer :hits 1}
-          passable [[1 2] [1 3] [2 1] [2 3]]]
+          passable [[2 1] [3 1] [1 2] [3 2]]]
       (let [retreat (threat/retreat-move [2 2] unit @atoms/computer-map passable)]
         (should-not-be-nil retreat)
-        (should (#{[1 2] [2 1] [1 3]} retreat)))))
+        (should (#{[2 1] [1 2] [3 1]} retreat)))))
 
   (it "returns nil when no friendly city exists"
     (reset! atoms/game-map (build-test-map ["~~~~B"
@@ -203,7 +203,7 @@
                                              "~~d~~"]))
     (reset! atoms/computer-map @atoms/game-map)
     (let [unit {:type :destroyer :hits 1}
-          passable [[1 2] [1 3] [2 1] [2 3]]]
+          passable [[2 1] [3 1] [1 2] [3 2]]]
       (should-be-nil (threat/retreat-move [2 2] unit @atoms/computer-map passable)))))
 
 ;; ============================================================================
@@ -215,11 +215,11 @@
 
   (it "returns true when city has adjacent sea"
     (reset! atoms/game-map (build-test-map ["~X#"]))
-    (should (computer-production/city-is-coastal? [0 1])))
+    (should (computer-production/city-is-coastal? [1 0])))
 
   (it "returns false when city has no adjacent sea"
     (reset! atoms/game-map (build-test-map ["#X#"]))
-    (should-not (computer-production/city-is-coastal? [0 1]))))
+    (should-not (computer-production/city-is-coastal? [1 0]))))
 
 (describe "computer-production/count-computer-units"
   (before (reset-all-atoms!))
@@ -247,8 +247,8 @@
     (reset! atoms/game-map (build-test-map ["a#"]))
     (reset! atoms/computer-map (build-test-map ["a#"]))
     (army/process-army [0 0])
-    ;; Army should have moved to [0 1]
-    (should= :army (get-in @atoms/game-map [0 1 :contents :type]))))
+    ;; Army should have moved to [1 0]
+    (should= :army (get-in @atoms/game-map [1 0 :contents :type]))))
 
 (describe "VMS fighter module"
   (before (reset-all-atoms!))
@@ -318,7 +318,7 @@
       ;; Army module returns nil (units processed once per round)
       (should-be-nil result)
       ;; But army should have moved
-      (should= :army (get-in @atoms/game-map [0 1 :contents :type]))))
+      (should= :army (get-in @atoms/game-map [1 0 :contents :type]))))
 
   (it "dispatches to fighter module"
     (reset! atoms/game-map [[{:type :city :city-status :computer}
@@ -369,7 +369,7 @@
   (it "build-computer-items returns computer city coordinates"
     (reset! atoms/game-map (build-test-map ["#X"]))
     (let [items (game-loop/build-computer-items)]
-      (should-contain [0 1] items)))
+      (should-contain [1 0] items)))
 
   (it "build-computer-items returns computer unit coordinates"
     (reset! atoms/game-map (build-test-map ["a#"]))
@@ -383,15 +383,15 @@
     (reset! atoms/computer-map @atoms/game-map)
     (reset! atoms/production {})
     (reset! atoms/player-items [])
-    (reset! atoms/computer-items [[0 3] [0 0]])  ;; army at [0 3], city at [0 0]
+    (reset! atoms/computer-items [[3 0] [0 0]])  ;; army at [3 0], city at [0 0]
     ;; Process computer items - should complete without error
     (doseq [item @atoms/computer-items]
       (computer/process-computer-unit item))
     ;; Army should have moved (VMS AI takes actions) - toward unexplored or exploring
     ;; Since all is explored, army stays or moves to adjacent
-    (let [army-at-3 (:contents (get-in @atoms/game-map [0 3]))
-          army-at-4 (:contents (get-in @atoms/game-map [0 4]))
-          army-at-2 (:contents (get-in @atoms/game-map [0 2]))]
+    (let [army-at-3 (:contents (get-in @atoms/game-map [3 0]))
+          army-at-4 (:contents (get-in @atoms/game-map [4 0]))
+          army-at-2 (:contents (get-in @atoms/game-map [2 0]))]
       (should (or (= :army (:type army-at-4))
                   (= :army (:type army-at-2))
                   (= :army (:type army-at-3)))))))

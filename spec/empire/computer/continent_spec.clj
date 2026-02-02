@@ -22,8 +22,8 @@
       ;; Should only find left 3x2 = 6 cells
       (should= 6 (count cont))
       (should-contain [0 0] cont)
-      (should-contain [1 2] cont)
-      (should-not-contain [0 4] cont)))
+      (should-contain [2 1] cont)
+      (should-not-contain [4 0] cont)))
 
   (it "marks but does not expand through unexplored territory"
     ;; Map where middle column is unexplored (nil)
@@ -123,7 +123,7 @@
     (reset! atoms/computer-map (build-test-map ["##+"]))
     (let [cont (continent/flood-fill-continent [0 0])
           nearest (continent/find-free-city-on-continent [0 0] cont)]
-      (should= [0 2] nearest)))
+      (should= [2 0] nearest)))
 
   (it "returns nil when no free city on continent"
     (reset! atoms/computer-map (build-test-map ["##X"]))
@@ -138,7 +138,7 @@
     (reset! atoms/computer-map (build-test-map ["##O"]))
     (let [cont (continent/flood-fill-continent [0 0])
           nearest (continent/find-player-city-on-continent [0 0] cont)]
-      (should= [0 2] nearest)))
+      (should= [2 0] nearest)))
 
   (it "returns nil when no player city on continent"
     (reset! atoms/computer-map (build-test-map ["##X"]))

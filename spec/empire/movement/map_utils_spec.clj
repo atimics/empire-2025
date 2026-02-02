@@ -35,8 +35,8 @@
                                               cell))))]
       (should= :sea (:type (get-in result [0 0])))
       (should= 100 (:depth (get-in result [0 0])))
-      (should= :land (:type (get-in result [0 1])))
-      (should= nil (:depth (get-in result [0 1]))))))
+      (should= :land (:type (get-in result [1 0])))
+      (should= nil (:depth (get-in result [1 0]))))))
 
 (describe "filter-map"
   (before (reset-all-atoms!))
@@ -54,7 +54,7 @@
   (it "returns all positions when all match"
     (let [input-map (build-test-map ["##"])
           result (map-utils/filter-map input-map #(= :land (:type %)))]
-      (should= [[0 0] [0 1]] (vec result))))
+      (should= [[0 0] [1 0]] (vec result))))
 
   (it "handles empty map"
     (let [result (map-utils/filter-map [] (constantly true))]
@@ -88,8 +88,8 @@
     (reset! atoms/game-map (build-test-map ["~"
                                              "#"
                                              "#"]))
-    (should (map-utils/on-coast? 1 0))
-    (should-not (map-utils/on-coast? 2 0))))
+    (should (map-utils/on-coast? 0 1))
+    (should-not (map-utils/on-coast? 0 2))))
 
 (describe "on-map?"
   (before (reset-all-atoms!))
@@ -110,7 +110,7 @@
   (before (reset-all-atoms!))
   (it "converts pixel coordinates to cell coordinates"
     (reset! atoms/map-screen-dimensions [800 600])
-    (reset! atoms/game-map (make-initial-test-map 8 6 nil))
+    (reset! atoms/game-map (make-initial-test-map 6 8 nil))
     ;; 800/8 = 100 pixels per cell width, 600/6 = 100 pixels per cell height
     (should= [0 0] (map-utils/determine-cell-coordinates 0 0))
     (should= [0 0] (map-utils/determine-cell-coordinates 50 50))
@@ -251,7 +251,7 @@
                                     "#####"
                                     "#####"
                                     "#####"]))]
-      (should (map-utils/at-map-edge? [0 2] game-map))))
+      (should (map-utils/at-map-edge? [2 0] game-map))))
 
   (it "returns true for bottom edge"
     (let [game-map (atom (build-test-map ["#####"
@@ -259,7 +259,7 @@
                                     "#####"
                                     "#####"
                                     "#####"]))]
-      (should (map-utils/at-map-edge? [4 2] game-map))))
+      (should (map-utils/at-map-edge? [2 4] game-map))))
 
   (it "returns true for left edge"
     (let [game-map (atom (build-test-map ["#####"
@@ -267,7 +267,7 @@
                                     "#####"
                                     "#####"
                                     "#####"]))]
-      (should (map-utils/at-map-edge? [2 0] game-map))))
+      (should (map-utils/at-map-edge? [0 2] game-map))))
 
   (it "returns true for right edge"
     (let [game-map (atom (build-test-map ["#####"
@@ -275,7 +275,7 @@
                                     "#####"
                                     "#####"
                                     "#####"]))]
-      (should (map-utils/at-map-edge? [2 4] game-map))))
+      (should (map-utils/at-map-edge? [4 2] game-map))))
 
   (it "returns false for interior position"
     (let [game-map (atom (build-test-map ["#####"

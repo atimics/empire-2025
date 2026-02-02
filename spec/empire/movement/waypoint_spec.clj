@@ -74,8 +74,8 @@
                             (assoc-in [1 1 :contents] nil)
                             (assoc-in [1 1 :waypoint] {}))]
         (reset! atoms/game-map initial-map)
-        (waypoint/set-waypoint-orders-by-direction [1 1] [0 1])  ; south
-        (should= [1 4] (:marching-orders (:waypoint (get-in @atoms/game-map [1 1])))))))
+        (waypoint/set-waypoint-orders-by-direction [1 1] [1 0])  ; south
+        (should= [4 1] (:marching-orders (:waypoint (get-in @atoms/game-map [1 1])))))))
 
   (context "waypoint display"
     (it "has waypoint-color defined in config as green"
@@ -84,43 +84,43 @@
   (context "army interaction with waypoints"
     (it "army takes marching orders from waypoint without waking"
       (reset! atoms/game-map (-> (build-test-map ["A#"])
-                                 (assoc-in [0 1 :waypoint] {:marching-orders [4 8]})))
-      (set-test-unit atoms/game-map "A" :mode :moving :target [0 1] :steps-remaining 1)
+                                 (assoc-in [1 0 :waypoint] {:marching-orders [4 8]})))
+      (set-test-unit atoms/game-map "A" :mode :moving :target [1 0] :steps-remaining 1)
       (reset! atoms/player-map (build-test-map ["--"]))
       (game-loop/move-current-unit [0 0])
-      (let [moved-unit (:contents (get-in @atoms/game-map [0 1]))]
+      (let [moved-unit (:contents (get-in @atoms/game-map [1 0]))]
         (should= :moving (:mode moved-unit))
         (should= [4 8] (:target moved-unit))))
 
     (it "army wakes normally if waypoint has no marching orders"
       (reset! atoms/game-map (-> (build-test-map ["A#"])
-                                 (assoc-in [0 1 :waypoint] {})))
-      (set-test-unit atoms/game-map "A" :mode :moving :target [0 1] :steps-remaining 1)
+                                 (assoc-in [1 0 :waypoint] {})))
+      (set-test-unit atoms/game-map "A" :mode :moving :target [1 0] :steps-remaining 1)
       (reset! atoms/player-map (build-test-map ["--"]))
       (game-loop/move-current-unit [0 0])
-      (let [moved-unit (:contents (get-in @atoms/game-map [0 1]))]
+      (let [moved-unit (:contents (get-in @atoms/game-map [1 0]))]
         (should= :awake (:mode moved-unit))))
 
     (it "army continues through multiple waypoints"
       (reset! atoms/game-map (-> (build-test-map ["A###"])
-                                 (assoc-in [0 1 :waypoint] {:marching-orders [0 2]})
-                                 (assoc-in [0 2 :waypoint] {:marching-orders [0 3]})))
-      (set-test-unit atoms/game-map "A" :mode :moving :target [0 1] :steps-remaining 1)
+                                 (assoc-in [1 0 :waypoint] {:marching-orders [2 0]})
+                                 (assoc-in [2 0 :waypoint] {:marching-orders [3 0]})))
+      (set-test-unit atoms/game-map "A" :mode :moving :target [1 0] :steps-remaining 1)
       (reset! atoms/player-map (build-test-map ["----"]))
-      ;; Move to first waypoint - army takes orders to [0 2]
+      ;; Move to first waypoint - army takes orders to [2 0]
       (game-loop/move-current-unit [0 0])
-      (let [unit-at-1 (:contents (get-in @atoms/game-map [0 1]))]
+      (let [unit-at-1 (:contents (get-in @atoms/game-map [1 0]))]
         (should= :moving (:mode unit-at-1))
-        (should= [0 2] (:target unit-at-1))))
+        (should= [2 0] (:target unit-at-1))))
 
     (it "army passing through waypoint takes new orders even if not at target"
       (reset! atoms/game-map (-> (build-test-map ["A#-#"])
-                                 (assoc-in [0 1 :waypoint] {:marching-orders [4 2]})))
-      (set-test-unit atoms/game-map "A" :mode :moving :target [0 3] :steps-remaining 1)
+                                 (assoc-in [1 0 :waypoint] {:marching-orders [4 2]})))
+      (set-test-unit atoms/game-map "A" :mode :moving :target [3 0] :steps-remaining 1)
       (reset! atoms/player-map (build-test-map ["----"]))
-      ;; Army is heading to [0 3] but passes through waypoint at [0 1]
+      ;; Army is heading to [3 0] but passes through waypoint at [1 0]
       (game-loop/move-current-unit [0 0])
-      (let [moved-unit (:contents (get-in @atoms/game-map [0 1]))]
+      (let [moved-unit (:contents (get-in @atoms/game-map [1 0]))]
         ;; Army should take waypoint's orders, redirecting to [4 2]
         (should= :moving (:mode moved-unit))
         (should= [4 2] (:target moved-unit)))))
@@ -128,11 +128,11 @@
   (context "fighter interaction with waypoints"
     (it "fighter flies over waypoint with no effect"
       (reset! atoms/game-map (-> (build-test-map ["F#"])
-                                 (assoc-in [0 1 :waypoint] {:marching-orders [4 8]})))
-      (set-test-unit atoms/game-map "F" :mode :moving :fuel 20 :target [0 1] :steps-remaining 1 :hits 1)
+                                 (assoc-in [1 0 :waypoint] {:marching-orders [4 8]})))
+      (set-test-unit atoms/game-map "F" :mode :moving :fuel 20 :target [1 0] :steps-remaining 1 :hits 1)
       (reset! atoms/player-map (build-test-map ["--"]))
       (game-loop/move-current-unit [0 0])
-      (let [moved-unit (:contents (get-in @atoms/game-map [0 1]))]
+      (let [moved-unit (:contents (get-in @atoms/game-map [1 0]))]
         ;; Fighter should wake (reached target) but NOT take waypoint orders
         (should= :awake (:mode moved-unit))
         (should-be-nil (:target moved-unit))))))

@@ -20,7 +20,7 @@
             _result (fighter/process-fighter [0 0] unit)]
         ;; Combat should have occurred - one unit should be gone
         (let [cell0 (get-in @atoms/game-map [0 0])
-              cell1 (get-in @atoms/game-map [0 1])]
+              cell1 (get-in @atoms/game-map [1 0])]
           (should (or (nil? (:contents cell0))
                       (nil? (:contents cell1))
                       (= :computer (:owner (:contents cell1)))))))))
@@ -30,8 +30,8 @@
       (reset! atoms/game-map (build-test-map ["X#f"]))
       (set-test-unit atoms/game-map "f" :fuel 3)
       (reset! atoms/computer-map @atoms/game-map)
-      (let [unit (:contents (get-in @atoms/game-map [0 2]))]
-        (fighter/process-fighter [0 2] unit)
+      (let [unit (:contents (get-in @atoms/game-map [2 0]))]
+        (fighter/process-fighter [2 0] unit)
         ;; With fuel 3, distance 2: should-return is true, moves toward city,
         ;; fuel decremented to 2, then adjacent to city, lands
         (should= 1 (:fighter-count (get-in @atoms/game-map [0 0])))))
@@ -40,8 +40,8 @@
       (reset! atoms/game-map (build-test-map ["Xf"]))
       (set-test-unit atoms/game-map "f" :fuel 2)
       (reset! atoms/computer-map @atoms/game-map)
-      (let [unit (:contents (get-in @atoms/game-map [0 1]))
-            result (fighter/process-fighter [0 1] unit)]
+      (let [unit (:contents (get-in @atoms/game-map [1 0]))
+            result (fighter/process-fighter [1 0] unit)]
         ;; Fighter should land at city
         (should-be-nil result)
         ;; City should have fighter
@@ -52,8 +52,8 @@
       (set-test-unit atoms/game-map "f" :fuel 30)
       ;; Unexplored territory to the right so fighter has reason to move
       (reset! atoms/computer-map (build-test-map ["X#########f........."]))
-      (let [unit (get-in @atoms/game-map [0 10 :contents])]
-        (fighter/process-fighter [0 10] unit)
+      (let [unit (get-in @atoms/game-map [10 0 :contents])]
+        (fighter/process-fighter [10 0] unit)
         ;; Find the fighter - it should have moved and have fuel < 30
         (let [result (get-test-unit atoms/game-map "f")]
           (should-not-be-nil result)
@@ -64,13 +64,13 @@
       (set-test-unit atoms/game-map "f" :fuel 30)
       ;; Unexplored territory to the right so fighter has reason to move
       (reset! atoms/computer-map (build-test-map ["X#########f........."]))
-      (let [unit (get-in @atoms/game-map [0 10 :contents])]
-        (fighter/process-fighter [0 10] unit)
-        ;; Fighter should NOT still be at [0 10]
-        (should-be-nil (get-in @atoms/game-map [0 10 :contents]))
+      (let [unit (get-in @atoms/game-map [10 0 :contents])]
+        (fighter/process-fighter [10 0] unit)
+        ;; Fighter should NOT still be at [10 0]
+        (should-be-nil (get-in @atoms/game-map [10 0 :contents]))
         ;; Fighter should have moved more than 1 cell from start
         (let [result (get-test-unit atoms/game-map "f")
-              [_ fighter-col] (:pos result)]
+              [fighter-col _] (:pos result)]
           (should-not-be-nil result)
           (should (> (Math/abs (- fighter-col 10)) 1)))))
 
@@ -91,10 +91,10 @@
       (reset! atoms/game-map (build-test-map ["#Xf##"]))
       (set-test-unit atoms/game-map "f" :fuel 3)
       (reset! atoms/computer-map @atoms/game-map)
-      (let [unit (get-in @atoms/game-map [0 2 :contents])]
-        (fighter/process-fighter [0 2] unit)
-        ;; Fighter should have landed at city [0 1]
-        (should= 1 (:fighter-count (get-in @atoms/game-map [0 1])))
+      (let [unit (get-in @atoms/game-map [2 0 :contents])]
+        (fighter/process-fighter [2 0] unit)
+        ;; Fighter should have landed at city [1 0]
+        (should= 1 (:fighter-count (get-in @atoms/game-map [1 0])))
         ;; Fighter should NOT be on the map as a unit
         (should-be-nil (get-test-unit atoms/game-map "f")))))
 
@@ -105,13 +105,13 @@
       (reset! atoms/game-map (build-test-map ["Xf##########A"]))
       (set-test-unit atoms/game-map "f" :fuel 20)
       (reset! atoms/computer-map @atoms/game-map)
-      (let [unit (get-in @atoms/game-map [0 1 :contents])]
-        (fighter/process-fighter [0 1] unit)
-        ;; Fighter should have left [0 1] and moved toward the player army
-        (should-be-nil (get-in @atoms/game-map [0 1 :contents]))
+      (let [unit (get-in @atoms/game-map [1 0 :contents])]
+        (fighter/process-fighter [1 0] unit)
+        ;; Fighter should have left [1 0] and moved toward the player army
+        (should-be-nil (get-in @atoms/game-map [1 0 :contents]))
         ;; Fighter should be somewhere between start and player army
         (let [result (get-test-unit atoms/game-map "f")
-              [_ fighter-col] (:pos result)]
+              [fighter-col _] (:pos result)]
           (should-not-be-nil result)
           (should (> fighter-col 1)))))
 
@@ -120,12 +120,12 @@
       (reset! atoms/game-map (build-test-map ["Xf########"]))
       (set-test-unit atoms/game-map "f" :fuel 20)
       (reset! atoms/computer-map (build-test-map ["Xf........"]))
-      (let [unit (get-in @atoms/game-map [0 1 :contents])]
-        (fighter/process-fighter [0 1] unit)
+      (let [unit (get-in @atoms/game-map [1 0 :contents])]
+        (fighter/process-fighter [1 0] unit)
         ;; Fighter should have moved away from start toward unexplored
-        (should-be-nil (get-in @atoms/game-map [0 1 :contents]))
+        (should-be-nil (get-in @atoms/game-map [1 0 :contents]))
         (let [result (get-test-unit atoms/game-map "f")
-              [_ fighter-col] (:pos result)]
+              [fighter-col _] (:pos result)]
           (should-not-be-nil result)
           (should (> fighter-col 1)))))
 
@@ -168,7 +168,7 @@
 
   (describe "leg-based coverage"
     (it "picks unflown leg target over previously flown leg"
-      ;; 20x20 map: city at [10,10], carrier A at [0,10] (north), carrier B at [10,0] (west)
+      ;; 20x20 map: city at [10,10], carrier A at [10,0] (north), carrier B at [0,10] (west)
       (let [land-row (apply str (repeat 20 \#))
             row-0 (str (apply str (repeat 10 \#)) "~" (apply str (repeat 9 \#)))
             row-10 (str "~" (apply str (repeat 9 \#)) "X" (apply str (repeat 9 \#)))
@@ -177,9 +177,9 @@
                      (assoc 10 row-10))]
         (reset! atoms/game-map (build-test-map rows))
         ;; Place carriers in holding mode
-        (swap! atoms/game-map assoc-in [0 10 :contents]
-               {:type :carrier :owner :computer :hits 8 :carrier-mode :holding})
         (swap! atoms/game-map assoc-in [10 0 :contents]
+               {:type :carrier :owner :computer :hits 8 :carrier-mode :holding})
+        (swap! atoms/game-map assoc-in [0 10 :contents]
                {:type :carrier :owner :computer :hits 8 :carrier-mode :holding})
         ;; Place fighter on city
         (swap! atoms/game-map assoc-in [10 10 :contents]
@@ -187,22 +187,22 @@
         (reset! atoms/computer-map @atoms/game-map)
         ;; North leg is flown, west leg is unflown
         (reset! atoms/fighter-leg-records
-                {#{[10 10] [0 10]} {:last-flown 5}})
+                {#{[10 10] [10 0]} {:last-flown 5}})
         ;; Force regular leg assignment
         (with-redefs [rand (fn ([] 0.6) ([_n] 0.6))]
           (let [unit (get-in @atoms/game-map [10 10 :contents])]
             (fighter/process-fighter [10 10] unit)
-            ;; Fighter should have moved west (toward unflown leg target [10,0])
+            ;; Fighter should have moved west (toward unflown leg target [0,10])
             (let [result (get-test-unit atoms/game-map "f")]
               (should-not-be-nil result)
               (let [[r c] (:pos result)]
-                ;; Moved west: col < 10
-                (should (< c 10))
-                ;; Did not move north significantly: row >= 8
-                (should (>= r 8))))))))
+                ;; Moved west: r=col < 10
+                (should (< r 10))
+                ;; Did not move north significantly: c=row >= 8
+                (should (>= c 8))))))))
 
     (it "picks oldest flown leg when all legs are flown"
-      ;; Same map setup: city at [10,10], carrier A at [0,10] (north), carrier B at [10,0] (west)
+      ;; Same map setup: city at [10,10], carrier A at [10,0] (north), carrier B at [0,10] (west)
       (let [land-row (apply str (repeat 20 \#))
             row-0 (str (apply str (repeat 10 \#)) "~" (apply str (repeat 9 \#)))
             row-10 (str "~" (apply str (repeat 9 \#)) "X" (apply str (repeat 9 \#)))
@@ -210,50 +210,50 @@
                      (assoc 0 row-0)
                      (assoc 10 row-10))]
         (reset! atoms/game-map (build-test-map rows))
-        (swap! atoms/game-map assoc-in [0 10 :contents]
-               {:type :carrier :owner :computer :hits 8 :carrier-mode :holding})
         (swap! atoms/game-map assoc-in [10 0 :contents]
+               {:type :carrier :owner :computer :hits 8 :carrier-mode :holding})
+        (swap! atoms/game-map assoc-in [0 10 :contents]
                {:type :carrier :owner :computer :hits 8 :carrier-mode :holding})
         (swap! atoms/game-map assoc-in [10 10 :contents]
                {:type :fighter :owner :computer :hits 1 :fuel 32})
         (reset! atoms/computer-map @atoms/game-map)
         ;; Both legs flown; west leg is older (lower round number)
         (reset! atoms/fighter-leg-records
-                {#{[10 10] [0 10]} {:last-flown 10}
-                 #{[10 10] [10 0]} {:last-flown 3}})
+                {#{[10 10] [10 0]} {:last-flown 10}
+                 #{[10 10] [0 10]} {:last-flown 3}})
         ;; Force regular leg assignment
         (with-redefs [rand (fn ([] 0.6) ([_n] 0.6))]
           (let [unit (get-in @atoms/game-map [10 10 :contents])]
             (fighter/process-fighter [10 10] unit)
-            ;; Fighter should move toward older leg target [10,0] (west)
+            ;; Fighter should move toward older leg target [0,10] (west)
             (let [result (get-test-unit atoms/game-map "f")]
               (should-not-be-nil result)
               (let [[r c] (:pos result)]
-                (should (< c 10))
-                (should (>= r 8))))))))
+                (should (< r 10))
+                (should (>= c 8))))))))
 
     (it "records leg on arrival at target city"
       (reset! atoms/game-map (build-test-map ["X#####fX"]))
       (set-test-unit atoms/game-map "f" :fuel 20
-                     :flight-target-site [0 7]
+                     :flight-target-site [7 0]
                      :flight-origin-site [0 0])
       (reset! atoms/computer-map @atoms/game-map)
       (reset! atoms/round-number 42)
-      (let [unit (get-in @atoms/game-map [0 6 :contents])]
-        (fighter/process-fighter [0 6] unit)
+      (let [unit (get-in @atoms/game-map [6 0 :contents])]
+        (fighter/process-fighter [6 0] unit)
         ;; Leg should be recorded with current round number
-        (should= 42 (:last-flown (get @atoms/fighter-leg-records #{[0 0] [0 7]})))))
+        (should= 42 (:last-flown (get @atoms/fighter-leg-records #{[0 0] [7 0]})))))
 
     (it "refuels at carrier when low on fuel"
       ;; Fighter on sea adjacent to carrier, no city nearby
       (reset! atoms/game-map (build-test-map ["#####~j~"]))
-      ;; Place carrier at [0,7] in holding mode
-      (swap! atoms/game-map assoc-in [0 7 :contents]
+      ;; Place carrier at [7,0] in holding mode
+      (swap! atoms/game-map assoc-in [7 0 :contents]
              {:type :carrier :owner :computer :hits 8 :carrier-mode :holding})
       (set-test-unit atoms/game-map "f" :fuel 2)
       (reset! atoms/computer-map @atoms/game-map)
-      (let [unit (get-in @atoms/game-map [0 6 :contents])]
-        (fighter/process-fighter [0 6] unit)
+      (let [unit (get-in @atoms/game-map [6 0 :contents])]
+        (fighter/process-fighter [6 0] unit)
         ;; Fighter should have refueled and still be alive
         (let [result (get-test-unit atoms/game-map "f")]
           (should-not-be-nil result)
@@ -266,12 +266,12 @@
       (set-test-unit atoms/game-map "f" :fuel 20)
       ;; Unexplored territory to the right
       (reset! atoms/computer-map (build-test-map ["Xf........"]))
-      (let [unit (get-in @atoms/game-map [0 1 :contents])]
-        (fighter/process-fighter [0 1] unit)
+      (let [unit (get-in @atoms/game-map [1 0 :contents])]
+        (fighter/process-fighter [1 0] unit)
         ;; Fighter should have moved (patrol behavior) even without a leg target
-        (should-be-nil (get-in @atoms/game-map [0 1 :contents]))
+        (should-be-nil (get-in @atoms/game-map [1 0 :contents]))
         (let [result (get-test-unit atoms/game-map "f")
-              [_ fighter-col] (:pos result)]
+              [fighter-col _] (:pos result)]
           (should-not-be-nil result)
           (should (> fighter-col 1))))))
 
@@ -286,21 +286,21 @@
       (reset! atoms/computer-map @atoms/game-map)
       (let [unit (get-in @atoms/game-map [0 0 :contents])]
         (fighter/process-fighter [0 0] unit)
-        ;; Cell [0 1] has a friendly army - should still be an army, not phantom fuel
-        (should= :army (:type (:contents (get-in @atoms/game-map [0 1])))))))
+        ;; Cell [1 0] has a friendly army - should still be an army, not phantom fuel
+        (should= :army (:type (:contents (get-in @atoms/game-map [1 0])))))))
 
   (describe "sidestepping"
     (it "sidesteps around friendly unit blocking direct path"
-      ;; 3x3 map: fighter at [0 0], friendly army blocking [0 1], target city at [0 2]
-      ;; Fighter should move diagonally to [1 0] or [1 1] to go around
+      ;; 3x3 map: fighter at [0 0], friendly army blocking [1 0], target city at [2 0]
+      ;; Fighter should move diagonally to [0 1] or [1 1] to go around
       (reset! atoms/game-map (build-test-map ["f##"
                                                "###"
                                                "##X"]))
-      ;; Place a friendly army at [0 1] blocking the direct path
-      (swap! atoms/game-map assoc-in [0 1 :contents]
+      ;; Place a friendly army at [1 0] blocking the direct path
+      (swap! atoms/game-map assoc-in [1 0 :contents]
              {:type :army :owner :computer :hits 1})
       (set-test-unit atoms/game-map "f" :fuel 20
-                     :flight-target-site [0 2]
+                     :flight-target-site [2 0]
                      :flight-origin-site [2 2])
       (reset! atoms/computer-map @atoms/game-map)
       (let [unit (get-in @atoms/game-map [0 0 :contents])]
@@ -312,7 +312,7 @@
           (should-not= [0 0] (:pos result)))))
 
     (it "prefers diagonal when diagonal and orthogonal equidistant to target"
-      ;; 5x5 map: city at [0 0], fighter at [1 0], target city at [4 4]
+      ;; 5x5 map: city at [0 0], fighter at [0 1], target city at [4 4]
       ;; Fighter should move diagonally toward target
       (reset! atoms/game-map (build-test-map ["X####"
                                                "f####"
@@ -323,12 +323,12 @@
                      :flight-target-site [4 4]
                      :flight-origin-site [0 0])
       (reset! atoms/computer-map @atoms/game-map)
-      (let [unit (get-in @atoms/game-map [1 0 :contents])]
-        (fighter/process-fighter [1 0] unit)
+      (let [unit (get-in @atoms/game-map [0 1 :contents])]
+        (fighter/process-fighter [0 1] unit)
         ;; Fighter should have moved toward [4 4]
         (let [result (get-test-unit atoms/game-map "f")]
           (should-not-be-nil result)
-          (should-not= [1 0] (:pos result)))))
+          (should-not= [0 1] (:pos result)))))
 
     (it "stuck fighter surrounded by friendly units burns fuel and dies"
       ;; 3x3 map: fighter at center [1 1], surrounded by friendly armies on all 8 neighbors
@@ -432,7 +432,7 @@
       (reset! atoms/game-map (build-test-map ["X################X"]))
       (swap! atoms/game-map assoc-in [0 0 :contents]
              {:type :fighter :owner :computer :hits 1 :fuel 32
-              :flight-mode :regular :flight-target-site [0 17]
+              :flight-mode :regular :flight-target-site [17 0]
               :flight-origin-site [0 0]})
       (reset! atoms/computer-map @atoms/game-map)
       (let [unit (get-in @atoms/game-map [0 0 :contents])]
@@ -469,7 +469,7 @@
             ;; Fighter should have heading pointing east (dc > 0)
             (let [result (get-test-unit atoms/game-map "f")]
               (should-not-be-nil result)
-              (should (pos? (second (:explore-heading (:unit result)))))))))))
+              (should (pos? (first (:explore-heading (:unit result)))))))))))
 
   (describe "exploration sortie movement"
     (it "sortie flies outbound with steps-remaining decreasing"
@@ -480,14 +480,14 @@
                      :explore-origin [0 0]
                      :explore-heading [0 1]
                      :explore-steps-remaining 10
-                     :flight-target-site [0 18])
+                     :flight-target-site [18 0])
       ;; Unexplored territory east
       (reset! atoms/computer-map (build-test-map ["X#f................"]))
-      (let [unit (get-in @atoms/game-map [0 2 :contents])]
-        (fighter/process-fighter [0 2] unit)
+      (let [unit (get-in @atoms/game-map [2 0 :contents])]
+        (fighter/process-fighter [2 0] unit)
         ;; Fighter should have moved east and steps-remaining should be less than 10
         (let [result (get-test-unit atoms/game-map "f")
-              [_ fc] (:pos result)]
+              [fc _] (:pos result)]
           (should-not-be-nil result)
           (should (> fc 2))
           (should (< (:explore-steps-remaining (:unit result)) 10)))))
@@ -501,10 +501,10 @@
                      :explore-origin [0 0]
                      :explore-heading [0 1]
                      :explore-steps-remaining 1
-                     :flight-target-site [0 24])
+                     :flight-target-site [24 0])
       (reset! atoms/computer-map (build-test-map ["X#########f.............."]))
-      (let [unit (get-in @atoms/game-map [0 10 :contents])]
-        (fighter/process-fighter [0 10] unit)
+      (let [unit (get-in @atoms/game-map [10 0 :contents])]
+        (fighter/process-fighter [10 0] unit)
         ;; After 1 outbound step, should switch to :regular with target = origin
         ;; Fighter navigates back but can't reach [0 0] in remaining 7 steps
         (let [result (get-test-unit atoms/game-map "f")]
@@ -513,27 +513,27 @@
           (should= [0 0] (:flight-target-site (:unit result))))))
 
     (it "sortie step prefers cells with more unexplored neighbors"
-      ;; 3-row map: fighter at [1 2], unexplored only at row 0
+      ;; 3-row map: fighter at [2 1], unexplored only at row 0
       ;; Exploration should prefer moving toward row 0 (more unexplored neighbors)
       (reset! atoms/game-map (build-test-map ["#####"
                                                "##f##"
                                                "#####"]))
       (set-test-unit atoms/game-map "f" :fuel 20
                      :flight-mode :explore
-                     :explore-origin [1 0]
+                     :explore-origin [0 1]
                      :explore-heading [0 1]
                      :explore-steps-remaining 10
-                     :flight-target-site [1 4])
+                     :flight-target-site [4 1])
       ;; Only row 0 is unexplored
       (reset! atoms/computer-map (build-test-map ["-----"
                                                    "##f##"
                                                    "#####"]))
-      (let [unit (get-in @atoms/game-map [1 2 :contents])]
-        (fighter/process-fighter [1 2] unit)
+      (let [unit (get-in @atoms/game-map [2 1 :contents])]
+        (fighter/process-fighter [2 1] unit)
         ;; Fighter should have moved — preferring cells near unexplored row 0
         (let [result (get-test-unit atoms/game-map "f")]
           (should-not-be-nil result)
-          (should-not= [1 2] (:pos result))))))
+          (should-not= [2 1] (:pos result))))))
 
   (describe "drone movement"
     (it "drone flies until fuel exhaustion and dies"
@@ -543,7 +543,7 @@
                      :flight-mode :drone
                      :explore-origin [0 0]
                      :explore-heading [0 1]
-                     :flight-target-site [0 10])
+                     :flight-target-site [10 0])
       ;; Unexplored territory east
       (reset! atoms/computer-map (build-test-map ["f.........."]))
       (let [unit (get-in @atoms/game-map [0 0 :contents])]
@@ -556,15 +556,15 @@
       ;; Fighter arriving at target city — should clear explore fields
       (reset! atoms/game-map (build-test-map ["X#fX"]))
       (set-test-unit atoms/game-map "f" :fuel 20
-                     :flight-target-site [0 3]
+                     :flight-target-site [3 0]
                      :flight-origin-site [0 0]
                      :flight-mode :regular
                      :explore-origin [0 0]
                      :explore-heading [0 1]
                      :explore-steps-remaining 0)
       (reset! atoms/computer-map @atoms/game-map)
-      (let [unit (get-in @atoms/game-map [0 2 :contents])]
-        (fighter/process-fighter [0 2] unit)
+      (let [unit (get-in @atoms/game-map [2 0 :contents])]
+        (fighter/process-fighter [2 0] unit)
         ;; Exploration fields should be cleared after arrival
         (let [result (get-test-unit atoms/game-map "f")]
           (should-not-be-nil result)
@@ -582,8 +582,8 @@
                      :flight-origin-site [0 0]
                      :flight-mode :regular)
       (reset! atoms/computer-map @atoms/game-map)
-      (let [unit (get-in @atoms/game-map [0 1 :contents])]
-        (fighter/process-fighter [0 1] unit)
+      (let [unit (get-in @atoms/game-map [1 0 :contents])]
+        (fighter/process-fighter [1 0] unit)
         ;; Fighter should still exist (landed or moved, no crash)
         ;; Either the fighter landed at city or is somewhere on the map
         (let [fighter (get-test-unit atoms/game-map "f")

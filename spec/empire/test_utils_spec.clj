@@ -74,7 +74,7 @@
              (build-test-map ["V"])))
 
   (it "builds multi-cell rows"
-    (should= [[{:type :land} {:type :land} {:type :sea} {:type :sea}]]
+    (should= [[{:type :land}] [{:type :land}] [{:type :sea}] [{:type :sea}]]
              (build-test-map ["##~~"])))
 
   (it "builds multi-row maps"
@@ -127,8 +127,8 @@
              (build-test-map ["v"])))
 
   (it "builds map with mixed player and enemy units"
-    (should= [[{:type :sea :contents {:type :transport :owner :player :hits 1}}
-               {:type :sea :contents {:type :transport :owner :computer :hits 1}}]]
+    (should= [[{:type :sea :contents {:type :transport :owner :player :hits 1}}]
+              [{:type :sea :contents {:type :transport :owner :computer :hits 1}}]]
              (build-test-map ["Tt"]))))
 
 (describe "set-test-unit"
@@ -154,7 +154,7 @@
     (let [gm (atom (build-test-map ["T~T"]))]
       (set-test-unit gm "T2" :mode :sentry)
       (should= nil (get-in @gm [0 0 :contents :mode]))
-      (should= :sentry (get-in @gm [0 2 :contents :mode]))))
+      (should= :sentry (get-in @gm [2 0 :contents :mode]))))
 
   (it "finds army with A notation"
     (let [gm (atom (build-test-map ["A"]))]
@@ -177,14 +177,14 @@
     (let [gm (atom (build-test-map ["t~t"]))]
       (set-test-unit gm "t2" :mode :awake)
       (should= nil (get-in @gm [0 0 :contents :mode]))
-      (should= :awake (get-in @gm [0 2 :contents :mode]))))
+      (should= :awake (get-in @gm [2 0 :contents :mode]))))
 
   (it "distinguishes player and enemy units by case"
     (let [gm (atom (build-test-map ["Tt"]))]
       (set-test-unit gm "T" :mode :sentry)
       (set-test-unit gm "t" :mode :awake)
       (should= :sentry (get-in @gm [0 0 :contents :mode]))
-      (should= :awake (get-in @gm [0 1 :contents :mode]))))
+      (should= :awake (get-in @gm [1 0 :contents :mode]))))
 
   (it "throws when enemy unit not found using lowercase spec"
     (let [gm (atom (build-test-map ["T"]))]
@@ -215,7 +215,7 @@
       (set-test-unit gm "T1" :mode :sentry)
       (set-test-unit gm "T2" :mode :awake)
       (let [result (get-test-unit gm "T2")]
-        (should= [0 2] (:pos result))
+        (should= [2 0] (:pos result))
         (should= :awake (:mode (:unit result))))))
 
   (it "filters by mode when specified"
@@ -223,7 +223,7 @@
       (set-test-unit gm "T1" :mode :sentry)
       (set-test-unit gm "T2" :mode :awake)
       (let [result (get-test-unit gm "T" :mode :awake)]
-        (should= [0 1] (:pos result))
+        (should= [1 0] (:pos result))
         (should= :awake (:mode (:unit result))))))
 
   (it "returns nil when no unit matches filter"
@@ -237,7 +237,7 @@
       (set-test-unit gm "T2" :mode :awake :hits 1)
       (set-test-unit gm "T3" :mode :awake :hits 3)
       (let [result (get-test-unit gm "T" :mode :awake :hits 3)]
-        (should= [0 2] (:pos result))
+        (should= [2 0] (:pos result))
         (should= 3 (:hits (:unit result))))))
 
   (it "works with different unit types"
@@ -266,7 +266,7 @@
     (let [gm (atom (build-test-map ["t~t"]))]
       (set-test-unit gm "t2" :mode :awake)
       (let [result (get-test-unit gm "t2")]
-        (should= [0 2] (:pos result))
+        (should= [2 0] (:pos result))
         (should= :awake (:mode (:unit result))))))
 
   (it "distinguishes player and enemy units by case"
@@ -275,7 +275,7 @@
       (set-test-unit gm "t" :mode :awake)
       (should= [0 0] (:pos (get-test-unit gm "T")))
       (should= :player (:owner (:unit (get-test-unit gm "T"))))
-      (should= [0 1] (:pos (get-test-unit gm "t")))
+      (should= [1 0] (:pos (get-test-unit gm "t")))
       (should= :computer (:owner (:unit (get-test-unit gm "t"))))))
 
   (it "filters enemy units by mode"
@@ -283,7 +283,7 @@
       (set-test-unit gm "t1" :mode :sentry)
       (set-test-unit gm "t2" :mode :awake)
       (let [result (get-test-unit gm "t" :mode :awake)]
-        (should= [0 1] (:pos result))))))
+        (should= [1 0] (:pos result))))))
 
 (describe "get-test-city"
   (it "returns nil when city not found"
@@ -318,13 +318,13 @@
   (it "finds second city with O2 notation"
     (let [gm (atom (build-test-map ["O~O"]))]
       (let [result (get-test-city gm "O2")]
-        (should= [0 2] (:pos result)))))
+        (should= [2 0] (:pos result)))))
 
   (it "distinguishes between city types"
     (let [gm (atom (build-test-map ["O+X"]))]
       (should= [0 0] (:pos (get-test-city gm "O")))
-      (should= [0 1] (:pos (get-test-city gm "+")))
-      (should= [0 2] (:pos (get-test-city gm "X")))))
+      (should= [1 0] (:pos (get-test-city gm "+")))
+      (should= [2 0] (:pos (get-test-city gm "X")))))
 
   (it "returns nil for wrong city type"
     (let [gm (atom (build-test-map ["O"]))]
@@ -335,14 +335,14 @@
   (it "finds first = cell"
     (let [gm (atom (build-test-map ["~=~"]))]
       (let [result (get-test-cell gm "=")]
-        (should= [0 1] (:pos result))
+        (should= [1 0] (:pos result))
         (should= :sea (:type (:cell result)))
         (should= "=" (:label (:cell result))))))
 
   (it "finds second = cell with =2"
     (let [gm (atom (build-test-map ["=~=" "~~~"]))]
       (let [result (get-test-cell gm "=2")]
-        (should= [0 2] (:pos result))
+        (should= [2 0] (:pos result))
         (should= :sea (:type (:cell result))))))
 
   (it "finds first % cell"
@@ -355,7 +355,7 @@
   (it "finds second % cell with %2"
     (let [gm (atom (build-test-map ["%#%"]))]
       (let [result (get-test-cell gm "%2")]
-        (should= [0 2] (:pos result))
+        (should= [2 0] (:pos result))
         (should= :land (:type (:cell result))))))
 
   (it "finds = cell in multi-column map"

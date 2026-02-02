@@ -103,18 +103,18 @@
 
   (describe "patrol boat behavior"
     (it "patrol boat moves along coastline"
-      ;; 3x3 map: land in center, sea around it. Patrol boat at [0 1] (sea, adjacent to land).
+      ;; 3x3 map: land in center, sea around it. Patrol boat at [1 0] (sea, adjacent to land).
       ;; It should move to another sea cell that is also adjacent to land.
       (reset! atoms/game-map (build-test-map ["~~~"
                                                "~#~"
                                                "~~~"]))
       (reset! atoms/computer-map @atoms/game-map)
-      (swap! atoms/game-map assoc-in [0 1 :contents]
+      (swap! atoms/game-map assoc-in [1 0 :contents]
              {:type :patrol-boat :owner :computer :hits 1
               :patrol-country-id 1 :patrol-direction :clockwise :patrol-mode :patrolling})
-      (ship/process-ship [0 1] :patrol-boat)
+      (ship/process-ship [1 0] :patrol-boat)
       ;; Patrol boat should have moved
-      (should-be-nil (:contents (get-in @atoms/game-map [0 1])))
+      (should-be-nil (:contents (get-in @atoms/game-map [1 0])))
       ;; Find where it moved
       (let [new-pos (first (for [r (range 3) c (range 3)
                                  :when (= :patrol-boat (get-in @atoms/game-map [r c :contents :type]))]
@@ -143,14 +143,14 @@
                     (= :computer (:owner (:contents cell1)))))))
 
     (it "patrol boat avoids recent positions when coast-patrolling"
-      ;; 3x5 map: land row at top, sea rows below. Patrol boat at [1,2] with history [[1,1]].
-      ;; Coastal cells adjacent to land row 0: [1,0],[1,1],[1,2],[1,3],[1,4]
+      ;; 3x5 map: land row at top, sea rows below. Patrol boat at [2,1] with history [[1,1]].
+      ;; Coastal cells adjacent to land row 0: [0,1],[1,1],[2,1],[3,1],[4,1]
       ;; Patrol boat should move to a coastal cell NOT in history ([1,1]).
       (reset! atoms/game-map (build-test-map ["#####"
                                                "~~~~~"
                                                "~~~~~"]))
       (reset! atoms/computer-map @atoms/game-map)
-      (swap! atoms/game-map assoc-in [1 2 :contents]
+      (swap! atoms/game-map assoc-in [2 1 :contents]
              {:type :patrol-boat :owner :computer :hits 1
               :patrol-country-id 1 :patrol-direction :clockwise :patrol-mode :patrolling
               :patrol-history [[1 1]]})
@@ -159,14 +159,14 @@
         (reset! atoms/game-map (build-test-map ["#####"
                                                  "~~~~~"
                                                  "~~~~~"]))
-        (swap! atoms/game-map assoc-in [1 2 :contents]
+        (swap! atoms/game-map assoc-in [2 1 :contents]
                {:type :patrol-boat :owner :computer :hits 1
                 :patrol-country-id 1 :patrol-direction :clockwise :patrol-mode :patrolling
                 :patrol-history [[1 1]]})
         (reset! atoms/computer-map @atoms/game-map)
-        (ship/process-ship [1 2] :patrol-boat)
+        (ship/process-ship [2 1] :patrol-boat)
         ;; Find where patrol boat moved
-        (let [new-pos (first (for [r (range 3) c (range 5)
+        (let [new-pos (first (for [r (range 5) c (range 3)
                                    :when (= :patrol-boat (get-in @atoms/game-map [r c :contents :type]))]
                                [r c]))]
           (should-not= [1 1] new-pos))))
@@ -191,18 +191,18 @@
                                                "~~~~~"
                                                "~~~~~"]))
       (reset! atoms/computer-map @atoms/game-map)
-      (swap! atoms/game-map assoc-in [1 2 :contents]
+      (swap! atoms/game-map assoc-in [2 1 :contents]
              {:type :patrol-boat :owner :computer :hits 1
               :patrol-country-id 1 :patrol-direction :clockwise :patrol-mode :patrolling
-              :patrol-history [[1 3]]})
-      (ship/process-ship [1 2] :patrol-boat)
+              :patrol-history [[3 1]]})
+      (ship/process-ship [2 1] :patrol-boat)
       ;; Find where patrol boat moved
-      (let [new-pos (first (for [r (range 3) c (range 5)
+      (let [new-pos (first (for [r (range 5) c (range 3)
                                  :when (= :patrol-boat (get-in @atoms/game-map [r c :contents :type]))]
                              [r c]))
             unit (get-in @atoms/game-map (conj new-pos :contents))]
-        ;; History should now contain [1,2] (the position it just left)
-        (should (some #{[1 2]} (:patrol-history unit)))))
+        ;; History should now contain [2,1] (the position it just left)
+        (should (some #{[2 1]} (:patrol-history unit)))))
 
     (it "patrol boat flees from non-transport enemy"
       ;; Note: This test must come before the destroyer escort tests

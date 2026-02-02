@@ -42,17 +42,16 @@
     (throw (ex-info (str "Unknown map char: " c) {:char c}))))
 
 (defn build-test-map [strings]
-  (mapv (fn [row-str]
-          (mapv char->cell row-str))
-        strings))
+  (let [rows (mapv (fn [row-str] (mapv char->cell row-str)) strings)]
+    (apply mapv vector rows)))
 
 (defn build-sparse-test-map
   "Builds a rows x cols map of unexplored (nil) cells, then overlays specific cells.
    overlays is a map of [row col] -> character."
   [rows cols overlays]
-  (let [base (vec (repeat rows (vec (repeat cols nil))))]
+  (let [base (vec (repeat cols (vec (repeat rows nil))))]
     (reduce (fn [m [[r c] ch]]
-              (assoc-in m [r c] (char->cell ch)))
+              (assoc-in m [c r] (char->cell ch)))
             base overlays)))
 
 (def ^:private char->unit-type
@@ -149,7 +148,7 @@
     (nth matches (dec n) nil)))
 
 (defn make-initial-test-map [rows cols value]
-  (vec (repeat rows (vec (repeat cols value)))))
+  (vec (repeat cols (vec (repeat rows value)))))
 
 (defn reset-all-atoms! []
   (reset! atoms/map-size [0 0])

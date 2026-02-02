@@ -95,7 +95,7 @@
                                             "-#-"]))
     (set-test-unit atoms/game-map "T" :mode :sentry :hits 1 :army-count 3 :awake-armies 3)
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
-          land-coords [(inc (first transport-coords)) (second transport-coords)]]
+          land-coords [(first transport-coords) (inc (second transport-coords))]]
       (disembark-army-from-transport transport-coords land-coords)
       (let [transport (:contents (get-in @atoms/game-map transport-coords))
             disembarked (:contents (get-in @atoms/game-map land-coords))]
@@ -109,7 +109,7 @@
                                             "-#-"]))
     (set-test-unit atoms/game-map "T" :mode :sentry :hits 1 :army-count 1 :awake-armies 1)
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
-          land-coords [(inc (first transport-coords)) (second transport-coords)]]
+          land-coords [(first transport-coords) (inc (second transport-coords))]]
       (disembark-army-from-transport transport-coords land-coords)
       (let [transport (:contents (get-in @atoms/game-map transport-coords))]
         (should= :awake (:mode transport))
@@ -120,7 +120,7 @@
                                             "-#-"]))
     (set-test-unit atoms/game-map "T" :mode :sentry :hits 1 :army-count 2 :awake-armies 1)
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
-          land-coords [(inc (first transport-coords)) (second transport-coords)]]
+          land-coords [(first transport-coords) (inc (second transport-coords))]]
       (disembark-army-from-transport transport-coords land-coords)
       (let [transport (:contents (get-in @atoms/game-map transport-coords))]
         (should= :awake (:mode transport))
@@ -138,8 +138,8 @@
                                             "-#---"]))
     (set-test-unit atoms/game-map "T" :mode :sentry :hits 1 :army-count 2 :awake-armies 2)
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
-          land-coords [(inc (first transport-coords)) (second transport-coords)]
-          target-coords [(+ 4 (first transport-coords)) (second transport-coords)]]
+          land-coords [(second transport-coords) (inc (first transport-coords))]
+          target-coords [(second transport-coords) (+ 4 (first transport-coords))]]
       (disembark-army-with-target transport-coords land-coords target-coords)
       (let [transport (:contents (get-in @atoms/game-map transport-coords))
             army (:contents (get-in @atoms/game-map land-coords))]
@@ -158,7 +158,7 @@
                                             "-#-"]))
     (set-test-unit atoms/game-map "T" :mode :sentry :hits 1 :army-count 2 :awake-armies 2)
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
-          land-coords [(inc (first transport-coords)) (second transport-coords)]
+          land-coords [(second transport-coords) (inc (first transport-coords))]
           result (disembark-army-to-explore transport-coords land-coords)]
       (should= land-coords result)
       (let [transport (:contents (get-in @atoms/game-map transport-coords))
@@ -202,8 +202,8 @@
     (reset! atoms/game-map (build-test-map ["-C~-"]))
     (set-test-unit atoms/game-map "C" :mode :sentry :hits 8 :fighter-count 2 :awake-fighters 2)
     (let [carrier-coords (:pos (get-test-unit atoms/game-map "C"))
-          adjacent-cell [(first carrier-coords) (inc (second carrier-coords))]
-          target-coords [(first carrier-coords) (+ 2 (second carrier-coords))]]
+          adjacent-cell [(inc (first carrier-coords)) (second carrier-coords)]
+          target-coords [(+ 2 (first carrier-coords)) (second carrier-coords)]]
       (launch-fighter-from-carrier carrier-coords target-coords)
       (let [carrier (:contents (get-in @atoms/game-map carrier-coords))
             launched-fighter (:contents (get-in @atoms/game-map adjacent-cell))]
@@ -217,7 +217,7 @@
     (reset! atoms/game-map (build-test-map ["-C~-"]))
     (set-test-unit atoms/game-map "C" :mode :sentry :hits 8 :fighter-count 1 :awake-fighters 1)
     (let [carrier-coords (:pos (get-test-unit atoms/game-map "C"))
-          target-coords [(first carrier-coords) (+ 2 (second carrier-coords))]]
+          target-coords [(+ 2 (first carrier-coords)) (second carrier-coords)]]
       (launch-fighter-from-carrier carrier-coords target-coords)
       (let [carrier (:contents (get-in @atoms/game-map carrier-coords))]
         (should= :sentry (:mode carrier))
@@ -227,8 +227,8 @@
     (reset! atoms/game-map (build-test-map ["-C~-"]))
     (set-test-unit atoms/game-map "C" :mode :sentry :hits 8 :fighter-count 1 :awake-fighters 1)
     (let [carrier-coords (:pos (get-test-unit atoms/game-map "C"))
-          adjacent-cell [(first carrier-coords) (inc (second carrier-coords))]
-          target-coords [(first carrier-coords) (+ 2 (second carrier-coords))]]
+          adjacent-cell [(inc (first carrier-coords)) (second carrier-coords)]
+          target-coords [(+ 2 (first carrier-coords)) (second carrier-coords)]]
       (launch-fighter-from-carrier carrier-coords target-coords)
       (let [fighter (:contents (get-in @atoms/game-map adjacent-cell))]
         (should= 7 (:steps-remaining fighter))))))
@@ -238,13 +238,13 @@
 
   (it "removes awake fighter from airport and places it moving"
     (reset! atoms/game-map (build-test-map ["-O#-"]))
-    (swap! atoms/game-map assoc-in [0 1 :fighter-count] 2)
-    (swap! atoms/game-map assoc-in [0 1 :awake-fighters] 2)
-    (launch-fighter-from-airport [0 1] [0 3])
-    (let [city (get-in @atoms/game-map [0 1])
+    (swap! atoms/game-map assoc-in [1 0 :fighter-count] 2)
+    (swap! atoms/game-map assoc-in [1 0 :awake-fighters] 2)
+    (launch-fighter-from-airport [1 0] [3 0])
+    (let [city (get-in @atoms/game-map [1 0])
           fighter (:contents city)]
       (should= 1 (:fighter-count city))
       (should= 1 (:awake-fighters city))
       (should= :fighter (:type fighter))
       (should= :moving (:mode fighter))
-      (should= [0 3] (:target fighter)))))
+      (should= [3 0] (:target fighter)))))

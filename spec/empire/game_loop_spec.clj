@@ -30,11 +30,11 @@
 
   (it "returns player city coordinates"
     (let [items (game-loop/build-player-items)]
-      (should-contain [0 1] items)))
+      (should-contain [1 0] items)))
 
   (it "returns player unit coordinates"
     (let [items (game-loop/build-player-items)]
-      (should-contain [1 0] items)))
+      (should-contain [0 1] items)))
 
   (it "does not return computer cities"
     (let [items (game-loop/build-player-items)]
@@ -50,7 +50,7 @@
     (reset! atoms/game-map (-> (build-test-map ["AF"
                                                  "##"])
                                (assoc-in [0 0 :contents :hits] 0)
-                               (assoc-in [0 1 :contents :hits] 1)))
+                               (assoc-in [1 0 :contents :hits] 1)))
     (reset! atoms/player-map (build-test-map ["##"
                                                "##"])))
 
@@ -60,14 +60,14 @@
 
   (it "keeps units with hits > 0"
     (game-loop/remove-dead-units)
-    (should= {:type :fighter :owner :player :hits 1} (:contents (get-in @atoms/game-map [0 1])))))
+    (should= {:type :fighter :owner :player :hits 1} (:contents (get-in @atoms/game-map [1 0])))))
 
 (describe "reset-steps-remaining"
   (before
     (reset-all-atoms!)
     (reset! atoms/game-map (assoc-in (build-test-map ["AF"
                                                        "A#"])
-                                     [1 0 :contents :owner] :computer)))
+                                     [0 1 :contents :owner] :computer)))
 
   (it "sets steps-remaining for player army"
     (game-loop/reset-steps-remaining)
@@ -75,11 +75,11 @@
 
   (it "sets steps-remaining for player fighter"
     (game-loop/reset-steps-remaining)
-    (should= (config/unit-speed :fighter) (:steps-remaining (:contents (get-in @atoms/game-map [0 1])))))
+    (should= (config/unit-speed :fighter) (:steps-remaining (:contents (get-in @atoms/game-map [1 0])))))
 
   (it "does not set steps-remaining for computer units"
     (game-loop/reset-steps-remaining)
-    (should-be-nil (:steps-remaining (:contents (get-in @atoms/game-map [1 0])))))
+    (should-be-nil (:steps-remaining (:contents (get-in @atoms/game-map [0 1])))))
 
   (it "scales steps-remaining by damage for multi-hit ships"
     (reset! atoms/game-map (build-test-map ["D"]))
@@ -160,7 +160,7 @@
     (reset! atoms/game-map (build-test-map ["OF"]))
     (set-test-unit atoms/game-map "F" :mode :sentry :fuel 6)
     (game-loop/consume-sentry-fighter-fuel)
-    (let [unit (:contents (get-in @atoms/game-map [0 1]))]
+    (let [unit (:contents (get-in @atoms/game-map [1 0]))]
       (should= 5 (:fuel unit))
       (should= :awake (:mode unit))
       (should= :fighter-bingo (:reason unit)))))
@@ -197,7 +197,7 @@
   (it "does not wake moving units"
     (reset! atoms/game-map (build-test-map ["Aa"]))
     (reset! atoms/player-map (make-initial-test-map 1 2 nil))
-    (set-test-unit atoms/game-map "A" :mode :moving :target [0 5])
+    (set-test-unit atoms/game-map "A" :mode :moving :target [5 0])
     (game-loop/wake-sentries-seeing-enemy)
     (let [unit (:contents (get-in @atoms/game-map [0 0]))]
       (should= :moving (:mode unit))))
@@ -369,9 +369,9 @@
                                              "#~~~~"
                                              "#~~~~"]))
     (set-test-unit atoms/game-map "T" :mode :coastline-follow :coastline-steps 50
-                   :start-pos [2 1] :visited #{[2 1]} :prev-pos nil)
+                   :start-pos [1 2] :visited #{[1 2]} :prev-pos nil)
     (reset! atoms/player-map @atoms/game-map)
-    (let [result (game-loop/move-coastline-unit [2 1])]
+    (let [result (game-loop/move-coastline-unit [1 2])]
       ;; Should return nil (unit keeps moving until done)
       (should-be-nil result))))
 
@@ -379,7 +379,7 @@
   (before (reset-all-atoms!))
   (it "launches fighter when city has flight-path and awake fighters"
     (reset! atoms/game-map (-> (build-test-map ["O#"])
-                               (assoc-in [0 0 :flight-path] [0 1])
+                               (assoc-in [0 0 :flight-path] [1 0])
                                (assoc-in [0 0 :awake-fighters] 1)
                                (assoc-in [0 0 :fighter-count] 1)))
     (reset! atoms/player-map (build-test-map ["##"]))
@@ -393,7 +393,7 @@
 
   (it "launches fighter from carrier with flight-path"
     (reset! atoms/game-map (build-test-map ["C~"]))
-    (set-test-unit atoms/game-map "C" :mode :sentry :flight-path [0 1] :awake-fighters 1 :fighter-count 1)
+    (set-test-unit atoms/game-map "C" :mode :sentry :flight-path [1 0] :awake-fighters 1 :fighter-count 1)
     (reset! atoms/player-map (build-test-map ["~~"]))
     (reset! atoms/production {})
     (reset! atoms/player-items [[0 0]])
@@ -407,14 +407,14 @@
   (before (reset-all-atoms!))
   (it "disembarks army when transport has marching-orders and awake armies"
     (reset! atoms/game-map (build-test-map ["T#"]))
-    (set-test-unit atoms/game-map "T" :mode :sentry :marching-orders [1 0] :awake-armies 1 :army-count 1)
+    (set-test-unit atoms/game-map "T" :mode :sentry :marching-orders [0 1] :awake-armies 1 :army-count 1)
     (reset! atoms/player-map (build-test-map ["~#"]))
     (reset! atoms/production {})
     (reset! atoms/player-items [[0 0]])
     (reset! atoms/waiting-for-input false)
     (game-loop/advance-game)
     ;; Army should have been disembarked
-    (let [land-cell (get-in @atoms/game-map [0 1])]
+    (let [land-cell (get-in @atoms/game-map [1 0])]
       (should= :army (:type (:contents land-cell))))))
 
 (describe "advance-game with explore mode"
@@ -444,22 +444,22 @@
                                              "#~~~~~~~~~"
                                              "#~~~~~~~~~"]))
     (set-test-unit atoms/game-map "T" :mode :coastline-follow :coastline-steps 50
-                   :start-pos [5 1] :visited #{[5 1]} :prev-pos nil)
+                   :start-pos [1 5] :visited #{[1 5]} :prev-pos nil)
     (reset! atoms/player-map @atoms/game-map)
     (reset! atoms/production {})
-    (reset! atoms/player-items [[5 1]])
+    (reset! atoms/player-items [[1 5]])
     (reset! atoms/waiting-for-input false)
     (game-loop/advance-game)
     ;; Unit should have moved - player-items should be updated
     (should (or (empty? @atoms/player-items)
-                (not= [[5 1]] (vec @atoms/player-items))))))
+                (not= [[1 5]] (vec @atoms/player-items))))))
 
 (describe "advance-game with moving unit"
   (before (reset-all-atoms!))
   (it "continues processing when unit moves and has steps remaining"
     ;; Set up a moving unit with multiple steps, target far away
     (reset! atoms/game-map (build-test-map ["A###"]))
-    (set-test-unit atoms/game-map "A" :mode :moving :target [0 3] :steps-remaining 2)
+    (set-test-unit atoms/game-map "A" :mode :moving :target [3 0] :steps-remaining 2)
     (reset! atoms/player-map (build-test-map ["####"]))
     (reset! atoms/production {})
     (reset! atoms/player-items [[0 0]])
@@ -541,7 +541,7 @@
     (reset! atoms/player-map (build-test-map ["###"]))
     (reset! atoms/computer-map (build-test-map ["###"]))
     (reset! atoms/production {})
-    (reset! atoms/player-items [[0 0] [0 1] [0 2]])
+    (reset! atoms/player-items [[0 0] [1 0] [2 0]])
     (reset! atoms/waiting-for-input false)
     (game-loop/advance-game-batch)
     ;; All 3 should be processed in one batch call
@@ -555,7 +555,7 @@
     (reset! atoms/player-map (build-test-map ["##"]))
     (reset! atoms/computer-map (build-test-map ["##"]))
     (reset! atoms/production {})
-    (reset! atoms/player-items [[0 0] [0 1]])
+    (reset! atoms/player-items [[0 0] [1 0]])
     (reset! atoms/waiting-for-input false)
     (game-loop/advance-game-batch)
     ;; Both processed, started new round, player-items rebuilt
@@ -569,13 +569,13 @@
     (reset! atoms/player-map (build-test-map ["##"]))
     (reset! atoms/computer-map (build-test-map ["##"]))
     (reset! atoms/production {})
-    (reset! atoms/player-items [[0 0] [0 1]])
+    (reset! atoms/player-items [[0 0] [1 0]])
     (reset! atoms/waiting-for-input false)
     (game-loop/advance-game-batch)
     ;; Should be waiting for input after first item
     (should @atoms/waiting-for-input)
     ;; Second item should still be in list
-    (should (some #{[0 1]} @atoms/player-items)))
+    (should (some #{[1 0]} @atoms/player-items)))
 
   (it "stops when paused"
     (reset! atoms/game-map (build-test-map ["A"]))

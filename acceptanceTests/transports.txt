@@ -17,9 +17,9 @@ THEN T does not have transport-id.
 
 ; Sentry armies adjacent to sentry transport board it.
 GIVEN game map
-  #--
-  AT-
-  -A-
+  #A-
+  -TA
+  ---
 T is sentry.
 A1 is sentry.
 A2 is sentry.
@@ -33,8 +33,10 @@ THEN no unit at A2 original position.
 
 ; Transport wakes at beach with armies aboard.
 GIVEN game map
-  ~T=~
-  ~~#~
+  ~~
+  T~
+  =#
+  ~~
 T is moving to the right with army-count 1 and target = and steps-remaining 1.
 
 WHEN the game advances.
@@ -45,8 +47,10 @@ THEN T has reason transport-at-beach.
 
 ; Transport does not wake at beach without armies.
 GIVEN game map
-  ~T=~
-  ~~#~
+  ~~
+  T~
+  =#
+  ~~
 T is moving to the right with target = and steps-remaining 1.
 
 WHEN the game advances.
@@ -57,8 +61,9 @@ THEN T does not have reason transport-at-beach.
 
 ; Wake armies command puts transport to sentry and wakes armies.
 GIVEN game map
-  -T-
-  -#-
+  --
+  T#
+  --
 T is awake with army-count 2 and reason transport-at-beach.
 
 WHEN the player presses u.
@@ -71,8 +76,9 @@ THEN T does not have reason.
 ; Disembarking army removes it from transport.
 ; Land % is to the right of transport.
 GIVEN game map
-  -T-
-  -%-
+  --
+  T%
+  --
 T is sentry with army-count 3 and awake-armies 3.
 GIVEN player-items T.
 
@@ -86,8 +92,9 @@ THEN there is an A at %.
 ; Transport wakes when last army disembarks.
 ; Land is to the right of transport.
 GIVEN game map
-  -T-
-  -#-
+  --
+  T#
+  --
 T is sentry with army-count 1 and awake-armies 1.
 GIVEN player-items T.
 
@@ -99,9 +106,10 @@ THEN T has army-count 0.
 
 ; Transport finds land when moving from open sea.
 GIVEN game map
-  ~~~#
-  ~T=~
-  ~~~~
+  ~~~
+  ~T~
+  ~=~
+  #~~
 T is moving to the right with army-count 1 and target = and steps-remaining 1.
 
 WHEN the game advances.
@@ -112,8 +120,10 @@ THEN T has reason transport-found-land.
 
 ; Transport wakes at first beach after going to open sea.
 GIVEN game map
-  #~~~
-  ~T=#
+  #~
+  ~T
+  ~=
+  ~#
 T is moving to the right with army-count 1 and been-to-sea true and target = and steps-remaining 1.
 
 WHEN the game advances.
@@ -122,3 +132,16 @@ THEN T is at =.
 THEN T has mode awake.
 THEN T has reason transport-at-beach.
 THEN T has been-to-sea false.
+
+; Transport with armies can attack city.
+GIVEN game map
+  ~T~
+  #+#
+
+Given T has army-count 1 and T is in sentry and armies are awake.
+
+WHEN the army is told to move south into the city.
+
+THEN combat ensues and if the army wins the city is captured, otherwise the army is destroyed.
+
+

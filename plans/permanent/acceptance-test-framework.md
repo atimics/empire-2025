@@ -459,24 +459,23 @@ Add only namespaces actually used by the generated spec.
 
 ### Coordinate System
 
-**CRITICAL: Strings in `build-test-map` are COLUMNS, not rows.**
+**Strings in `build-test-map` are ROWS — the visual layout matches the game map.**
 
-`build-test-map` creates a 2D vector indexed as `(get-in game-map [x y])` where:
-- **x** = column (left-right, increases going right) — the string index
-- **y** = row (top-bottom, increases going down) — the character index within a string
+`build-test-map` parses each string as a row, then transposes into the column-major game map indexed as `(get-in game-map [x y])` where:
+- **x** = column (left-right, increases going right) — the character index within a string
+- **y** = row (top-bottom, increases going down) — the string index
 
-Each string in the input vector represents one **column** of the map, read top-to-bottom.
+Each string in the input vector represents one **row** of the map, read left-to-right.
 
 Example: `(build-test-map ["~T#" "~~~"])`
-- String 0 `"~T#"` = column 0: `[0,0]=sea, [0,1]=transport, [0,2]=land`
-- String 1 `"~~~"` = column 1: `[1,0]=sea, [1,1]=sea, [1,2]=sea`
+- String 0 `"~T#"` = row 0: `[0,0]=sea, [1,0]=transport, [2,0]=land`
+- String 1 `"~~~"` = row 1: `[0,1]=sea, [1,1]=sea, [2,1]=sea`
 
 Visual layout (x across, y down):
 ```
-     x=0  x=1
-y=0   ~    ~
-y=1   T    ~
-y=2   #    ~
+     x=0  x=1  x=2
+y=0   ~    T    #
+y=1   ~    ~    ~
 ```
 
 **Direction keys** use `[dx, dy]` which is `[dcol, drow]`:
@@ -489,15 +488,13 @@ y=2   #    ~
 **Movement applies direction to coords:** `[(+ x dx) (+ y dy)]` (`input.cljc:153`).
 
 **`determine-cell-coordinates`** (`map_utils.cljc:84`) converts pixel coords:
-- `cols = (count @atoms/game-map)` = number of strings = number of columns
-- `rows = (count (first @atoms/game-map))` = chars per string = number of rows
+- `cols = (count @atoms/game-map)` = number of columns
+- `rows = (count (first @atoms/game-map))` = number of rows
 - Returns `[int(pixel-x / cell-w), int(pixel-y / cell-h)]` = `[col, row]` = `[x, y]`
 
-**`find-unit-pos` / `get-test-unit`** returns `[string-idx, char-idx]` = `[x, y]`.
+**`find-unit-pos` / `get-test-unit`** returns `[col, row]` = `[x, y]`.
 
-**Common mistake:** Reading acceptance test maps as rows. The string `"~T#"` is a vertical column (sea above, transport middle, land below), NOT a horizontal row.
-
-**Designing test maps:** To place land **south** of a transport, put the land character AFTER the transport in the SAME string. To place land **east** of a transport, put land at the same character position in the NEXT string.
+**Designing test maps:** To place land **east** of a transport, put the land character AFTER the transport in the SAME string. To place land **south** of a transport, put land at the same character position in the NEXT string.
 
 ### Test Map Characters
 

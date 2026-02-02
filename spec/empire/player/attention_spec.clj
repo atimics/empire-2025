@@ -182,8 +182,8 @@
     (reset! atoms/production {})
     (let [cells (attention/cells-needing-attention)]
       (should-contain [0 0] cells)
-      (should-contain [0 1] cells)
-      (should-not-contain [1 0] cells)
+      (should-contain [1 0] cells)
+      (should-not-contain [0 1] cells)
       (should-not-contain [1 1] cells)))
 
   (it "excludes player cities with production"

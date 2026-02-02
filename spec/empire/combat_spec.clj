@@ -263,47 +263,47 @@
   (it "returns false when target has no unit"
     (reset! atoms/game-map (build-test-map ["A#"]))
     (set-test-unit atoms/game-map "A" :hits 1)
-    (should-not (combat/attempt-attack [0 0] [0 1])))
+    (should-not (combat/attempt-attack [0 0] [1 0])))
 
   (it "returns false when target unit is friendly"
     (reset! atoms/game-map (build-test-map ["AA"]))
     (set-test-unit atoms/game-map "A1" :hits 1)
     (set-test-unit atoms/game-map "A2" :hits 1)
-    (should-not (combat/attempt-attack [0 0] [0 1])))
+    (should-not (combat/attempt-attack [0 0] [1 0])))
 
   (it "returns true when attacking enemy unit"
     (reset! atoms/game-map (build-test-map ["Aa"]))
     (set-test-unit atoms/game-map "A" :hits 1)
     (set-test-unit atoms/game-map "a" :hits 1)
     (with-redefs [rand (constantly 0.4)]
-      (should (combat/attempt-attack [0 0] [0 1]))))
+      (should (combat/attempt-attack [0 0] [1 0]))))
 
   (it "attacker wins and occupies cell when victorious"
     (reset! atoms/game-map (build-test-map ["Da"]))
     (set-test-unit atoms/game-map "D" :hits 3)
     (set-test-unit atoms/game-map "a" :hits 1)
     (with-redefs [rand (constantly 0.4)]
-      (combat/attempt-attack [0 0] [0 1])
+      (combat/attempt-attack [0 0] [1 0])
       (should= nil (:contents (get-in @atoms/game-map [0 0])))
-      (should= :destroyer (:type (:contents (get-in @atoms/game-map [0 1]))))
-      (should= :player (:owner (:contents (get-in @atoms/game-map [0 1]))))))
+      (should= :destroyer (:type (:contents (get-in @atoms/game-map [1 0]))))
+      (should= :player (:owner (:contents (get-in @atoms/game-map [1 0]))))))
 
   (it "attacker loses and defender remains"
     (reset! atoms/game-map (build-test-map ["aD"]))
     (set-test-unit atoms/game-map "a" :hits 1)
     (set-test-unit atoms/game-map "D" :hits 3)
     (with-redefs [rand (constantly 0.6)]
-      (combat/attempt-attack [0 0] [0 1])
+      (combat/attempt-attack [0 0] [1 0])
       (should= nil (:contents (get-in @atoms/game-map [0 0])))
-      (should= :destroyer (:type (:contents (get-in @atoms/game-map [0 1]))))
-      (should= :player (:owner (:contents (get-in @atoms/game-map [0 1]))))))
+      (should= :destroyer (:type (:contents (get-in @atoms/game-map [1 0]))))
+      (should= :player (:owner (:contents (get-in @atoms/game-map [1 0]))))))
 
   (it "removes attacker from original cell even when losing"
     (reset! atoms/game-map (build-test-map ["Tb"]))
     (set-test-unit atoms/game-map "T" :hits 1)
     (set-test-unit atoms/game-map "b" :hits 10)
     (with-redefs [rand (constantly 0.6)]
-      (combat/attempt-attack [0 0] [0 1])
+      (combat/attempt-attack [0 0] [1 0])
       (should= nil (:contents (get-in @atoms/game-map [0 0])))))
 
   (it "survivor has reduced hits after combat"
@@ -313,8 +313,8 @@
     ;; Rolls: 0.4 (D hits d:2), 0.6 (d hits D:2), 0.4 (D hits d:1), 0.4 (D hits d:0)
     (let [rolls (atom [0.4 0.6 0.4 0.4])]
       (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
-        (combat/attempt-attack [0 0] [0 1])
-        (let [survivor (:contents (get-in @atoms/game-map [0 1]))]
+        (combat/attempt-attack [0 0] [1 0])
+        (let [survivor (:contents (get-in @atoms/game-map [1 0]))]
           (should= :destroyer (:type survivor))
           (should= :player (:owner survivor))
           (should= 2 (:hits survivor))))))
@@ -325,7 +325,7 @@
     (set-test-unit atoms/game-map "a" :hits 1)
     (reset! atoms/line2-message "")
     (with-redefs [rand (constantly 0.4)]
-      (combat/attempt-attack [0 0] [0 1])
+      (combat/attempt-attack [0 0] [1 0])
       (should= "a-1. Army destroyed." @atoms/line2-message)))
 
   (it "displays combat log when attacker loses"
@@ -334,7 +334,7 @@
     (set-test-unit atoms/game-map "d" :hits 3)
     (reset! atoms/line2-message "")
     (with-redefs [rand (constantly 0.6)]
-      (combat/attempt-attack [0 0] [0 1])
+      (combat/attempt-attack [0 0] [1 0])
       (should= "A-1. Army destroyed." @atoms/line2-message)))
 
   (it "displays combat log with multiple exchanges"
@@ -345,7 +345,7 @@
     ;; Rolls: 0.4 (D hits d:2), 0.6 (d hits D:2), 0.4 (D hits d:1), 0.4 (D hits d:0)
     (let [rolls (atom [0.4 0.6 0.4 0.4])]
       (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
-        (combat/attempt-attack [0 0] [0 1])
+        (combat/attempt-attack [0 0] [1 0])
         (should= "d-1,D-1,d-1,d-1. Destroyer destroyed." @atoms/line2-message))))
 
   (it "displays combat log for submarine vs carrier"
@@ -356,7 +356,7 @@
     ;; Rolls: 0.6 (c hits S:1), 0.6 (c hits S:0)
     (let [rolls (atom [0.6 0.6])]
       (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
-        (combat/attempt-attack [0 0] [0 1])
+        (combat/attempt-attack [0 0] [1 0])
         (should= "S-1,S-1. Submarine destroyed." @atoms/line2-message))))
 
   (it "displays combat log for submarine defeating carrier"
@@ -367,7 +367,7 @@
     ;; Rolls: 0.4 (S hits c:5), 0.6 (c hits S:1), 0.4 (S hits c:2), 0.4 (S hits c:0)
     (let [rolls (atom [0.4 0.6 0.4 0.4])]
       (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
-        (combat/attempt-attack [0 0] [0 1])
+        (combat/attempt-attack [0 0] [1 0])
         (should= "c-3,S-1,c-3,c-3. Carrier destroyed." @atoms/line2-message)))))
 
 (describe "conquer-city-contents"
@@ -476,37 +476,37 @@
     (with-redefs [rand (constantly 0.1)]
       (reset! atoms/game-map (build-test-map ["AX"]))
       ;; Place a computer destroyer on the city
-      (swap! atoms/game-map assoc-in [0 1 :contents]
+      (swap! atoms/game-map assoc-in [1 0 :contents]
              {:type :destroyer :owner :computer :mode :sentry :hits 3})
-      (swap! atoms/production assoc [0 1] {:item :fighter :remaining-rounds 5})
-      (combat/attempt-conquest [0 0] [0 1])
+      (swap! atoms/production assoc [1 0] {:item :fighter :remaining-rounds 5})
+      (combat/attempt-conquest [0 0] [1 0])
       ;; City should be player-owned
-      (should= :player (get-in @atoms/game-map [0 1 :city-status]))
+      (should= :player (get-in @atoms/game-map [1 0 :city-status]))
       ;; Destroyer should be flipped to player
-      (let [unit (get-in @atoms/game-map [0 1 :contents])]
+      (let [unit (get-in @atoms/game-map [1 0 :contents])]
         (should= :player (:owner unit))
         (should= :destroyer (:type unit)))
       ;; Production should be cleared
-      (should-be-nil (get @atoms/production [0 1]))))
+      (should-be-nil (get @atoms/production [1 0]))))
 
   (it "computer conquest applies same logic"
     (with-redefs [rand (constantly 0.1)]
       (reset! atoms/game-map (build-test-map ["aO"]))
       (reset! atoms/computer-map @atoms/game-map)
       ;; Place a player destroyer on the city
-      (swap! atoms/game-map assoc-in [0 1 :contents]
+      (swap! atoms/game-map assoc-in [1 0 :contents]
              {:type :destroyer :owner :player :mode :sentry :hits 3})
-      (swap! atoms/production assoc [0 1] {:item :army :remaining-rounds 2})
+      (swap! atoms/production assoc [1 0] {:item :army :remaining-rounds 2})
       (let [core (requiring-resolve 'empire.computer.core/attempt-conquest-computer)]
-        (core [0 0] [0 1])
+        (core [0 0] [1 0])
         ;; City should be computer-owned
-        (should= :computer (get-in @atoms/game-map [0 1 :city-status]))
+        (should= :computer (get-in @atoms/game-map [1 0 :city-status]))
         ;; Destroyer should be flipped to computer
-        (let [unit (get-in @atoms/game-map [0 1 :contents])]
+        (let [unit (get-in @atoms/game-map [1 0 :contents])]
           (should= :computer (:owner unit))
           (should= :destroyer (:type unit)))
         ;; Old production should be replaced with auto-produced army
-        (should= :army (:item (get @atoms/production [0 1])))))))
+        (should= :army (:item (get @atoms/production [1 0])))))))
 
 (describe "country-id on conquest"
   (before (reset-all-atoms!))
@@ -517,8 +517,8 @@
       (reset! atoms/computer-map @atoms/game-map)
       (swap! atoms/game-map assoc-in [0 0 :contents :country-id] 3)
       (let [core (requiring-resolve 'empire.computer.core/attempt-conquest-computer)]
-        (core [0 0] [0 1])
-        (should= 3 (:country-id (get-in @atoms/game-map [0 1]))))))
+        (core [0 0] [1 0])
+        (should= 3 (:country-id (get-in @atoms/game-map [1 0]))))))
 
   (it "computer army with unload-event-id mints new country-id for conquered city"
     (with-redefs [rand (constantly 0.1)]
@@ -527,8 +527,8 @@
       (reset! atoms/next-country-id 5)
       (swap! atoms/game-map assoc-in [0 0 :contents :unload-event-id] 7)
       (let [core (requiring-resolve 'empire.computer.core/attempt-conquest-computer)]
-        (core [0 0] [0 1])
-        (should= 5 (:country-id (get-in @atoms/game-map [0 1])))
+        (core [0 0] [1 0])
+        (should= 5 (:country-id (get-in @atoms/game-map [1 0])))
         (should= 6 @atoms/next-country-id))))
 
   (it "stamps new country-id on all armies with same unload-event-id"
@@ -536,15 +536,15 @@
       (reset! atoms/game-map (build-test-map ["a#aO"]))
       (reset! atoms/computer-map @atoms/game-map)
       (reset! atoms/next-country-id 10)
-      ;; Army at [0,0] conquers; armies at [0,0] and [0,2] share unload-event-id 7
+      ;; Army at [0,0] conquers; armies at [0,0] and [2,0] share unload-event-id 7
       (swap! atoms/game-map assoc-in [0 0 :contents :unload-event-id] 7)
-      (swap! atoms/game-map assoc-in [0 2 :contents :unload-event-id] 7)
+      (swap! atoms/game-map assoc-in [2 0 :contents :unload-event-id] 7)
       (let [core (requiring-resolve 'empire.computer.core/attempt-conquest-computer)]
-        (core [0 0] [0 3])
+        (core [0 0] [3 0])
         ;; City gets new country-id 10
-        (should= 10 (:country-id (get-in @atoms/game-map [0 3])))
-        ;; Surviving army at [0,2] gets country-id 10 and loses unload-event-id
-        (let [army2 (:contents (get-in @atoms/game-map [0 2]))]
+        (should= 10 (:country-id (get-in @atoms/game-map [3 0])))
+        ;; Surviving army at [2,0] gets country-id 10 and loses unload-event-id
+        (let [army2 (:contents (get-in @atoms/game-map [2 0]))]
           (should= 10 (:country-id army2))
           (should-be-nil (:unload-event-id army2)))
         ;; next-country-id incremented
@@ -556,11 +556,11 @@
       (reset! atoms/computer-map @atoms/game-map)
       (reset! atoms/next-country-id 10)
       (swap! atoms/game-map assoc-in [0 0 :contents :unload-event-id] 7)
-      (swap! atoms/game-map assoc-in [0 2 :contents :unload-event-id] 8)
+      (swap! atoms/game-map assoc-in [2 0 :contents :unload-event-id] 8)
       (let [core (requiring-resolve 'empire.computer.core/attempt-conquest-computer)]
-        (core [0 0] [0 3])
-        ;; Army at [0,2] has different unload-event-id, should not be affected
-        (let [army2 (:contents (get-in @atoms/game-map [0 2]))]
+        (core [0 0] [3 0])
+        ;; Army at [2,0] has different unload-event-id, should not be affected
+        (let [army2 (:contents (get-in @atoms/game-map [2 0]))]
           (should= 8 (:unload-event-id army2))
           (should-be-nil (:country-id army2)))))))
 
@@ -576,8 +576,8 @@
     ;; Rolls: 0.6(a hits C:7), 0.6(a hits C:6), 0.6(a hits C:5), 0.6(a hits C:4), 0.4(C hits a:0)
     (let [rolls (atom [0.6 0.6 0.6 0.6 0.4])]
       (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
-        (combat/attempt-attack [0 0] [0 1])
-        (let [survivor (:contents (get-in @atoms/game-map [0 1]))]
+        (combat/attempt-attack [0 0] [1 0])
+        (let [survivor (:contents (get-in @atoms/game-map [1 0]))]
           (should= :carrier (:type survivor))
           (should= 4 (:hits survivor))
           (should= 4 (:fighter-count survivor))))))
@@ -590,8 +590,8 @@
     (set-test-unit atoms/game-map "a" :hits 1)
     (let [rolls (atom [0.6 0.6 0.6 0.6 0.4])]
       (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
-        (combat/attempt-attack [0 0] [0 1])
-        (let [survivor (:contents (get-in @atoms/game-map [0 1]))]
+        (combat/attempt-attack [0 0] [1 0])
+        (let [survivor (:contents (get-in @atoms/game-map [1 0]))]
           (should= 3 (:fighter-count survivor))))))
 
   (it "caps awake-fighters at new fighter-count after drowning"
@@ -601,8 +601,8 @@
     ;; Carrier ends at 4 hits -> capacity 4
     (let [rolls (atom [0.6 0.6 0.6 0.6 0.4])]
       (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
-        (combat/attempt-attack [0 0] [0 1])
-        (let [survivor (:contents (get-in @atoms/game-map [0 1]))]
+        (combat/attempt-attack [0 0] [1 0])
+        (let [survivor (:contents (get-in @atoms/game-map [1 0]))]
           (should= 4 (:fighter-count survivor))
           (should (<= (:awake-fighters survivor) 4))))))
 
@@ -625,10 +625,10 @@
     ;; Rolls: 0.4(sub hits C:5), 0.4(sub hits C:2), 0.6(C hits sub:1), 0.6(C hits sub:0)
     (let [rolls (atom [0.4 0.4 0.6 0.6])]
       (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
-        (combat/attempt-attack [0 0] [0 1])
+        (combat/attempt-attack [0 0] [1 0])
         ;; Carrier won (defender), now at 2/8 hits -> capacity 2
         ;; 7 fighters should be reduced to 2
-        (let [survivor (:contents (get-in @atoms/game-map [0 1]))]
+        (let [survivor (:contents (get-in @atoms/game-map [1 0]))]
           (should= :carrier (:type survivor))
           (should= 2 (:hits survivor))
           (should= 2 (:fighter-count survivor)))))))
@@ -641,11 +641,11 @@
       (reset! atoms/game-map (build-test-map ["aO"]))
       (reset! atoms/computer-map @atoms/game-map)
       (swap! atoms/game-map assoc-in [0 0 :contents :country-id] 3)
-      (computer-core/attempt-conquest-computer [0 0] [0 1])
+      (computer-core/attempt-conquest-computer [0 0] [1 0])
       ;; City should be computer-owned
-      (should= :computer (get-in @atoms/game-map [0 1 :city-status]))
+      (should= :computer (get-in @atoms/game-map [1 0 :city-status]))
       ;; Production should be set to :army
-      (let [prod (get @atoms/production [0 1])]
+      (let [prod (get @atoms/production [1 0])]
         (should-not-be-nil prod)
         (should= :army (:item prod)))))
 
@@ -657,26 +657,26 @@
       (reset! atoms/computer-map @atoms/game-map)
       ;; Give all 11 armies the same country-id 3
       (doseq [col (range 10)]
-        (swap! atoms/game-map assoc-in [0 col :contents :country-id] 3))
-      (swap! atoms/game-map assoc-in [1 0 :contents :country-id] 3)
-      ;; Army at [0 0] conquers city at [0 10]
-      (computer-core/attempt-conquest-computer [0 0] [0 10])
+        (swap! atoms/game-map assoc-in [col 0 :contents :country-id] 3))
+      (swap! atoms/game-map assoc-in [0 1 :contents :country-id] 3)
+      ;; Army at [0 0] conquers city at [10 0]
+      (computer-core/attempt-conquest-computer [0 0] [10 0])
       ;; City should be computer-owned
-      (should= :computer (get-in @atoms/game-map [0 10 :city-status]))
+      (should= :computer (get-in @atoms/game-map [10 0 :city-status]))
       ;; Production should NOT be set (10 armies still alive after conquering army removed)
-      (should-be-nil (get @atoms/production [0 10]))))
+      (should-be-nil (get @atoms/production [10 0]))))
 
   (it "conquered city does not produce armies when another city in country is already producing"
     (with-redefs [rand (constantly 0.1)]
       (reset! atoms/game-map (build-test-map ["a#XO"]))
       (reset! atoms/computer-map @atoms/game-map)
       (swap! atoms/game-map assoc-in [0 0 :contents :country-id] 3)
-      ;; Existing computer city at [0 2] in country 3, already producing armies
-      (swap! atoms/game-map assoc-in [0 2 :country-id] 3)
-      (swap! atoms/production assoc [0 2] {:item :army :remaining-rounds 3})
-      ;; Army at [0 0] conquers city at [0 3]
-      (computer-core/attempt-conquest-computer [0 0] [0 3])
+      ;; Existing computer city at [2 0] in country 3, already producing armies
+      (swap! atoms/game-map assoc-in [2 0 :country-id] 3)
+      (swap! atoms/production assoc [2 0] {:item :army :remaining-rounds 3})
+      ;; Army at [0 0] conquers city at [3 0]
+      (computer-core/attempt-conquest-computer [0 0] [3 0])
       ;; City should be computer-owned
-      (should= :computer (get-in @atoms/game-map [0 3 :city-status]))
+      (should= :computer (get-in @atoms/game-map [3 0 :city-status]))
       ;; Production should NOT be set because another city in country 3 is already producing armies
-      (should-be-nil (get @atoms/production [0 3])))))
+      (should-be-nil (get @atoms/production [3 0])))))

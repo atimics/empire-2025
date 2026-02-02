@@ -24,7 +24,7 @@
   (it "returns both cities and units"
     (reset! atoms/game-map (build-test-map ["OA"
                                              "#X"]))
-    (should= [[0 0] [0 1]] (vec (game-loop/build-player-items))))
+    (should= [[0 0] [1 0]] (vec (game-loop/build-player-items))))
 
   (it "returns empty list when no player items"
     (reset! atoms/game-map (build-test-map ["~#"]))
@@ -87,7 +87,7 @@
     (reset! atoms/player-map (build-test-map ["#O"
                                                "##"]))
     (reset! atoms/production {})
-    (should= [[0 1]] (attention/cells-needing-attention)))
+    (should= [[1 0]] (attention/cells-needing-attention)))
 
   (it "excludes cities with production"
     (reset! atoms/player-map (build-test-map ["O#"]))
@@ -99,7 +99,7 @@
                                                "##"]))
     (set-test-unit atoms/player-map "A" :mode :awake)
     (reset! atoms/production {})
-    (should= [[0 0] [0 1]] (attention/cells-needing-attention))))
+    (should= [[0 0] [1 0]] (attention/cells-needing-attention))))
 
 (describe "remove-dead-units"
   (before (reset-all-atoms!))
@@ -111,8 +111,8 @@
     (set-test-unit atoms/game-map "A2" :hits -1)
     (game-loop/remove-dead-units)
     (should= {:type :land} (get-in @atoms/game-map [0 0]))
-    (should= {:type :land :contents {:type :fighter :hits 1 :owner :player}} (get-in @atoms/game-map [0 1]))
-    (should= {:type :land} (get-in @atoms/game-map [0 2]))))
+    (should= {:type :land :contents {:type :fighter :hits 1 :owner :player}} (get-in @atoms/game-map [1 0]))
+    (should= {:type :land} (get-in @atoms/game-map [2 0]))))
 
 (describe "reset-steps-remaining"
   (before (reset-all-atoms!))
@@ -121,8 +121,8 @@
                                              "a#"]))
     (game-loop/reset-steps-remaining)
     (should= (config/unit-speed :army) (:steps-remaining (:contents (get-in @atoms/game-map [0 0]))))
-    (should= (config/unit-speed :fighter) (:steps-remaining (:contents (get-in @atoms/game-map [0 1]))))
-    (should= nil (:steps-remaining (:contents (get-in @atoms/game-map [1 0])))))
+    (should= (config/unit-speed :fighter) (:steps-remaining (:contents (get-in @atoms/game-map [1 0]))))
+    (should= nil (:steps-remaining (:contents (get-in @atoms/game-map [0 1])))))
 
   (it "overwrites existing steps-remaining values"
     (reset! atoms/game-map (build-test-map ["F"]))
@@ -135,10 +135,10 @@
   (it "preserves existing steps-remaining when setting movement"
     (reset! atoms/game-map (build-test-map ["F#"]))
     (set-test-unit atoms/game-map "F" :mode :awake :steps-remaining 3)
-    (movement/set-unit-movement [0 0] [0 1])
+    (movement/set-unit-movement [0 0] [1 0])
     (let [unit (:contents (get-in @atoms/game-map [0 0]))]
       (should= :moving (:mode unit))
-      (should= [0 1] (:target unit))
+      (should= [1 0] (:target unit))
       (should= 3 (:steps-remaining unit)))))
 
 (describe "move-current-unit"
@@ -148,44 +148,44 @@
 
   (it "decrements steps-remaining after each move"
     (reset! atoms/game-map (build-test-map ["F##"]))
-    (set-test-unit atoms/game-map "F" :mode :moving :target [0 2] :steps-remaining 3)
+    (set-test-unit atoms/game-map "F" :mode :moving :target [2 0] :steps-remaining 3)
     (game-loop/move-current-unit [0 0])
-    (should= 2 (:steps-remaining (:contents (get-in @atoms/game-map [0 1])))))
+    (should= 2 (:steps-remaining (:contents (get-in @atoms/game-map [1 0])))))
 
   (it "returns new coords when steps remain"
     (reset! atoms/game-map (build-test-map ["F##"]))
-    (set-test-unit atoms/game-map "F" :mode :moving :target [0 2] :steps-remaining 3)
-    (should= [0 1] (game-loop/move-current-unit [0 0])))
+    (set-test-unit atoms/game-map "F" :mode :moving :target [2 0] :steps-remaining 3)
+    (should= [1 0] (game-loop/move-current-unit [0 0])))
 
   (it "returns nil when steps-remaining reaches zero"
     (reset! atoms/game-map (build-test-map ["A##"]))
-    (set-test-unit atoms/game-map "A" :mode :moving :target [0 2] :steps-remaining 1)
+    (set-test-unit atoms/game-map "A" :mode :moving :target [2 0] :steps-remaining 1)
     (should= nil (game-loop/move-current-unit [0 0])))
 
   (it "returns new coords when unit wakes up with steps remaining"
     (reset! atoms/game-map (build-test-map ["A#"]))
-    (set-test-unit atoms/game-map "A" :mode :moving :target [0 1] :steps-remaining 3)
+    (set-test-unit atoms/game-map "A" :mode :moving :target [1 0] :steps-remaining 3)
     (let [result (game-loop/move-current-unit [0 0])]
-      (should= [0 1] result)
-      (should= :awake (:mode (:contents (get-in @atoms/game-map [0 1]))))))
+      (should= [1 0] result)
+      (should= :awake (:mode (:contents (get-in @atoms/game-map [1 0]))))))
 
   (it "returns nil when unit wakes up with no steps remaining"
     (reset! atoms/game-map (build-test-map ["A#"]))
-    (set-test-unit atoms/game-map "A" :mode :moving :target [0 1] :steps-remaining 1)
+    (set-test-unit atoms/game-map "A" :mode :moving :target [1 0] :steps-remaining 1)
     (should= nil (game-loop/move-current-unit [0 0])))
 
   (it "limits unit to its rate per round even with new orders"
     (reset! atoms/game-map (build-test-map ["A##"]))
-    (set-test-unit atoms/game-map "A" :mode :moving :target [0 1] :steps-remaining 1)
+    (set-test-unit atoms/game-map "A" :mode :moving :target [1 0] :steps-remaining 1)
     ;; Move once, using the last step
     (game-loop/move-current-unit [0 0])
-    (should= 0 (:steps-remaining (:contents (get-in @atoms/game-map [0 1]))))
+    (should= 0 (:steps-remaining (:contents (get-in @atoms/game-map [1 0]))))
     ;; Give new orders
-    (movement/set-unit-movement [0 1] [0 2])
+    (movement/set-unit-movement [1 0] [2 0])
     ;; steps-remaining should still be 0
-    (should= 0 (:steps-remaining (:contents (get-in @atoms/game-map [0 1]))))
+    (should= 0 (:steps-remaining (:contents (get-in @atoms/game-map [1 0]))))
     ;; Try to move again - should return nil since no steps left
-    (should= nil (game-loop/move-current-unit [0 1]))))
+    (should= nil (game-loop/move-current-unit [1 0]))))
 
 (describe "attempt-fighter-overfly"
   (before (reset-all-atoms!))
@@ -193,11 +193,11 @@
     (reset! atoms/game-map (build-test-map ["F+"]))
     (set-test-unit atoms/game-map "F" :mode :awake)
     (reset! atoms/line3-message "")
-    (combat/attempt-fighter-overfly [0 0] [0 1])
+    (combat/attempt-fighter-overfly [0 0] [1 0])
     ;; Fighter should be removed from original cell
     (should= nil (:contents (get-in @atoms/game-map [0 0])))
     ;; Fighter should be on city with hits=0
-    (let [fighter (:contents (get-in @atoms/game-map [0 1]))]
+    (let [fighter (:contents (get-in @atoms/game-map [1 0]))]
       (should= 0 (:hits fighter))
       (should= 0 (:steps-remaining fighter))
       (should= :awake (:mode fighter))
@@ -208,11 +208,11 @@
     (reset! atoms/game-map (build-test-map ["FX"]))
     (set-test-unit atoms/game-map "F" :mode :awake)
     (reset! atoms/line3-message "")
-    (combat/attempt-fighter-overfly [0 0] [0 1])
+    (combat/attempt-fighter-overfly [0 0] [1 0])
     ;; Fighter should be removed from original cell
     (should= nil (:contents (get-in @atoms/game-map [0 0])))
     ;; Fighter should be on city with hits=0
-    (let [fighter (:contents (get-in @atoms/game-map [0 1]))]
+    (let [fighter (:contents (get-in @atoms/game-map [1 0]))]
       (should= 0 (:hits fighter))
       (should= 0 (:steps-remaining fighter))
       (should= :awake (:mode fighter))
@@ -302,7 +302,7 @@
       (should= nil (:contents (get-in @atoms/game-map [0 0])))
       ;; Unit should be at some new position with decremented steps
       (let [moved-unit (some #(:contents (get-in @atoms/game-map %))
-                             [[0 1] [1 0] [1 1]])]
+                             [[1 0] [0 1] [1 1]])]
         (should= :army (:type moved-unit))
         (should= :explore (:mode moved-unit))
         (should= 49 (:explore-steps moved-unit)))))
@@ -360,7 +360,7 @@
       (dotimes [_ 10]
         (reset! atoms/game-map initial-map)
         (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50)
-        (explore/move-explore-unit [0 1])
+        (explore/move-explore-unit [1 0])
         ;; Find where the unit moved
         (let [{:keys [pos]} (get-test-unit atoms/game-map "A")]
           ;; Should move to a coastal cell (adjacent to sea)
@@ -371,19 +371,19 @@
                                         "###"
                                         "###"])
           ;; Player map with only rows 0-1 explored - row 2 is unexplored
-          player-map [[{:type :land} {:type :land} {:type :land}]
-                      [{:type :land} {:type :land} {:type :land}]
-                      [nil nil nil]]]
+          player-map [[{:type :land} {:type :land} nil]
+                      [{:type :land} {:type :land} nil]
+                      [{:type :land} {:type :land} nil]]]
       ;; Run multiple times - should always move towards unexplored (into row 1)
       (dotimes [_ 10]
         (reset! atoms/game-map initial-map)
         (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50)
         (reset! atoms/player-map player-map)
-        (explore/move-explore-unit [0 1])
+        (explore/move-explore-unit [1 0])
         ;; Find where the unit moved
         (let [{:keys [pos]} (get-test-unit atoms/game-map "A")]
           ;; Should move to row 1 (adjacent to unexplored row 2)
-          (should= 1 (first pos))))))
+          (should= 1 (second pos))))))
 
   (it "explore army does not retrace steps"
     (let [initial-map (build-test-map ["#A#"])]
@@ -394,17 +394,17 @@
       (dotimes [_ 10]
         (reset! atoms/game-map initial-map)
         (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50 :visited #{[0 0]})
-        (explore/move-explore-unit [0 1])
-        ;; Should move to [0 2], not back to [0 0]
-        (should-not-be-nil (:contents (get-in @atoms/game-map [0 2]))))))
+        (explore/move-explore-unit [1 0])
+        ;; Should move to [2 0], not back to [0 0]
+        (should-not-be-nil (:contents (get-in @atoms/game-map [2 0]))))))
 
   (it "explore army wakes up when finding enemy city"
     (reset! atoms/game-map (build-test-map ["A#X"]))
     (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50)
     (reset! atoms/player-map @atoms/game-map)
     (explore/move-explore-unit [0 0])
-    ;; Army should have moved to [0 1] and woken up
-    (let [unit (:contents (get-in @atoms/game-map [0 1]))]
+    ;; Army should have moved to [1 0] and woken up
+    (let [unit (:contents (get-in @atoms/game-map [1 0]))]
       (should= :awake (:mode unit))
       (should= :army-found-city (:reason unit))
       (should= nil (:explore-steps unit))))
@@ -414,8 +414,8 @@
     (set-test-unit atoms/game-map "A" :mode :explore :explore-steps 50)
     (reset! atoms/player-map @atoms/game-map)
     (explore/move-explore-unit [0 0])
-    ;; Army should have moved to [0 1] and woken up
-    (let [unit (:contents (get-in @atoms/game-map [0 1]))]
+    ;; Army should have moved to [1 0] and woken up
+    (let [unit (:contents (get-in @atoms/game-map [1 0]))]
       (should= :awake (:mode unit))
       (should= :army-found-city (:reason unit)))))
 
@@ -480,4 +480,4 @@
                                              "###"
                                              "###"
                                              "###"]))
-    (should= [9 1] (#'input/calculate-extended-target [0 1] [1 0]))))
+    (should= [2 1] (#'input/calculate-extended-target [0 1] [1 0]))))

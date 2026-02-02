@@ -52,10 +52,10 @@
     (let [neighbors (pathfinding/get-passable-neighbors [1 1] :army @atoms/game-map)]
       (should= 5 (count neighbors))
       (should-contain [0 0] neighbors)
-      (should-contain [0 1] neighbors)
-      (should-contain [0 2] neighbors)
       (should-contain [1 0] neighbors)
-      (should-contain [1 2] neighbors)))
+      (should-contain [2 0] neighbors)
+      (should-contain [0 1] neighbors)
+      (should-contain [2 1] neighbors)))
 
   (it "returns sea neighbors for ship"
     (reset! atoms/game-map (build-test-map ["~~~"
@@ -64,10 +64,10 @@
     (let [neighbors (pathfinding/get-passable-neighbors [1 1] :destroyer @atoms/game-map)]
       (should= 5 (count neighbors))
       (should-contain [0 0] neighbors)
-      (should-contain [0 1] neighbors)
-      (should-contain [0 2] neighbors)
       (should-contain [1 0] neighbors)
-      (should-contain [1 2] neighbors)))
+      (should-contain [2 0] neighbors)
+      (should-contain [0 1] neighbors)
+      (should-contain [2 1] neighbors)))
 
   (it "returns all neighbors for fighter"
     (reset! atoms/game-map (build-test-map ["#~#"
@@ -81,8 +81,8 @@
 
   (it "finds direct path on clear terrain"
     (reset! atoms/game-map (build-test-map ["a##"]))
-    (let [path (pathfinding/a-star [0 0] [0 2] :army @atoms/game-map)]
-      (should= [[0 0] [0 1] [0 2]] path)))
+    (let [path (pathfinding/a-star [0 0] [2 0] :army @atoms/game-map)]
+      (should= [[0 0] [1 0] [2 0]] path)))
 
   (it "returns just start position when already at goal"
     (reset! atoms/game-map (build-test-map ["a"]))
@@ -93,32 +93,32 @@
     (reset! atoms/game-map (build-test-map ["#~#"
                                              "###"
                                              "#a#"]))
-    ;; Army at [2 1] wants to reach [0 0], must go around the sea
-    (let [path (pathfinding/a-star [2 1] [0 0] :army @atoms/game-map)]
+    ;; Army at [1 2] wants to reach [0 0], must go around the sea
+    (let [path (pathfinding/a-star [1 2] [0 0] :army @atoms/game-map)]
       (should-not-be-nil path)
-      (should= [2 1] (first path))
+      (should= [1 2] (first path))
       (should= [0 0] (last path))
-      ;; Path should not pass through sea at [0 1]
-      (should-not-contain [0 1] path)))
+      ;; Path should not pass through sea at [1 0]
+      (should-not-contain [1 0] path)))
 
   (it "keeps armies on land"
     (reset! atoms/game-map (build-test-map ["a~~#"]))
     ;; Army cannot cross water
-    (let [path (pathfinding/a-star [0 0] [0 3] :army @atoms/game-map)]
+    (let [path (pathfinding/a-star [0 0] [3 0] :army @atoms/game-map)]
       (should-be-nil path)))
 
   (it "keeps ships on sea"
     (reset! atoms/game-map (build-test-map ["d##~"]))
     ;; Ship cannot cross land
-    (let [path (pathfinding/a-star [0 0] [0 3] :destroyer @atoms/game-map)]
+    (let [path (pathfinding/a-star [0 0] [3 0] :destroyer @atoms/game-map)]
       (should-be-nil path)))
 
   (it "allows fighters to fly over any terrain"
     (reset! atoms/game-map (build-test-map ["f~~#"]))
-    (let [path (pathfinding/a-star [0 0] [0 3] :fighter @atoms/game-map)]
+    (let [path (pathfinding/a-star [0 0] [3 0] :fighter @atoms/game-map)]
       (should-not-be-nil path)
       (should= [0 0] (first path))
-      (should= [0 3] (last path))))
+      (should= [3 0] (last path))))
 
   (it "returns nil for unreachable goal"
     (reset! atoms/game-map (build-test-map ["a~~"
@@ -134,23 +134,23 @@
                                              "#~#~#"
                                              "#~~~#"
                                              "a####"]))
-    ;; Army at [4 0] needs to reach [0 4]
-    (let [path (pathfinding/a-star [4 0] [0 4] :army @atoms/game-map)]
+    ;; Army at [0 4] needs to reach [4 0]
+    (let [path (pathfinding/a-star [0 4] [4 0] :army @atoms/game-map)]
       (should-not-be-nil path)
-      (should= [4 0] (first path))
-      (should= [0 4] (last path)))))
+      (should= [0 4] (first path))
+      (should= [4 0] (last path)))))
 
 (describe "next-step"
   (before (reset-all-atoms!))
 
   (it "returns first step of computed path"
     (reset! atoms/game-map (build-test-map ["a##"]))
-    (let [step (pathfinding/next-step [0 0] [0 2] :army)]
-      (should= [0 1] step)))
+    (let [step (pathfinding/next-step [0 0] [2 0] :army)]
+      (should= [1 0] step)))
 
   (it "returns nil for unreachable goal"
     (reset! atoms/game-map (build-test-map ["a~~#"]))
-    (let [step (pathfinding/next-step [0 0] [0 3] :army)]
+    (let [step (pathfinding/next-step [0 0] [3 0] :army)]
       (should-be-nil step)))
 
   (it "returns nil when already at goal"
@@ -166,30 +166,30 @@
   (it "caches computed paths"
     (reset! atoms/game-map (build-test-map ["a####"]))
     ;; First call computes path
-    (let [step1 (pathfinding/next-step [0 0] [0 4] :army)
+    (let [step1 (pathfinding/next-step [0 0] [4 0] :army)
           ;; Second call should use cached path
-          step2 (pathfinding/next-step [0 0] [0 4] :army)]
-      (should= [0 1] step1)
-      (should= [0 1] step2)))
+          step2 (pathfinding/next-step [0 0] [4 0] :army)]
+      (should= [1 0] step1)
+      (should= [1 0] step2)))
 
   (it "clear-path-cache resets the cache"
     (reset! atoms/game-map (build-test-map ["a##"]))
-    (pathfinding/next-step [0 0] [0 2] :army)
+    (pathfinding/next-step [0 0] [2 0] :army)
     (pathfinding/clear-path-cache)
     ;; Cache should be empty now, so this should work fresh
     (reset! atoms/game-map (build-test-map ["a~#"]))
     ;; Path should now be nil since terrain changed
-    (let [step (pathfinding/next-step [0 0] [0 2] :army)]
+    (let [step (pathfinding/next-step [0 0] [2 0] :army)]
       (should-be-nil step)))
 
   (it "caches sub-paths for intermediate positions"
     (reset! atoms/game-map (build-test-map ["a####"]))
     (pathfinding/clear-path-cache)
-    ;; Compute path from [0 0] to [0 4]
-    (pathfinding/next-step [0 0] [0 4] :army)
-    ;; Now [0 1] to [0 4] should be cached as a sub-path
-    (let [step (pathfinding/next-step [0 1] [0 4] :army)]
-      (should= [0 2] step))))
+    ;; Compute path from [0 0] to [4 0]
+    (pathfinding/next-step [0 0] [4 0] :army)
+    ;; Now [1 0] to [4 0] should be cached as a sub-path
+    (let [step (pathfinding/next-step [1 0] [4 0] :army)]
+      (should= [2 0] step))))
 
 (describe "find-nearest-unexplored"
   (before (reset-all-atoms!))
@@ -236,8 +236,8 @@
                                             "~~"]))
     (reset! atoms/computer-map (build-test-map ["~-"
                                                 "~~"]))
-    ;; Start [0,0] is adjacent to unexplored [0,1] on computer-map
-    ;; But [0,1] is sea on game-map, so BFS should find [0,1] as target
+    ;; Start [0,0] is adjacent to unexplored [1,0] on computer-map
+    ;; But [1,0] is sea on game-map, so BFS should find [1,0] as target
     (let [target (pathfinding/find-nearest-unexplored [0 0] :transport)]
       ;; Should find a cell adjacent to unexplored, but not start
       (should-not-be-nil target)
@@ -247,9 +247,9 @@
     ;; Only one sea cell, surrounded by land. Start is the only sea cell.
     (reset! atoms/game-map (build-test-map ["#~#"]))
     (reset! atoms/computer-map (build-test-map ["#~-"]))
-    ;; Start [0,1] is adjacent to unexplored [0,2] but [0,2] is not passable sea
+    ;; Start [1,0] is adjacent to unexplored [2,0] but [2,0] is not passable sea
     ;; No other sea cells to explore toward
-    (should-be-nil (pathfinding/find-nearest-unexplored [0 1] :transport)))
+    (should-be-nil (pathfinding/find-nearest-unexplored [1 0] :transport)))
 
   (it "detects {:type :unexplored} cells as unexplored (real game format)"
     ;; In the actual game, computer-map cells are {:type :unexplored},
@@ -295,7 +295,7 @@
                                                 "~~-"]))
     ;; Two calls with different starts but same unit-type return same result
     (let [result1 (pathfinding/find-nearest-unexplored [0 0] :transport)
-          result2 (pathfinding/find-nearest-unexplored [0 2] :transport)]
+          result2 (pathfinding/find-nearest-unexplored [2 0] :transport)]
       (should-not-be-nil result1)
       (should= result1 result2)))
 
@@ -304,9 +304,9 @@
                                             "~~~"
                                             "~~~"
                                             "###"]))
-    (let [target-continent #{[3 0] [3 1] [3 2]}
+    (let [target-continent #{[0 3] [1 3] [2 3]}
           result1 (pathfinding/find-nearest-unload-position [0 0] target-continent)
-          result2 (pathfinding/find-nearest-unload-position [0 2] target-continent)]
+          result2 (pathfinding/find-nearest-unload-position [2 0] target-continent)]
       (should-not-be-nil result1)
       (should= result1 result2)))
 
@@ -339,7 +339,7 @@
                                                 "#~~"
                                                 "~~-"]))
     ;; Transport can only traverse sea; fighter can traverse all
-    (let [transport-result (pathfinding/find-nearest-unexplored [0 2] :transport)
+    (let [transport-result (pathfinding/find-nearest-unexplored [2 0] :transport)
           fighter-result (pathfinding/find-nearest-unexplored [0 0] :fighter)]
       (should-not-be-nil transport-result)
       (should-not-be-nil fighter-result)
@@ -361,18 +361,18 @@
                                             "~~~"
                                             "###"
                                             "###"]))
-    (let [target-continent #{[4 0] [4 1] [4 2] [5 0] [5 1] [5 2]}
-          result (pathfinding/find-nearest-unload-position [2 1] target-continent)]
+    (let [target-continent #{[0 4] [1 4] [2 4] [0 5] [1 5] [2 5]}
+          result (pathfinding/find-nearest-unload-position [1 2] target-continent)]
       ;; Should find a sea cell in row 3 adjacent to land in row 4
       (should-not-be-nil result)
-      (should= 3 (first result))))
+      (should= 3 (second result))))
 
   (it "returns nil when target-continent land is unreachable"
     ;; Target continent positions don't exist near any reachable sea
     (reset! atoms/game-map (build-test-map ["###"
                                             "~~~"
                                             "~~~"]))
-    (let [target-continent #{[10 10] [10 11]}
+    (let [target-continent #{[10 10] [11 10]}
           result (pathfinding/find-nearest-unload-position [1 1] target-continent)]
       (should-be-nil result)))
 
@@ -385,24 +385,24 @@
                                             "~~~"
                                             "~~~"
                                             "###"]))
-    (let [target-continent #{[4 0] [4 1] [4 2]}
+    (let [target-continent #{[0 4] [1 4] [2 4]}
           result (pathfinding/find-nearest-unload-position [1 1] target-continent)]
       (should-not-be-nil result)
-      (should= 3 (first result))))
+      (should= 3 (second result))))
 
   (it "skips occupied sea cells as unload destinations"
-    ;; Target continent at row 4. Sea cell [3,1] is occupied by enemy ship.
+    ;; Target continent at row 4. Sea cell [1,3] is occupied by enemy ship.
     (reset! atoms/game-map (build-test-map ["###"
                                             "~~~"
                                             "~~~"
                                             "~d~"
                                             "###"]))
-    (let [target-continent #{[4 0] [4 1] [4 2]}
-          result (pathfinding/find-nearest-unload-position [2 1] target-continent)]
-      ;; Should skip [3,1] (occupied) and find [3,0] or [3,2]
+    (let [target-continent #{[0 4] [1 4] [2 4]}
+          result (pathfinding/find-nearest-unload-position [1 2] target-continent)]
+      ;; Should skip [1,3] (occupied) and find [0,3] or [2,3]
       (should-not-be-nil result)
-      (should= 3 (first result))
-      (should-not= [3 1] result)))
+      (should= 3 (second result))
+      (should-not= [1 3] result)))
 
   (it "finds globally nearest position on target continent"
     ;; Target continent connected land at rows 4 and 8 (same continent via land).
@@ -416,12 +416,12 @@
                                             "###"
                                             "###"
                                             "###"]))
-    (let [target-continent #{[4 0] [4 1] [4 2] [5 0] [5 1] [5 2]
-                             [6 0] [6 1] [6 2] [7 0] [7 1] [7 2]
-                             [8 0] [8 1] [8 2]}
-          result (pathfinding/find-nearest-unload-position [2 1] target-continent)]
+    (let [target-continent #{[0 4] [1 4] [2 4] [0 5] [1 5] [2 5]
+                             [0 6] [1 6] [2 6] [0 7] [1 7] [2 7]
+                             [0 8] [1 8] [2 8]}
+          result (pathfinding/find-nearest-unload-position [1 2] target-continent)]
       (should-not-be-nil result)
-      (should= 3 (first result)))))
+      (should= 3 (second result)))))
 
 (describe "find-nearest-unexplored-coastline"
   (before (reset-all-atoms!))
@@ -433,11 +433,9 @@
                                             "~~~"
                                             "~~~"
                                             "###"]))
-    (reset! atoms/computer-map [[{:type :sea} {:type :sea} {:type :sea}]
-                                [{:type :sea} {:type :sea} {:type :sea}]
-                                [{:type :sea} {:type :sea} {:type :sea}]
-                                [{:type :sea} {:type :sea} nil]
-                                [{:type :land} {:type :land} nil]])
+    (reset! atoms/computer-map [[{:type :sea} {:type :sea} {:type :sea} {:type :sea} {:type :land}]
+                                [{:type :sea} {:type :sea} {:type :sea} {:type :sea} {:type :land}]
+                                [{:type :sea} {:type :sea} {:type :sea} nil nil]])
     ;; [3,2] is sea with known land neighbor [4,1] and unexplored neighbor [4,2]
     ;; But wait, [3,2] itself needs to be a sea cell. Let me verify.
     ;; Actually the frontier cell needs to be adjacent to both unexplored AND known land.
@@ -445,7 +443,7 @@
     (let [target (pathfinding/find-nearest-unexplored-coastline [0 0] :transport)]
       (should-not-be-nil target)
       ;; Target should be in row 2 or 3 (near the coast)
-      (should (>= (first target) 2))))
+      (should (>= (second target) 2))))
 
   (it "returns nil when no coastline frontier exists"
     ;; All unexplored is open sea, no known land nearby
@@ -465,11 +463,9 @@
                                             "~~~"
                                             "~~~"
                                             "###"]))
-    (reset! atoms/computer-map [[{:type :sea} {:type :sea} {:type :sea}]
-                                [{:type :sea} {:type :sea} {:type :sea}]
-                                [{:type :sea} {:type :sea} {:type :sea}]
-                                [{:type :sea} {:type :sea} nil]
-                                [{:type :land} {:type :land} nil]])
+    (reset! atoms/computer-map [[{:type :sea} {:type :sea} {:type :sea} {:type :sea} {:type :land}]
+                                [{:type :sea} {:type :sea} {:type :sea} {:type :sea} {:type :land}]
+                                [{:type :sea} {:type :sea} {:type :sea} nil nil]])
     ;; Both should return results but use independent cache entries
     (let [coastline (pathfinding/find-nearest-unexplored-coastline [0 0] :transport)
           general (pathfinding/find-nearest-unexplored [0 0] :transport)]
@@ -544,24 +540,24 @@
 
   (it "next-step records naval paths into sea lane network"
     (reset! atoms/game-map (build-test-map ["~~~~~~"]))
-    (pathfinding/next-step [0 0] [0 5] :destroyer)
+    (pathfinding/next-step [0 0] [5 0] :destroyer)
     (let [net @atoms/sea-lane-network]
-      ;; Path [0 0]->[0 5] should be recorded as a segment
+      ;; Path [0 0]->[5 0] should be recorded as a segment
       (should (pos? (count (:segments net))))))
 
   (it "next-step does not record army paths into sea lane network"
     (reset! atoms/game-map (build-test-map ["######"]))
-    (pathfinding/next-step [0 0] [0 5] :army)
+    (pathfinding/next-step [0 0] [5 0] :army)
     (let [net @atoms/sea-lane-network]
       (should= 0 (count (:segments net)))))
 
   (it "bounded-a-star finds path on small map"
     (reset! atoms/game-map (build-test-map ["~~~~~"
                                             "~~~~~"]))
-    (let [path (pathfinding/bounded-a-star [0 0] [0 4] :destroyer @atoms/game-map)]
+    (let [path (pathfinding/bounded-a-star [0 0] [4 0] :destroyer @atoms/game-map)]
       (should-not-be-nil path)
       (should= [0 0] (first path))
-      (should= [0 4] (last path))))
+      (should= [4 0] (last path))))
 
   (it "bounded-a-star returns nil when goal is outside radius"
     ;; Very far apart positions on a narrow corridor

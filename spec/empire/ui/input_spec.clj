@@ -140,7 +140,7 @@
                                              "---------"]))
     (set-test-unit atoms/game-map "T" :mode :sentry :hits 1 :army-count 3 :awake-armies 3)
     (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
-          land-coords [(inc (first transport-coords)) (second transport-coords)]]
+          land-coords [(first transport-coords) (inc (second transport-coords))]]
       (reset! atoms/cells-needing-attention [transport-coords])
       (reset! atoms/player-items [transport-coords])
       (reset! atoms/waiting-for-input true)

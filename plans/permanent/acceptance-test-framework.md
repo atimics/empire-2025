@@ -338,4 +338,220 @@ THEN message contains "fuel:32".
 THEN message contains "Landed and refueled".
 ```
 
+## Translation Reference
+
+This section documents the Clojure functions and calling patterns needed to translate acceptance test directives into Speclj specs.
+
+### Required Namespaces
+
+```clojure
+(:require [speclj.core :refer :all]
+          [empire.test-utils :refer [build-test-map set-test-unit get-test-unit
+                                     get-test-city reset-all-atoms!
+                                     make-initial-test-map]]
+          [empire.atoms :as atoms]
+          [empire.config :as config]
+          [empire.game-loop :as game-loop]
+          [empire.game-loop.item-processing :as item-processing]
+          [empire.player.production :as production]
+          [empire.containers.ops :as container-ops]
+          [empire.ui.input :as input])
+```
+
+Add only namespaces actually used by the generated spec.
+
+### Game Loop Functions
+
+| Directive | Function | Notes |
+|-----------|----------|-------|
+| "the game advances" | `(game-loop/advance-game)` | Advances one step: starts round, processes one player batch, or processes computer items |
+| "the game advances one batch" | `(game-loop/advance-game-batch)` | Calls advance-game up to `config/advances-per-frame` times |
+| "a new round starts" | `(game-loop/start-new-round)` | Calls `production/update-production`, builds player-items and computer-items lists |
+| "player items are processed" | `(item-processing/process-player-items-batch)` | Processes player-items until empty, waiting-for-input, or 100 items |
+| "production updates" | `(production/update-production)` | Decrements remaining-rounds, spawns units at zero |
+
+### Item Processing Internals (`game-loop.item-processing`)
+
+`process-player-items-batch` loops calling `process-one-item` which:
+1. Checks for auto-launch-fighter (airport with flight-path)
+2. Checks for auto-disembark-army (transport with awake armies + marching-orders)
+3. If `attention/item-needs-attention?` → sets `waiting-for-input` and `cells-needing-attention`
+4. Otherwise → `process-auto-movement` (handles :explore, :coastline-follow, :moving)
+
+`move-current-unit` at `item_processing.cljc:14` moves a :moving unit one step.
+
+### Keyboard Input (`ui.input`)
+
+`input/key-down` dispatches keys. When `waiting-for-input` is true and `cells-needing-attention` has coords:
+
+| Key | Handler | What it does |
+|-----|---------|-------------|
+| direction keys (q/w/e/a/d/z/x/c) | `handle-unit-movement-key` | Moves unit or disembarks army from transport |
+| :space | `handle-space-key` | Skip / next unit |
+| :u | `handle-unload-key` (`input.cljc:195`) | Wakes armies on transport via `container-ops/wake-armies-on-transport` |
+| :s | `handle-sentry-key` | Sets unit to sentry mode |
+| :l | `handle-look-around-key` | Sets unit to explore mode |
+| production keys (a/f/t/d/s/c/b/p/z) | `handle-city-production-key` | Sets city production (when attention is on a city) |
+
+**Important:** `handle-key` (called from key-down at `input.cljc:516`) reads `cells-needing-attention` to find the active coords. For key-based tests, `waiting-for-input` must be true and `cells-needing-attention` must contain the target unit's coords.
+
+**key-down dispatch order** (`input.cljc:473`):
+1. If `backtick-pressed` → debug/cheat commands (spawn units, own city)
+2. Else checks in order: backtick, P (pause), space (step), + (toggle map), . (destination), m (marching orders), f (flight path), **u (wake-at-mouse)**, l (lookaround), city marching orders by direction, **handle-key** (the attention-based handler), * (waypoint)
+3. The `:u` key at line 513 calls `wake-at-mouse` first (uses Quil `q/mouse-x`/`q/mouse-y`) — this will fail or no-op in tests without Quil mocking. Then falls through to `handle-key` at line 516 which calls `handle-unload-key`.
+4. **For `:u` key tests:** Set up `waiting-for-input` true and `cells-needing-attention` with the transport coords. The `wake-at-mouse` call at line 513 will return nil (no Quil context), then `handle-key` picks it up.
+5. **For direction key tests (disembark):** Same setup needed. `handle-key` → `handle-unit-movement-key` → `execute-unit-movement` which handles disembark when active unit is army-aboard-transport.
+
+**handle-unload-key** (`input.cljc:195`):
+- Checks `uc/transport-with-armies?` → calls `container-ops/wake-armies-on-transport`, then `game-loop/item-processed`
+- Also handles carriers with fighters
+- Called from `handle-key` when `:u` is pressed and attention is on a unit
+
+**handle-unit-movement-key** (`input.cljc:165`):
+- Extracts direction from key via `config/key->direction` or `config/key->extended-direction`
+- Gets active unit via `movement/get-active-unit` (returns synthetic army if transport has awake armies)
+- Calls `execute-unit-movement` which routes to disembark logic when aboard transport
+
+### Transport-Specific Behavior
+
+**Player transport production:**
+- Spawned via `production/update-production` → `spawn-unit`
+- Gets: `:type :transport`, `:hits 1`, `:mode :awake`, `:owner :player`, `:produced-at coords`
+- Does NOT get: `:transport-mission`, `:stuck-since-round`, `:transport-id` (computer-only, in `computer.stamping`)
+
+**Computer transport production:**
+- Same base fields plus `computer-stamping/stamp-computer-fields` adds: `:transport-mission :idle`, `:stuck-since-round @round-number`, `:transport-id <next-id>`
+
+**Transport needs-attention?** (`units/transport.cljc:25`):
+- Returns true when `:mode :awake` OR `(:awake-armies unit) > 0`
+- A sentry transport with no awake armies does NOT need attention
+
+**Loading armies** (`containers/ops.cljc`):
+- `load-adjacent-sentry-armies` loads nearby sentry armies onto a sentry transport
+- Called during movement wake conditions, NOT during item processing directly
+- For testing loading, call `container-ops/load-adjacent-sentry-armies` directly
+
+**Wake armies** (`containers/ops.cljc`):
+- `wake-armies-on-transport` sets transport to `:sentry`, sets `:awake-armies` = `:army-count`, clears `:reason`, clears `:steps-remaining`
+- Triggered by `:u` key via `handle-unload-key`
+
+**Disembark** (`containers/ops.cljc`):
+- `disembark-army-from-transport` places army on land, decrements counts
+- `disembark-army-with-target` disembarks army in :moving mode toward target
+- `disembark-army-to-explore` disembarks army in :explore mode
+- Triggered by direction keys when active unit is an army aboard transport
+
+**Movement wake reasons:**
+- `:transport-at-beach` — transport with armies reaches a cell adjacent to land (requires `:been-to-sea true`)
+- `:transport-found-land` — transport moves from open sea (completely surrounded by sea) to a position with visible land
+
+**Player-map requirement:** Movement tests typically need `(reset! atoms/player-map (make-initial-test-map rows cols nil))` for visibility updates.
+
+**Transport config** (`units/transport.cljc`):
+- speed: 2, cost: 30, hits: 1, capacity: 6, visibility-radius: 1
+- `initial-state`: `{:army-count 0, :awake-armies 0, :been-to-sea true}`
+- `can-move-to?`: sea cells only
+- `full?`: army-count >= 6
+
+### Coordinate System
+
+**CRITICAL: Strings in `build-test-map` are COLUMNS, not rows.**
+
+`build-test-map` creates a 2D vector indexed as `(get-in game-map [x y])` where:
+- **x** = column (left-right, increases going right) — the string index
+- **y** = row (top-bottom, increases going down) — the character index within a string
+
+Each string in the input vector represents one **column** of the map, read top-to-bottom.
+
+Example: `(build-test-map ["~T#" "~~~"])`
+- String 0 `"~T#"` = column 0: `[0,0]=sea, [0,1]=transport, [0,2]=land`
+- String 1 `"~~~"` = column 1: `[1,0]=sea, [1,1]=sea, [1,2]=sea`
+
+Visual layout (x across, y down):
+```
+     x=0  x=1
+y=0   ~    ~
+y=1   T    ~
+y=2   #    ~
+```
+
+**Direction keys** use `[dx, dy]` which is `[dcol, drow]`:
+- `:w` north = `[0, -1]` (up)
+- `:x` south = `[0, 1]` (down)
+- `:a` west = `[-1, 0]` (left)
+- `:d` east = `[1, 0]` (right)
+- `:q` NW = `[-1, -1]`, `:e` NE = `[1, -1]`, `:z` SW = `[-1, 1]`, `:c` SE = `[1, 1]`
+
+**Movement applies direction to coords:** `[(+ x dx) (+ y dy)]` (`input.cljc:153`).
+
+**`determine-cell-coordinates`** (`map_utils.cljc:84`) converts pixel coords:
+- `cols = (count @atoms/game-map)` = number of strings = number of columns
+- `rows = (count (first @atoms/game-map))` = chars per string = number of rows
+- Returns `[int(pixel-x / cell-w), int(pixel-y / cell-h)]` = `[col, row]` = `[x, y]`
+
+**`find-unit-pos` / `get-test-unit`** returns `[string-idx, char-idx]` = `[x, y]`.
+
+**Common mistake:** Reading acceptance test maps as rows. The string `"~T#"` is a vertical column (sea above, transport middle, land below), NOT a horizontal row.
+
+**Designing test maps:** To place land **south** of a transport, put the land character AFTER the transport in the SAME string. To place land **east** of a transport, put land at the same character position in the NEXT string.
+
+### Test Map Characters
+
+From `test-utils.cljc` `char->cell`:
+
+| Char | Cell |
+|------|------|
+| `~` | `{:type :sea}` |
+| `#` | `{:type :land}` |
+| `.` `-` | `nil` (unexplored/empty) |
+| `+` | `{:type :city :city-status :free}` |
+| `O` | `{:type :city :city-status :player}` |
+| `X` | `{:type :city :city-status :computer}` |
+| `A` | land + player army |
+| `T` | sea + player transport |
+| `D` | sea + player destroyer |
+| `F` | land + player fighter |
+| `a` `t` `d` `f` etc. | lowercase = computer units |
+
+### Production Setup Pattern
+
+```
+GIVEN production at O is transport with 1 round remaining.
+```
+Translates to:
+```clojure
+(let [city-coords (:pos (get-test-city atoms/game-map "O"))]
+  (swap! atoms/production assoc city-coords {:item :transport :remaining-rounds 1}))
+```
+
+For "O2" (second player city): `(get-test-city atoms/game-map "O2")`
+
+### Player-Items Setup Pattern
+
+```
+GIVEN player-items T.
+```
+Translates to:
+```clojure
+(reset! atoms/player-items [(:pos (get-test-unit atoms/game-map "T"))])
+```
+
+Multiple items: `GIVEN player-items are A, T, O.`
+```clojure
+(reset! atoms/player-items [(:pos (get-test-unit atoms/game-map "A"))
+                            (:pos (get-test-unit atoms/game-map "T"))
+                            (:pos (get-test-city atoms/game-map "O"))])
+```
+
+### Negative Assertions
+
+```
+THEN T does not have transport-mission.
+```
+Translates to:
+```clojure
+(let [{:keys [unit]} (get-test-unit atoms/game-map "T")]
+  (should-not-contain :transport-mission unit))
+```
+
 ## Status: permanent

@@ -1,0 +1,220 @@
+(ns empire.computer.stamping-spec
+  (:require [speclj.core :refer :all]
+            [empire.computer.stamping :as stamping]
+            [empire.atoms :as atoms]
+            [empire.config :as config]
+            [empire.test-utils :refer [reset-all-atoms!]]))
+
+(describe "stamp-computer-fields"
+  (before (reset-all-atoms!))
+
+  (describe "satellite direction"
+    (it "adds random direction to computer satellites"
+      (let [unit {:type :satellite :owner :computer :hits 1 :mode :awake
+                  :turns-remaining config/satellite-turns}
+            cell {:type :city :city-status :computer}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should-contain :direction stamped)
+        (should-contain (:direction stamped)
+                        #{[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]})))
+
+    (it "does not add direction to player satellites"
+      (let [unit {:type :satellite :owner :player :hits 1 :mode :awake
+                  :turns-remaining config/satellite-turns}
+            cell {:type :city :city-status :player}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should-not-contain :direction stamped))))
+
+  (describe "transport-id"
+    (it "assigns transport-id to computer transports"
+      (reset! atoms/next-transport-id 5)
+      (let [unit {:type :transport :owner :computer :hits 3 :mode :awake
+                  :transport-mission :idle :stuck-since-round 0}
+            cell {:type :city :city-status :computer}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should= 5 (:transport-id stamped))
+        (should= 6 @atoms/next-transport-id)))
+
+    (it "does not assign transport-id to player transports"
+      (reset! atoms/next-transport-id 5)
+      (let [unit {:type :transport :owner :player :hits 3 :mode :awake
+                  :transport-mission :idle :stuck-since-round 0}
+            cell {:type :city :city-status :player}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should-not-contain :transport-id stamped)
+        (should= 5 @atoms/next-transport-id))))
+
+  (describe "country-id"
+    (it "assigns city country-id to computer armies"
+      (let [unit {:type :army :owner :computer :hits 1 :mode :awake}
+            cell {:type :city :city-status :computer :country-id 3}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should= 3 (:country-id stamped))))
+
+    (it "assigns city country-id to computer transports"
+      (let [unit {:type :transport :owner :computer :hits 3 :mode :awake
+                  :transport-mission :idle :stuck-since-round 0}
+            cell {:type :city :city-status :computer :country-id 7}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should= 7 (:country-id stamped))))
+
+    (it "assigns city country-id to computer fighters"
+      (let [unit {:type :fighter :owner :computer :hits 1 :mode :awake :fuel 32}
+            cell {:type :city :city-status :computer :country-id 5}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should= 5 (:country-id stamped))))
+
+    (it "does not assign country-id when cell lacks it"
+      (let [unit {:type :army :owner :computer :hits 1 :mode :awake}
+            cell {:type :city :city-status :computer}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should-not-contain :country-id stamped)))
+
+    (it "does not assign country-id to non-army/transport/fighter types"
+      (let [unit {:type :destroyer :owner :computer :hits 3 :mode :awake}
+            cell {:type :city :city-status :computer :country-id 3}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should-not-contain :country-id stamped))))
+
+  (describe "patrol fields"
+    (it "stamps patrol fields on computer patrol-boats from country cities"
+      (let [unit {:type :patrol-boat :owner :computer :hits 1 :mode :awake}
+            cell {:type :city :city-status :computer :country-id 2}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should= 2 (:patrol-country-id stamped))
+        (should= :clockwise (:patrol-direction stamped))
+        (should= :homing (:patrol-mode stamped))))
+
+    (it "does not stamp patrol fields on patrol-boats from non-country cities"
+      (let [unit {:type :patrol-boat :owner :computer :hits 1 :mode :awake}
+            cell {:type :city :city-status :computer}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should-not-contain :patrol-country-id stamped)))
+
+    (it "does not stamp patrol fields on non-patrol-boat units"
+      (let [unit {:type :destroyer :owner :computer :hits 3 :mode :awake}
+            cell {:type :city :city-status :computer :country-id 2}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should-not-contain :patrol-country-id stamped))))
+
+  (describe "carrier fields"
+    (it "stamps carrier fields on computer carriers"
+      (reset! atoms/next-carrier-id 3)
+      (let [unit {:type :carrier :owner :computer :hits 8 :mode :awake}
+            cell {:type :city :city-status :computer}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should= :positioning (:carrier-mode stamped))
+        (should= 3 (:carrier-id stamped))
+        (should-be-nil (:group-battleship-id stamped))
+        (should= [] (:group-submarine-ids stamped))
+        (should= 4 @atoms/next-carrier-id)))
+
+    (it "does not stamp carrier fields on player carriers"
+      (reset! atoms/next-carrier-id 3)
+      (let [unit {:type :carrier :owner :player :hits 8 :mode :awake}
+            cell {:type :city :city-status :player}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should-not-contain :carrier-mode stamped)
+        (should= 3 @atoms/next-carrier-id))))
+
+  (describe "escort fields"
+    (it "stamps escort fields on computer battleships"
+      (reset! atoms/next-escort-id 10)
+      (let [unit {:type :battleship :owner :computer :hits 12 :mode :awake}
+            cell {:type :city :city-status :computer}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should= 10 (:escort-id stamped))
+        (should= :seeking (:escort-mode stamped))
+        (should= 11 @atoms/next-escort-id)))
+
+    (it "stamps escort fields on computer submarines"
+      (reset! atoms/next-escort-id 7)
+      (let [unit {:type :submarine :owner :computer :hits 2 :mode :awake}
+            cell {:type :city :city-status :computer}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should= 7 (:escort-id stamped))
+        (should= :seeking (:escort-mode stamped))
+        (should= 8 @atoms/next-escort-id)))
+
+    (it "does not stamp escort fields on player battleships"
+      (reset! atoms/next-escort-id 10)
+      (let [unit {:type :battleship :owner :player :hits 12 :mode :awake}
+            cell {:type :city :city-status :player}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should-not-contain :escort-id stamped)
+        (should= 10 @atoms/next-escort-id))))
+
+  (describe "destroyer fields"
+    (it "stamps destroyer-id and escort-mode on computer destroyers"
+      (reset! atoms/next-destroyer-id 4)
+      (let [unit {:type :destroyer :owner :computer :hits 3 :mode :awake}
+            cell {:type :city :city-status :computer}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should= 4 (:destroyer-id stamped))
+        (should= :seeking (:escort-mode stamped))
+        (should= 5 @atoms/next-destroyer-id)))
+
+    (it "does not stamp destroyer fields on player destroyers"
+      (reset! atoms/next-destroyer-id 4)
+      (let [unit {:type :destroyer :owner :player :hits 3 :mode :awake}
+            cell {:type :city :city-status :player}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should-not-contain :destroyer-id stamped)
+        (should= 4 @atoms/next-destroyer-id))))
+
+  (describe "no-op for player units"
+    (it "returns unit unchanged for player army"
+      (let [unit {:type :army :owner :player :hits 1 :mode :awake}
+            cell {:type :city :city-status :player}
+            stamped (stamping/stamp-computer-fields unit cell)]
+        (should= unit stamped)))))
+
+(describe "apply-coast-walk-fields"
+  (before (reset-all-atoms!))
+
+  (it "first computer army gets clockwise coast-walk"
+    (let [unit {:type :army :owner :computer :hits 1 :mode :awake}
+          cell {:type :city :city-status :computer :country-id 1}
+          stamped (stamping/apply-coast-walk-fields unit :army cell [3 4])]
+      (should= :coast-walk (:mode stamped))
+      (should= :clockwise (:coast-direction stamped))
+      (should= [3 4] (:coast-start stamped))
+      (should= [[3 4]] (:coast-visited stamped))
+      (should= {1 1} @atoms/coast-walkers-produced)))
+
+  (it "second computer army gets counter-clockwise coast-walk"
+    (reset! atoms/coast-walkers-produced {1 1})
+    (let [unit {:type :army :owner :computer :hits 1 :mode :awake}
+          cell {:type :city :city-status :computer :country-id 1}
+          stamped (stamping/apply-coast-walk-fields unit :army cell [3 4])]
+      (should= :coast-walk (:mode stamped))
+      (should= :counter-clockwise (:coast-direction stamped))
+      (should= {1 2} @atoms/coast-walkers-produced)))
+
+  (it "third computer army gets no coast-walk"
+    (reset! atoms/coast-walkers-produced {1 2})
+    (let [unit {:type :army :owner :computer :hits 1 :mode :awake}
+          cell {:type :city :city-status :computer :country-id 1}
+          stamped (stamping/apply-coast-walk-fields unit :army cell [3 4])]
+      (should= :awake (:mode stamped))
+      (should-not-contain :coast-direction stamped)))
+
+  (it "player army does not get coast-walk"
+    (let [unit {:type :army :owner :player :hits 1 :mode :awake}
+          cell {:type :city :city-status :player :country-id 1}
+          stamped (stamping/apply-coast-walk-fields unit :army cell [3 4])]
+      (should= :awake (:mode stamped))
+      (should-not-contain :coast-direction stamped)))
+
+  (it "non-army unit does not get coast-walk"
+    (let [unit {:type :transport :owner :computer :hits 3 :mode :awake}
+          cell {:type :city :city-status :computer :country-id 1}
+          stamped (stamping/apply-coast-walk-fields unit :transport cell [3 4])]
+      (should-not-contain :coast-direction stamped)))
+
+  (it "army from city without country-id does not get coast-walk"
+    (let [unit {:type :army :owner :computer :hits 1 :mode :awake}
+          cell {:type :city :city-status :computer}
+          stamped (stamping/apply-coast-walk-fields unit :army cell [3 4])]
+      (should= :awake (:mode stamped))
+      (should-not-contain :coast-direction stamped))))

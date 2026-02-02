@@ -1,5 +1,6 @@
 (ns empire.player.production
   (:require [empire.atoms :as atoms]
+            [empire.computer.stamping :as computer-stamping]
             [empire.config :as config]))
 
 (defn set-city-production
@@ -13,8 +14,8 @@
   {:type item :hits (config/item-hits item) :mode :awake :owner owner})
 
 (defn- apply-unit-type-attributes
-  "Adds type-specific attributes (fuel, turns, transport mission, transport id)."
-  [unit item owner]
+  "Adds type-specific attributes (fuel, turns, transport mission)."
+  [unit item]
   (cond-> unit
     (= item :fighter)
     (assoc :fuel config/fighter-fuel)
@@ -22,17 +23,9 @@
     (= item :satellite)
     (assoc :turns-remaining config/satellite-turns)
 
-    (and (= item :satellite) (= owner :computer))
-    (assoc :direction (rand-nth [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]]))
-
     (= item :transport)
     (assoc :transport-mission :idle
-           :stuck-since-round @atoms/round-number)
-
-    (and (= item :transport) (= owner :computer))
-    (assoc :transport-id (let [id @atoms/next-transport-id]
-                           (swap! atoms/next-transport-id inc)
-                           id))))
+           :stuck-since-round @atoms/round-number)))
 
 (defn- apply-movement-orders
   "Applies marching orders or flight path to unit."
@@ -49,96 +42,15 @@
 
     :else unit))
 
-(defn- apply-country-id
-  "Assigns city's country-id to armies and transports."
-  [unit item cell]
-  (if (and (#{:army :transport :fighter} item) (:country-id cell))
-    (assoc unit :country-id (:country-id cell))
-    unit))
-
-(defn- apply-patrol-fields
-  "Stamps patrol boat fields on computer patrol boats spawned from a country city."
-  [unit item cell]
-  (if (and (= item :patrol-boat)
-           (= (:city-status cell) :computer)
-           (:country-id cell))
-    (assoc unit :patrol-country-id (:country-id cell)
-                :patrol-direction :clockwise
-                :patrol-mode :homing)
-    unit))
-
-(defn- apply-carrier-fields
-  "Stamps carrier fields on computer carriers: mode, id, group slots."
-  [unit item owner]
-  (if (and (= item :carrier) (= owner :computer))
-    (let [id @atoms/next-carrier-id]
-      (swap! atoms/next-carrier-id inc)
-      (assoc unit :carrier-mode :positioning
-                  :carrier-id id
-                  :group-battleship-id nil
-                  :group-submarine-ids []))
-    unit))
-
-(defn- apply-escort-fields
-  "Stamps escort fields on computer battleships and submarines."
-  [unit item owner]
-  (if (and (#{:battleship :submarine} item) (= owner :computer))
-    (let [id @atoms/next-escort-id]
-      (swap! atoms/next-escort-id inc)
-      (assoc unit :escort-id id :escort-mode :seeking))
-    unit))
-
-(defn- apply-destroyer-fields
-  "Stamps destroyer-id and escort-mode on computer destroyers."
-  [unit item owner]
-  (if (and (= item :destroyer) (= owner :computer))
-    (let [id @atoms/next-destroyer-id]
-      (swap! atoms/next-destroyer-id inc)
-      (assoc unit :destroyer-id id :escort-mode :seeking))
-    unit))
-
 (defn stamp-unit-fields
   "Applies all type-specific fields to a unit based on its :type and :owner.
    Used by spawn-unit and launch-ship-from-shipyard to ensure computer ships
    get their required fields (carrier-mode, escort-id, etc.).
    cell is the city cell (needed for country-id / patrol fields); may be nil."
   [unit cell]
-  (let [item (:type unit)
-        owner (:owner unit)]
-    (-> unit
-        (apply-unit-type-attributes item owner)
-        (apply-destroyer-fields item owner)
-        (apply-carrier-fields item owner)
-        (apply-escort-fields item owner)
-        (apply-country-id item cell)
-        (apply-patrol-fields item cell))))
-
-(defn- apply-coast-walk-fields
-  "Stamps coast-walk mode on first 2 computer armies per country.
-   First army gets clockwise, second gets counter-clockwise."
-  [unit item cell coords]
-  (if (and (= item :army)
-           (= (:city-status cell) :computer)
-           (:country-id cell))
-    (let [country-id (:country-id cell)
-          produced (get @atoms/coast-walkers-produced country-id 0)]
-      (cond
-        (zero? produced)
-        (do (swap! atoms/coast-walkers-produced update country-id (fnil inc 0))
-            (assoc unit :mode :coast-walk
-                        :coast-direction :clockwise
-                        :coast-start coords
-                        :coast-visited [coords]))
-
-        (= produced 1)
-        (do (swap! atoms/coast-walkers-produced update country-id inc)
-            (assoc unit :mode :coast-walk
-                        :coast-direction :counter-clockwise
-                        :coast-start coords
-                        :coast-visited [coords]))
-
-        :else unit))
-    unit))
+  (-> unit
+      (apply-unit-type-attributes (:type unit))
+      (computer-stamping/stamp-computer-fields cell)))
 
 (defn- spawn-unit
   "Creates and places a unit at the given city coordinates."
@@ -148,7 +60,7 @@
         flight-path (:flight-path cell)
         unit (-> (create-base-unit item owner)
                  (stamp-unit-fields cell)
-                 (apply-coast-walk-fields item cell coords)
+                 (computer-stamping/apply-coast-walk-fields item cell coords)
                  (apply-movement-orders item marching-orders flight-path)
                  (cond-> (= item :transport) (assoc :produced-at coords)))]
     (swap! atoms/game-map assoc-in (conj coords :contents) unit)

@@ -12,6 +12,12 @@
   (it "converts # to land cell"
     (should= [[{:type :land}]] (build-test-map ["#"])))
 
+  (it "converts = to labeled sea cell"
+    (should= [[{:type :sea :label "="}]] (build-test-map ["="])))
+
+  (it "converts % to labeled land cell"
+    (should= [[{:type :land :label "%"}]] (build-test-map ["%"])))
+
   (it "converts + to free city"
     (should= [[{:type :city :city-status :free}]] (build-test-map ["+"])))
 
@@ -324,3 +330,43 @@
     (let [gm (atom (build-test-map ["O"]))]
       (should= nil (get-test-city gm "X"))
       (should= nil (get-test-city gm "+")))))
+
+(describe "get-test-cell"
+  (it "finds first = cell"
+    (let [gm (atom (build-test-map ["~=~"]))]
+      (let [result (get-test-cell gm "=")]
+        (should= [0 1] (:pos result))
+        (should= :sea (:type (:cell result)))
+        (should= "=" (:label (:cell result))))))
+
+  (it "finds second = cell with =2"
+    (let [gm (atom (build-test-map ["=~=" "~~~"]))]
+      (let [result (get-test-cell gm "=2")]
+        (should= [0 2] (:pos result))
+        (should= :sea (:type (:cell result))))))
+
+  (it "finds first % cell"
+    (let [gm (atom (build-test-map ["%#%"]))]
+      (let [result (get-test-cell gm "%")]
+        (should= [0 0] (:pos result))
+        (should= :land (:type (:cell result)))
+        (should= "%" (:label (:cell result))))))
+
+  (it "finds second % cell with %2"
+    (let [gm (atom (build-test-map ["%#%"]))]
+      (let [result (get-test-cell gm "%2")]
+        (should= [0 2] (:pos result))
+        (should= :land (:type (:cell result))))))
+
+  (it "finds = cell in multi-column map"
+    (let [gm (atom (build-test-map ["~~" "~="]))]
+      (let [result (get-test-cell gm "=")]
+        (should= [1 1] (:pos result)))))
+
+  (it "returns nil for missing label"
+    (let [gm (atom (build-test-map ["~~~"]))]
+      (should= nil (get-test-cell gm "="))))
+
+  (it "returns nil when index exceeds count"
+    (let [gm (atom (build-test-map ["=~~"]))]
+      (should= nil (get-test-cell gm "=2")))))

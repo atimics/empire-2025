@@ -507,6 +507,8 @@ From `test-utils.cljc` `char->cell`:
 |------|------|
 | `~` | `{:type :sea}` |
 | `#` | `{:type :land}` |
+| `=` | `{:type :sea :label "="}` (referenceable sea) |
+| `%` | `{:type :land :label "%"}` (referenceable land) |
 | space `.` `-` | `nil` (unexplored/empty) |
 | `+` | `{:type :city :city-status :free}` |
 | `O` | `{:type :city :city-status :player}` |

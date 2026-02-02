@@ -10,6 +10,8 @@
   (case c
     \~ {:type :sea}
     \# {:type :land}
+    \= {:type :sea :label "="}
+    \% {:type :land :label "%"}
     (\space \. \-) nil
     \+ {:type :city :city-status :free}
     \O {:type :city :city-status :player}
@@ -130,6 +132,19 @@
                       :let [cell (get-in game-map [row-idx col-idx])]
                       :when (and (= :city (:type cell))
                                  (= city-status (:city-status cell)))]
+                  {:pos [row-idx col-idx] :cell cell})]
+    (nth matches (dec n) nil)))
+
+(defn get-test-cell [game-map-atom cell-spec]
+  (let [label (str (first cell-spec))
+        n (if (> (count cell-spec) 1)
+            (Integer/parseInt (subs cell-spec 1))
+            1)
+        game-map @game-map-atom
+        matches (for [row-idx (range (count game-map))
+                      col-idx (range (count (nth game-map row-idx)))
+                      :let [cell (get-in game-map [row-idx col-idx])]
+                      :when (= label (:label cell))]
                   {:pos [row-idx col-idx] :cell cell})]
     (nth matches (dec n) nil)))
 

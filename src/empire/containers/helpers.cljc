@@ -51,11 +51,13 @@
   (>= (get entity count-key 0) capacity))
 
 (defn transport-at-beach?
-  "Returns true if the unit is a transport at a beach with armies aboard."
+  "Returns true if the unit is a transport with armies aboard that can unload.
+   Accepts transports with beach/bay reason or awake transports with no reason."
   [contents]
   (and (= (:type contents) :transport)
-       (#{:transport-at-beach :found-a-bay} (:reason contents))
-       (pos? (:army-count contents 0))))
+       (pos? (:army-count contents 0))
+       (or (#{:transport-at-beach :found-a-bay} (:reason contents))
+           (and (= :player (:owner contents)) (= :awake (:mode contents)) (nil? (:reason contents))))))
 
 (defn carrier-with-fighters?
   "Returns true if the unit is a carrier with fighters aboard."

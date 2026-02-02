@@ -507,7 +507,7 @@ From `test-utils.cljc` `char->cell`:
 |------|------|
 | `~` | `{:type :sea}` |
 | `#` | `{:type :land}` |
-| `.` `-` | `nil` (unexplored/empty) |
+| space `.` `-` | `nil` (unexplored/empty) |
 | `+` | `{:type :city :city-status :free}` |
 | `O` | `{:type :city :city-status :player}` |
 | `X` | `{:type :city :city-status :computer}` |

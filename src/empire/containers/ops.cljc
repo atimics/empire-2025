@@ -69,6 +69,20 @@
         updated-cell (assoc cell :contents updated-transport)]
     (swap! atoms/game-map assoc-in transport-coords updated-cell)))
 
+(defn remove-army-from-transport
+  "Removes one awake army from transport without placing it anywhere.
+   Wakes the transport when no more awake armies remain."
+  [transport-coords]
+  (let [cell (get-in @atoms/game-map transport-coords)
+        transport (:contents cell)
+        after-remove (uc/remove-awake-unit transport :army-count :awake-armies)
+        no-more-awake? (not (uc/has-awake? after-remove :awake-armies))
+        updated-transport (cond-> after-remove
+                            no-more-awake? (assoc :mode :awake)
+                            no-more-awake? (dissoc :reason))
+        updated-cell (assoc cell :contents updated-transport)]
+    (swap! atoms/game-map assoc-in transport-coords updated-cell)))
+
 (defn disembark-army-from-transport
   "Removes first awake army from transport and places it on target land cell.
    Army remains awake and ready for orders. Other armies remain on transport.

@@ -4,6 +4,10 @@
 
 Acceptance tests are plain-text `.txt` files in the `acceptanceTests/` directory, written in Given/When/Then format. Claude Code is the test runner — it reads each `.txt` file, interprets the directives, translates each test into a Speclj spec file in `generated-acceptance-specs/`, and runs it with `clj -M:spec`. The source filename and GIVEN line number are embedded in the spec's `it` description so that failures trace back to the original acceptance test.
 
+## Design Principle
+
+Prefer tests based on observable behavior rather than implementation details. Assert what the player would see (unit position after movement, messages, city status) rather than internal state (mode, target, steps-remaining).
+
 ## Execution Mechanism
 
 Generated specs live in `generated-acceptance-specs/` at the project root, tracked in git. Claude translates each acceptance test into a Speclj spec file in that directory. Each test (GIVEN...WHEN...THEN group) becomes one `it` block. The `it` description contains the source filename and line number of the first GIVEN line, plus the preceding comment as a human-readable label.
@@ -74,6 +78,9 @@ The `it` description traces back to the acceptance test source. The generated sp
 ; Comment lines start with semicolons
 ; Blank lines are ignored
 
+;===============================================================
+; Army moves east when player presses d.
+;===============================================================
 GIVEN game map
 ~~A~~
 #####
@@ -94,6 +101,7 @@ THEN the message contains "army".
 - Brackets and quotes may be used freely (e.g., `[0 2]`, `["~~A~" "####"]`) but are not required.
 - A test consists of a group of GIVEN lines, followed by a group of WHEN lines, followed by a group of THEN lines. The next GIVEN after a THEN starts a new test.
 - Context is cleared (via `reset-all-atoms!`) before each test.
+- Each test's comment header is surrounded by separator lines: `;===============================================================`
 
 ## GIVEN Directives
 
@@ -170,6 +178,36 @@ GIVEN waiting-for-input.
 GIVEN player-items are A, T, O.
 ```
 
+### Waiting for Input
+
+```
+GIVEN A is waiting for input.
+GIVEN T is waiting for input.
+```
+
+Combines the verbose setup pattern (set mode awake, set player-items, process items) into one line. Translates to:
+
+```clojure
+;; Set mode :awake only if no mode was explicitly set in prior GIVEN lines
+(set-test-unit atoms/game-map "A" :mode :awake)
+(let [cols (count @atoms/game-map)
+      rows (count (first @atoms/game-map))
+      pos (:pos (get-test-unit atoms/game-map "A"))]
+  (reset! atoms/player-map (make-initial-test-map rows cols nil))
+  (reset! atoms/player-items [pos])
+  (item-processing/process-player-items-batch))
+```
+
+Replaces the three-line pattern:
+```
+A is awake.
+GIVEN player-items A.
+...
+WHEN player items are processed.
+```
+
+If unit properties were set in earlier GIVEN lines (e.g., `T is sentry with army-count 3`), the mode is NOT overridden to `:awake`.
+
 ## WHEN Directives
 
 WHEN directives perform actions. Claude interprets the intent and generates the corresponding Clojure call.
@@ -189,6 +227,28 @@ WHEN the player types d d d.
 ;; "WHEN the player presses d"
 (reset! atoms/last-key nil)
 (input/key-down :d)
+```
+
+### Randomized Outcomes
+
+When a directive needs a deterministic result from `rand`, describe the **observable outcome** rather than the mock value. The natural-language clause tells the reader *why* rand is being mocked.
+
+```
+WHEN the player presses d and wins the battle.
+WHEN the player presses d and loses the battle.
+WHEN the game advances and the dice choose east.
+```
+
+Translates to `with-redefs [rand (constantly <value>)]` wrapping the action. Choose the value that produces the described outcome:
+
+```clojure
+;; "and wins the battle" — rand < 0.5 → conquest succeeds
+(with-redefs [rand (constantly 0.0)]
+  (input/handle-key :d))
+
+;; "and loses the battle" — rand >= 0.5 → conquest fails
+(with-redefs [rand (constantly 1.0)]
+  (input/handle-key :d))
 ```
 
 ### Mouse Input
@@ -294,6 +354,44 @@ THEN round is 5.
 THEN destination is [3 7].
 ```
 
+### Position After Movement
+
+```
+THEN at next round A will be at %.
+THEN at next round D will be at =.
+```
+
+Asserts the unit's position after one full round of movement. Requires three `advance-game` calls:
+
+1. **Drain** — after `handle-key`, the unit's old position is still in `player-items` with no `steps-remaining` set (defaults to 1). The first advance processes that leftover item.
+2. **Start round** — both lists are now empty, so `advance-game` calls `start-new-round`, which sets `steps-remaining` to the unit's speed and rebuilds `player-items`.
+3. **Process round** — the unit moves up to its full speed (e.g., 8 for fighters, 2 for destroyers, 1 for armies).
+
+Translates to:
+
+```clojure
+;; Drain leftover, start new round, process round
+(dotimes [_ 3] (game-loop/advance-game))
+(let [{:keys [pos]} (get-test-unit atoms/game-map "A")
+      target-pos (:pos (get-test-cell atoms/game-map "%"))]
+  (should= target-pos pos))
+```
+
+**Map sizing:** The target cell (`%` or `=`) must be placed at a distance of `1 + speed` from the unit's starting position — 1 cell for the drain step plus `speed` cells for the full round. For example, a fighter (speed 8) starting at position 0 needs the target at position 9: `F~~~~~~~~=` (10 cells).
+
+```
+THEN eventually A will be at %.
+```
+
+For movements that take multiple rounds (target farther than one round of movement). Advances game enough times to guarantee arrival:
+
+```clojure
+(dotimes [_ 20] (game-loop/advance-game))
+(let [{:keys [pos]} (get-test-unit atoms/game-map "A")
+      target-pos (:pos (get-test-cell atoms/game-map "%"))]
+  (should= target-pos pos))
+```
+
 ## Rules
 
 1. Always ask permission before modifying an acceptance test file.
@@ -317,7 +415,9 @@ File: `acceptanceTests/fighter-fuel-attention.txt`
 ```
 ; Fighter attention message should display fuel.
 
+;===============================================================
 ; Regular fighter shows fuel in attention message.
+;===============================================================
 GIVEN game map
   F#
 F is awake with fuel 20.
@@ -329,7 +429,9 @@ THEN waiting-for-input.
 THEN message contains "fuel:20".
 THEN message contains "fighter".
 
+;===============================================================
 ; Airport fighter shows full fuel after refueling.
+;===============================================================
 GIVEN game map
   O~
 GIVEN cell [0 0] has awake-fighters 1 and fighter-count 1.

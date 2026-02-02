@@ -1,0 +1,322 @@
+; Unit keyboard movement acceptance tests.
+
+;===============================================================
+; Army moves northwest when player presses q.
+;===============================================================
+GIVEN game map
+  %#
+  #A
+GIVEN A is waiting for input.
+
+WHEN the player presses q.
+
+THEN at next round A will be at %.
+
+;===============================================================
+; Army moves north when player presses w.
+;===============================================================
+GIVEN game map
+  #%
+  #A
+GIVEN A is waiting for input.
+
+WHEN the player presses w.
+
+THEN at next round A will be at %.
+
+;===============================================================
+; Army moves northeast when player presses e.
+;===============================================================
+GIVEN game map
+  #%
+  A#
+GIVEN A is waiting for input.
+
+WHEN the player presses e.
+
+THEN at next round A will be at %.
+
+;===============================================================
+; Army moves west when player presses a.
+;===============================================================
+GIVEN game map
+  %A
+GIVEN A is waiting for input.
+
+WHEN the player presses a.
+
+THEN at next round A will be at %.
+
+;===============================================================
+; Army moves east when player presses d.
+;===============================================================
+GIVEN game map
+  A%
+GIVEN A is waiting for input.
+
+WHEN the player presses d.
+
+THEN at next round A will be at %.
+
+;===============================================================
+; Army moves southwest when player presses z.
+;===============================================================
+GIVEN game map
+  #A
+  %#
+GIVEN A is waiting for input.
+
+WHEN the player presses z.
+
+THEN at next round A will be at %.
+
+;===============================================================
+; Army moves south when player presses x.
+;===============================================================
+GIVEN game map
+  A#
+  %#
+GIVEN A is waiting for input.
+
+WHEN the player presses x.
+
+THEN at next round A will be at %.
+
+;===============================================================
+; Army moves southeast when player presses c.
+;===============================================================
+GIVEN game map
+  A#
+  #%
+GIVEN A is waiting for input.
+
+WHEN the player presses c.
+
+THEN at next round A will be at %.
+
+;===============================================================
+; Army extended move northwest.
+;===============================================================
+GIVEN game map
+  %##
+  ###
+  ##A
+GIVEN A is waiting for input.
+
+WHEN the player presses Q.
+
+THEN eventually A will be at %.
+
+;===============================================================
+; Army extended move north.
+;===============================================================
+GIVEN game map
+  #%#
+  ###
+  #A#
+GIVEN A is waiting for input.
+
+WHEN the player presses W.
+
+THEN eventually A will be at %.
+
+;===============================================================
+; Army extended move northeast.
+;===============================================================
+GIVEN game map
+  ##%
+  ###
+  A##
+GIVEN A is waiting for input.
+
+WHEN the player presses E.
+
+THEN eventually A will be at %.
+
+;===============================================================
+; Army extended move west.
+;===============================================================
+GIVEN game map
+  %##A
+GIVEN A is waiting for input.
+
+WHEN the player presses A.
+
+THEN eventually A will be at %.
+
+;===============================================================
+; Army extended move east.
+;===============================================================
+GIVEN game map
+  A##%
+GIVEN A is waiting for input.
+
+WHEN the player presses D.
+
+THEN eventually A will be at %.
+
+;===============================================================
+; Army extended move southwest.
+;===============================================================
+GIVEN game map
+  ##A
+  ###
+  %##
+GIVEN A is waiting for input.
+
+WHEN the player presses Z.
+
+THEN eventually A will be at %.
+
+;===============================================================
+; Army extended move south.
+;===============================================================
+GIVEN game map
+  #A#
+  ###
+  #%#
+GIVEN A is waiting for input.
+
+WHEN the player presses X.
+
+THEN eventually A will be at %.
+
+;===============================================================
+; Army extended move southeast.
+;===============================================================
+GIVEN game map
+  A##
+  ###
+  ##%
+GIVEN A is waiting for input.
+
+WHEN the player presses C.
+
+THEN eventually A will be at %.
+
+;===============================================================
+; Destroyer moves east on sea.
+;===============================================================
+GIVEN game map
+  D=
+GIVEN D is waiting for input.
+
+WHEN the player presses d.
+
+THEN at next round D will be at =.
+
+;===============================================================
+; Destroyer moves 2 cells in one round.
+;===============================================================
+GIVEN game map
+  D~~=
+GIVEN D is waiting for input.
+
+WHEN the player presses D.
+
+THEN at next round D will be at =.
+
+;===============================================================
+; Fighter moves east over sea.
+;===============================================================
+GIVEN game map
+  F=
+GIVEN F is waiting for input.
+
+WHEN the player presses d.
+
+THEN at next round F will be at =.
+
+;===============================================================
+; Fighter moves east over land.
+;===============================================================
+GIVEN game map
+  F%
+GIVEN F is waiting for input.
+
+WHEN the player presses d.
+
+THEN at next round F will be at %.
+
+;===============================================================
+; Fighter moves 8 cells in one round.
+;===============================================================
+GIVEN game map
+  F~~~~~~~~=
+GIVEN F is waiting for input.
+
+WHEN the player presses D.
+
+THEN at next round F will be at =.
+
+;===============================================================
+; Army cannot move onto sea.
+;===============================================================
+GIVEN game map
+  A~
+GIVEN A is waiting for input.
+
+WHEN the player presses d.
+
+THEN at next round A will be at [0 0].
+THEN message contains "Can't move into water".
+
+;===============================================================
+; Destroyer cannot move onto land.
+;===============================================================
+GIVEN game map
+  D#
+GIVEN D is waiting for input.
+
+WHEN the player presses d.
+
+THEN at next round D will be at [0 0].
+THEN message contains "Ships don't drive on land".
+
+;===============================================================
+; Friendly army cannot move onto friendly army.
+;===============================================================
+GIVEN game map
+  AA
+A2 is sentry.
+GIVEN A1 is waiting for input.
+
+WHEN the player presses d.
+
+THEN at next round A1 will be at [0 0].
+THEN message contains "Something's in the way".
+
+;===============================================================
+; Army conquers computer city when conquest succeeds.
+;===============================================================
+GIVEN game map
+  AX
+GIVEN A is waiting for input.
+
+WHEN the player presses d and wins the battle.
+
+THEN there is no A on the map.
+THEN cell [1 0] has city-status player.
+
+;===============================================================
+; Army destroyed when conquest fails.
+;===============================================================
+GIVEN game map
+  AX
+GIVEN A is waiting for input.
+
+WHEN the player presses d and loses the battle.
+
+THEN there is no A on the map.
+THEN cell [1 0] has city-status computer.
+
+;===============================================================
+; Fighter shot down over computer city.
+;===============================================================
+GIVEN game map
+  FX
+GIVEN F is waiting for input.
+
+WHEN the player presses d.
+
+THEN line3-message contains "Fighter destroyed".

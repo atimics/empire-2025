@@ -248,3 +248,37 @@
       (should= :fighter (:type fighter))
       (should= :moving (:mode fighter))
       (should= [3 0] (:target fighter)))))
+
+(describe "remove-army-from-transport"
+  (before (reset-all-atoms!))
+
+  (it "decrements army-count and awake-armies"
+    (reset! atoms/game-map (build-test-map ["-T-"]))
+    (set-test-unit atoms/game-map "T" :mode :sentry :hits 1 :army-count 3 :awake-armies 2)
+    (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))]
+      (remove-army-from-transport transport-coords)
+      (let [transport (:contents (get-in @atoms/game-map transport-coords))]
+        (should= 2 (:army-count transport))
+        (should= 1 (:awake-armies transport)))))
+
+  (it "wakes transport when no more awake armies remain"
+    (reset! atoms/game-map (build-test-map ["-T-"]))
+    (set-test-unit atoms/game-map "T" :mode :sentry :hits 1 :army-count 2 :awake-armies 1 :reason :transport-at-beach)
+    (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))]
+      (remove-army-from-transport transport-coords)
+      (let [transport (:contents (get-in @atoms/game-map transport-coords))]
+        (should= :awake (:mode transport))
+        (should-be-nil (:reason transport))
+        (should= 1 (:army-count transport))
+        (should= 0 (:awake-armies transport)))))
+
+  (it "does not wake transport when awake armies remain"
+    (reset! atoms/game-map (build-test-map ["-T-"]))
+    (set-test-unit atoms/game-map "T" :mode :sentry :hits 1 :army-count 3 :awake-armies 2 :reason :transport-at-beach)
+    (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))]
+      (remove-army-from-transport transport-coords)
+      (let [transport (:contents (get-in @atoms/game-map transport-coords))]
+        (should= :sentry (:mode transport))
+        (should= :transport-at-beach (:reason transport))
+        (should= 2 (:army-count transport))
+        (should= 1 (:awake-armies transport))))))

@@ -128,6 +128,12 @@
           (game-loop/item-processed)
           true)
 
+      (and (not extended?) (combat/hostile-city? adjacent-target))
+      (do (container-ops/remove-army-from-transport coords)
+          (combat/attempt-city-conquest adjacent-target)
+          (game-loop/item-processed)
+          true)
+
       :else true))) ;; Ignore invalid disembark targets
 
 (defn- handle-standard-unit-movement [coords adjacent-target target extended? active-unit]

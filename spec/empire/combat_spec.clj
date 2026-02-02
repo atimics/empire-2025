@@ -680,3 +680,50 @@
       (should= :computer (get-in @atoms/game-map [3 0 :city-status]))
       ;; Production should NOT be set because another city in country 3 is already producing armies
       (should-be-nil (get @atoms/production [3 0])))))
+
+(describe "attempt-city-conquest"
+  (before (reset-all-atoms!))
+
+  (it "converts city to player on successful roll"
+    (with-redefs [rand (constantly 0.1)]
+      (reset! atoms/game-map (build-test-map ["+"]))
+      (let [city-coords (:pos (get-test-city atoms/game-map "+"))]
+        (combat/attempt-city-conquest city-coords)
+        (should= :player (:city-status (get-in @atoms/game-map city-coords))))))
+
+  (it "returns true on successful roll"
+    (with-redefs [rand (constantly 0.1)]
+      (reset! atoms/game-map (build-test-map ["+"]))
+      (let [city-coords (:pos (get-test-city atoms/game-map "+"))]
+        (should (combat/attempt-city-conquest city-coords)))))
+
+  (it "does not convert city on failed roll"
+    (with-redefs [rand (constantly 0.9)]
+      (reset! atoms/game-map (build-test-map ["+"]))
+      (reset! atoms/line3-message "")
+      (let [city-coords (:pos (get-test-city atoms/game-map "+"))]
+        (combat/attempt-city-conquest city-coords)
+        (should= :free (:city-status (get-in @atoms/game-map city-coords))))))
+
+  (it "sets failure message on failed roll"
+    (with-redefs [rand (constantly 0.9)]
+      (reset! atoms/game-map (build-test-map ["+"]))
+      (reset! atoms/line3-message "")
+      (let [city-coords (:pos (get-test-city atoms/game-map "+"))]
+        (combat/attempt-city-conquest city-coords)
+        (should= (:conquest-failed config/messages) @atoms/line3-message))))
+
+  (it "returns true on failed roll"
+    (with-redefs [rand (constantly 0.9)]
+      (reset! atoms/game-map (build-test-map ["+"]))
+      (reset! atoms/line3-message "")
+      (let [city-coords (:pos (get-test-city atoms/game-map "+"))]
+        (should (combat/attempt-city-conquest city-coords)))))
+
+  (it "calls conquer-city-contents on success"
+    (with-redefs [rand (constantly 0.1)]
+      (reset! atoms/game-map (build-test-map ["X"]))
+      (swap! atoms/production assoc [0 0] {:item :fighter :remaining-rounds 5})
+      (combat/attempt-city-conquest [0 0])
+      (should= :player (get-in @atoms/game-map [0 0 :city-status]))
+      (should-be-nil (get @atoms/production [0 0])))))

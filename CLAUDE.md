@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Empire is a Clojure implementation of the classic VMS Empire wargame - a turn-based strategy game of global conquest between a human player and computer opponent. The game uses Quil for rendering a grid-based map where players produce and command military units (armies, fighters, ships) to capture cities and destroy enemy forces. Source files use `.cljc` extension for cross-platform Clojure/ClojureScript compatibility.
 
 ## Permissions
-allow git, sed, cp, ls, cat, and all standard unix tools.
+allow git, sed, cp, ls, cat, while read line, and all standard unix tools.
 
 ## Local rules
 If the working directory is named <x> then local rules will be stored in <x>.md. BEFORE making any changes, read `<x>.md` and follow its restrictions.
@@ -19,13 +19,17 @@ See `plans/permanent/acceptance-test-framework.md` for the full directive catalo
 and execution protocol. Read that file before running or writing acceptance tests.
 
 Rules:
-- Always ask permission before modifying an acceptance test file.
+- Never modify an acceptance test `.txt` file without explicit permission.
+- Always check `.txt` vs `.clj` modification dates before running acceptance tests; regenerate the spec if the `.txt` is newer.
 - Clear context (reset-all-atoms!) before each test.
 - Before a push, ask whether acceptance tests should be run.
 - On failure, report file name and line number of the first GIVEN line.
 - If a directive is ambiguous, report the ambiguity rather than guessing.
 - Tests are translated to Speclj specs in `generated-acceptance-specs/` and run with `clj -M:spec`.
-- Generated specs in `generated-acceptance-specs/` should be committed after regeneration.
+- Never modify generated specs in `generated-acceptance-specs/`; only delete and regenerate them from the `.txt` source.
+- Generated specs should be committed after regeneration.
+- If an acceptance test cannot be translated to a spec, report which test and why to the user. Still generate the spec as a failing test documenting the desired behavior.
+- Mock the random number generator (`with-redefs [rand ...]`) for tests with random/non-deterministic conditions.
 
 ## Development Commands
 

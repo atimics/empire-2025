@@ -52,22 +52,26 @@
     (and (= (:type target-cell) :city)
          (config/hostile-city? (:city-status target-cell)))))
 
-(defn attempt-conquest
-  "Attempts to conquer a city with an army. Returns true if conquest was attempted."
-  [army-coords city-coords]
-  (let [army-cell (get-in @atoms/game-map army-coords)
-        city-cell (get-in @atoms/game-map city-coords)]
+(defn attempt-city-conquest
+  "Rolls for city conquest. On success, converts city to player and conquers contents.
+   On failure, shows failure message. Returns true regardless of outcome."
+  [city-coords]
+  (let [city-cell (get-in @atoms/game-map city-coords)]
     (if (< (rand) 0.5)
       (do
-        (swap! atoms/game-map assoc-in army-coords (dissoc army-cell :contents))
         (swap! atoms/game-map assoc-in city-coords (assoc city-cell :city-status :player))
         (conquer-city-contents city-coords :player)
         (visibility/update-cell-visibility city-coords :player))
-      (do
-        (swap! atoms/game-map assoc-in army-coords (dissoc army-cell :contents))
-        (visibility/update-cell-visibility army-coords :player)
-        (atoms/set-line3-message (:conquest-failed config/messages) 3000)))
+      (atoms/set-line3-message (:conquest-failed config/messages) 3000))
     true))
+
+(defn attempt-conquest
+  "Attempts to conquer a city with an army. Returns true if conquest was attempted."
+  [army-coords city-coords]
+  (let [army-cell (get-in @atoms/game-map army-coords)]
+    (swap! atoms/game-map assoc-in army-coords (dissoc army-cell :contents))
+    (visibility/update-cell-visibility army-coords :player)
+    (attempt-city-conquest city-coords)))
 
 (defn attempt-fighter-overfly
   "Fighter flies over hostile city and gets shot down."

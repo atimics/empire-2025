@@ -1,7 +1,7 @@
 (ns acceptance.transports-spec
   (:require [speclj.core :refer :all]
             [empire.test-utils :refer [build-test-map set-test-unit get-test-unit
-                                       get-test-city reset-all-atoms!
+                                       get-test-city get-test-cell reset-all-atoms!
                                        make-initial-test-map]]
             [empire.atoms :as atoms]
             [empire.player.production :as production]
@@ -60,37 +60,39 @@
   ;; transports.txt:35 - Transport wakes at beach with armies aboard.
   (it "transports.txt:35 - Transport wakes at beach with armies aboard"
     (reset-all-atoms!)
-    ;; GIVEN game map ["~T~~" "~~#~"]
-    (reset! atoms/game-map (build-test-map ["~T~~" "~~#~"]))
-    (set-test-unit atoms/game-map "T" :mode :moving :army-count 1
-                   :target [0 2] :steps-remaining 1)
-    (reset! atoms/player-map (make-initial-test-map 2 4 nil))
-    ;; WHEN the game advances.
-    (let [t-pos (:pos (get-test-unit atoms/game-map "T"))]
-      (reset! atoms/player-items [t-pos])
-      (game-loop/advance-game))
-    ;; THEN
-    (let [{:keys [pos unit]} (get-test-unit atoms/game-map "T")]
-      (should= [0 2] pos)
-      (should= :awake (:mode unit))
-      (should= :transport-at-beach (:reason unit))))
+    ;; GIVEN game map ["~T=~" "~~#~"]
+    (reset! atoms/game-map (build-test-map ["~T=~" "~~#~"]))
+    (let [target-pos (:pos (get-test-cell atoms/game-map "="))]
+      (set-test-unit atoms/game-map "T" :mode :moving :army-count 1
+                     :target target-pos :steps-remaining 1)
+      (reset! atoms/player-map (make-initial-test-map 2 4 nil))
+      ;; WHEN the game advances.
+      (let [t-pos (:pos (get-test-unit atoms/game-map "T"))]
+        (reset! atoms/player-items [t-pos])
+        (game-loop/advance-game))
+      ;; THEN
+      (let [{:keys [pos unit]} (get-test-unit atoms/game-map "T")]
+        (should= target-pos pos)
+        (should= :awake (:mode unit))
+        (should= :transport-at-beach (:reason unit)))))
 
   ;; transports.txt:47 - Transport does not wake at beach without armies.
   (it "transports.txt:47 - Transport does not wake at beach without armies"
     (reset-all-atoms!)
-    ;; GIVEN game map ["~T~~" "~~#~"]
-    (reset! atoms/game-map (build-test-map ["~T~~" "~~#~"]))
-    (set-test-unit atoms/game-map "T" :mode :moving :target [0 2] :steps-remaining 1)
-    (reset! atoms/player-map (make-initial-test-map 2 4 nil))
-    ;; WHEN the game advances.
-    (let [t-pos (:pos (get-test-unit atoms/game-map "T"))]
-      (reset! atoms/player-items [t-pos])
-      (game-loop/advance-game))
-    ;; THEN
-    (let [{:keys [pos unit]} (get-test-unit atoms/game-map "T")]
-      (should= [0 2] pos)
-      (should= :awake (:mode unit))
-      (should-not= :transport-at-beach (:reason unit))))
+    ;; GIVEN game map ["~T=~" "~~#~"]
+    (reset! atoms/game-map (build-test-map ["~T=~" "~~#~"]))
+    (let [target-pos (:pos (get-test-cell atoms/game-map "="))]
+      (set-test-unit atoms/game-map "T" :mode :moving :target target-pos :steps-remaining 1)
+      (reset! atoms/player-map (make-initial-test-map 2 4 nil))
+      ;; WHEN the game advances.
+      (let [t-pos (:pos (get-test-unit atoms/game-map "T"))]
+        (reset! atoms/player-items [t-pos])
+        (game-loop/advance-game))
+      ;; THEN
+      (let [{:keys [pos unit]} (get-test-unit atoms/game-map "T")]
+        (should= target-pos pos)
+        (should= :awake (:mode unit))
+        (should-not= :transport-at-beach (:reason unit)))))
 
   ;; transports.txt:59 - Wake armies command puts transport to sentry and wakes armies.
   (it "transports.txt:59 - Wake armies command puts transport to sentry and wakes armies"
@@ -113,26 +115,27 @@
       (should-be-nil (:reason unit))))
 
   ;; transports.txt:72 - Disembarking army removes it from transport.
-  ;; Map columns: col0="-T-" col1="-#-". Land at [1,1] is east of transport at [0,1].
+  ;; Map columns: col0="-T-" col1="-%- ". Land is east of transport.
   (it "transports.txt:72 - Disembarking army removes it from transport"
     (reset-all-atoms!)
-    (reset! atoms/game-map (build-test-map ["-T-" "-#-"]))
-    (set-test-unit atoms/game-map "T" :mode :sentry :army-count 3 :awake-armies 3)
-    (reset! atoms/player-map (make-initial-test-map 2 3 nil))
-    (let [t-pos (:pos (get-test-unit atoms/game-map "T"))]
-      (reset! atoms/player-items [t-pos])
-      ;; WHEN player items are processed (transport has awake armies → needs attention)
-      (item-processing/process-player-items-batch)
-      ;; WHEN the player presses d (east → toward land at [1,1]).
-      (input/handle-key :d))
-    ;; THEN
-    (let [{:keys [unit]} (get-test-unit atoms/game-map "T")]
-      (should= 2 (:army-count unit))
-      (should= 2 (:awake-armies unit)))
-    (should= :army (:type (:contents (get-in @atoms/game-map [1 1])))))
+    (reset! atoms/game-map (build-test-map ["-T-" "-%-"]))
+    (let [land-pos (:pos (get-test-cell atoms/game-map "%"))]
+      (set-test-unit atoms/game-map "T" :mode :sentry :army-count 3 :awake-armies 3)
+      (reset! atoms/player-map (make-initial-test-map 2 3 nil))
+      (let [t-pos (:pos (get-test-unit atoms/game-map "T"))]
+        (reset! atoms/player-items [t-pos])
+        ;; WHEN player items are processed (transport has awake armies → needs attention)
+        (item-processing/process-player-items-batch)
+        ;; WHEN the player presses d (east → toward land).
+        (input/handle-key :d))
+      ;; THEN
+      (let [{:keys [unit]} (get-test-unit atoms/game-map "T")]
+        (should= 2 (:army-count unit))
+        (should= 2 (:awake-armies unit)))
+      (should= :army (:type (:contents (get-in @atoms/game-map land-pos))))))
 
   ;; transports.txt:86 - Transport wakes when last army disembarks.
-  ;; Map columns: col0="-T-" col1="-#-". Land at [1,1] is east of transport at [0,1].
+  ;; Map columns: col0="-T-" col1="-#-". Land is east of transport.
   (it "transports.txt:86 - Transport wakes when last army disembarks"
     (reset-all-atoms!)
     (reset! atoms/game-map (build-test-map ["-T-" "-#-"]))
@@ -152,36 +155,38 @@
   ;; transports.txt:99 - Transport finds land when moving from open sea.
   (it "transports.txt:99 - Transport finds land when moving from open sea"
     (reset-all-atoms!)
-    ;; GIVEN game map ["~~~#" "~T~~" "~~~~"]
-    (reset! atoms/game-map (build-test-map ["~~~#" "~T~~" "~~~~"]))
-    (set-test-unit atoms/game-map "T" :mode :moving :army-count 1
-                   :target [1 2] :steps-remaining 1)
-    (reset! atoms/player-map (make-initial-test-map 3 4 nil))
-    ;; WHEN the game advances.
-    (let [t-pos (:pos (get-test-unit atoms/game-map "T"))]
-      (reset! atoms/player-items [t-pos])
-      (game-loop/advance-game))
-    ;; THEN
-    (let [{:keys [pos unit]} (get-test-unit atoms/game-map "T")]
-      (should= [1 2] pos)
-      (should= :awake (:mode unit))
-      (should= :transport-found-land (:reason unit))))
+    ;; GIVEN game map ["~~~#" "~T=~" "~~~~"]
+    (reset! atoms/game-map (build-test-map ["~~~#" "~T=~" "~~~~"]))
+    (let [target-pos (:pos (get-test-cell atoms/game-map "="))]
+      (set-test-unit atoms/game-map "T" :mode :moving :army-count 1
+                     :target target-pos :steps-remaining 1)
+      (reset! atoms/player-map (make-initial-test-map 3 4 nil))
+      ;; WHEN the game advances.
+      (let [t-pos (:pos (get-test-unit atoms/game-map "T"))]
+        (reset! atoms/player-items [t-pos])
+        (game-loop/advance-game))
+      ;; THEN
+      (let [{:keys [pos unit]} (get-test-unit atoms/game-map "T")]
+        (should= target-pos pos)
+        (should= :awake (:mode unit))
+        (should= :transport-found-land (:reason unit)))))
 
   ;; transports.txt:112 - Transport wakes at first beach after going to open sea.
   (it "transports.txt:112 - Transport wakes at first beach after going to open sea"
     (reset-all-atoms!)
-    ;; GIVEN game map ["#~~~" "~T~#"]
-    (reset! atoms/game-map (build-test-map ["#~~~" "~T~#"]))
-    (set-test-unit atoms/game-map "T" :mode :moving :army-count 1
-                   :been-to-sea true :target [1 2] :steps-remaining 1)
-    (reset! atoms/player-map (make-initial-test-map 2 4 nil))
-    ;; WHEN the game advances.
-    (let [t-pos (:pos (get-test-unit atoms/game-map "T"))]
-      (reset! atoms/player-items [t-pos])
-      (game-loop/advance-game))
-    ;; THEN
-    (let [{:keys [pos unit]} (get-test-unit atoms/game-map "T")]
-      (should= [1 2] pos)
-      (should= :awake (:mode unit))
-      (should= :transport-at-beach (:reason unit))
-      (should= false (:been-to-sea unit)))))
+    ;; GIVEN game map ["#~~~" "~T=#"]
+    (reset! atoms/game-map (build-test-map ["#~~~" "~T=#"]))
+    (let [target-pos (:pos (get-test-cell atoms/game-map "="))]
+      (set-test-unit atoms/game-map "T" :mode :moving :army-count 1
+                     :been-to-sea true :target target-pos :steps-remaining 1)
+      (reset! atoms/player-map (make-initial-test-map 2 4 nil))
+      ;; WHEN the game advances.
+      (let [t-pos (:pos (get-test-unit atoms/game-map "T"))]
+        (reset! atoms/player-items [t-pos])
+        (game-loop/advance-game))
+      ;; THEN
+      (let [{:keys [pos unit]} (get-test-unit atoms/game-map "T")]
+        (should= target-pos pos)
+        (should= :awake (:mode unit))
+        (should= :transport-at-beach (:reason unit))
+        (should= false (:been-to-sea unit))))))

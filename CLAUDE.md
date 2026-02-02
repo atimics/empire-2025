@@ -35,10 +35,10 @@ clj -M:cov
 
 The game follows a Quil sketch pattern with `setup` → `update-state` → `draw-state` cycle at 30 FPS:
 
-- **core.cljc**: Entry point, Quil sketch setup, keyboard/mouse event routing
-- **game-loop.cljc**: Round progression, unit movement execution, production advancement
-- **input.cljc**: Keyboard command handling (movement keys qweasdzxc, shift+key for extended movement to map edge, backtick prefix for special commands, production keys, sentry/explore modes)
-- **rendering.cljc**: Map drawing, unit display, status area rendering
+- **ui/core.cljc**: Entry point, Quil sketch setup, keyboard/mouse event routing
+- **game_loop.cljc**: Round progression, unit movement execution, production advancement
+- **ui/input.cljc**: Keyboard command handling (movement keys qweasdzxc, shift+key for extended movement to map edge, backtick prefix for special commands, production keys, sentry/explore modes)
+- **ui/rendering.cljc**: Map drawing, unit display, status area rendering
 
 ### State Management
 
@@ -54,13 +54,13 @@ All game state is stored in atoms defined in **atoms.cljc**:
 
 ### Key Modules
 
-- **movement.cljc**: Unit movement logic, pathfinding, wake conditions, boarding/disembarking
-- **production.cljc**: City production queue management, unit spawning
+- **movement/movement.cljc**: Unit movement logic, pathfinding, wake conditions, boarding/disembarking
+- **player/production.cljc**: City production queue management, unit spawning
 - **combat.cljc**: Battle resolution, city conquest attempts
-- **attention.cljc**: Determines which units/cities need player attention each round
+- **player/attention.cljc**: Determines which units/cities need player attention each round
 - **config.cljc**: Game constants (colors, key mappings); delegates unit stats to dispatcher
-- **unit-container.cljc**: Helpers for units that carry other units (transports carry armies, carriers carry fighters, cities have airports)
-- **map-utils.cljc**: Coordinate calculations, neighbor finding, screen-to-cell mapping
+- **containers/helpers.cljc** and **containers/ops.cljc**: Helpers and operations for units that carry other units (transports carry armies, carriers carry fighters, cities have airports)
+- **movement/map_utils.cljc**: Coordinate calculations, neighbor finding, screen-to-cell mapping
 - **init.cljc**: Map generation with terrain smoothing, city placement
 
 ### Unit Modules

@@ -43,8 +43,8 @@ C has fighter-count 3.
 GIVEN C is waiting for input.
 
 THEN waiting-for-input.
-THEN message contains "carrier".
-THEN message contains "3 fighters".
+THEN the attention message contains "carrier".
+THEN the attention message contains "3 fighters".
 
 ;===============================================================
 ; Damaged carrier attention message.
@@ -55,4 +55,4 @@ C has hits 5 and fighter-count 0.
 GIVEN C is waiting for input.
 
 THEN waiting-for-input.
-THEN message contains "Damaged".
+THEN the attention message contains "Damaged".

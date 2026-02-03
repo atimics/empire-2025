@@ -45,7 +45,7 @@ GIVEN O is waiting for input.
 WHEN the player presses t.
 
 THEN there is no production at O.
-THEN line3-message contains "coastal".
+THEN the error message contains "coastal".
 
 ;===============================================================
 ; Press x cancels production.

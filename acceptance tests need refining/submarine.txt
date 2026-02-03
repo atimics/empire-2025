@@ -17,7 +17,7 @@ GIVEN S is waiting for input.
 
 WHEN the player presses d.
 
-THEN message contains "Ships don't drive on land".
+THEN the attention message contains :ships-cant-drive-on-land.
 
 ;===============================================================
 ; Submarine attacks destroyer and wins.

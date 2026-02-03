@@ -33,7 +33,7 @@ A is explore.
 WHEN the next round begins
 
 THEN A is awake.
-THEN message contains "Army found a city".
+THEN the attention message contains :army-found-city.
 
 ;===============================================================
 ; Army conquers free city.
@@ -66,4 +66,4 @@ GIVEN A is waiting for input.
 
 WHEN the player presses d.
 
-THEN message contains "Can't move into city".
+THEN the attention message contains :cant-move-into-city.

@@ -12,7 +12,8 @@ WHEN the player presses D.
 
 THEN at next round F will be at =.
 THEN F has fuel 31.
-THEN F is waiting for input and "Fighter hit edge of map" is displayed in line 2.
+THEN F is waiting for input.
+THEN the turn message contains "hit edge of map".
 
 ;===============================================================
 ; Fighter refuels at player city.
@@ -36,7 +37,7 @@ F is sentry with fuel 9.
 WHEN a new round starts.
 
 THEN F has mode awake.
-and the bingo message is displayed.
+and the attention message contains :fighter-bingo.
 
 ;===============================================================
 ; Fighter out of fuel wakes.
@@ -48,7 +49,7 @@ F is sentry with fuel 2.
 WHEN a new round starts.
 
 THEN F wakes up and asks for input,
-and the out-of-fuel message is displayed.
+and the attention message contains :fighter-out-of-fuel.
 
 ;===============================================================
 ; Fighter crashes when fuel reaches zero.
@@ -59,7 +60,8 @@ F is sentry with fuel 1.
 
 WHEN a new round starts.
 
-THEN there is no F on the map and the crash message is displayed.
+THEN there is no F on the map.
+THEN the error message contains :fighter-out-of-fuel.
 
 ;===============================================================
 ; Fighter lands on carrier.
@@ -95,7 +97,7 @@ GIVEN game map
 F has fuel 20.
 GIVEN F is waiting for input.
 
-THEN message contains "fuel:20".
+THEN the attention message contains "fuel:20".
 
 ;===============================================================
 ; Fighter speed is 8 per round.

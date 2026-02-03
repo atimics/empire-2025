@@ -259,7 +259,7 @@ GIVEN A is waiting for input.
 WHEN the player presses d.
 
 THEN at next round A will be at [0 0].
-THEN message contains "Can't move into water".
+THEN the attention message contains :cant-move-into-water.
 
 ;===============================================================
 ; Destroyer cannot move onto land.
@@ -271,7 +271,7 @@ GIVEN D is waiting for input.
 WHEN the player presses d.
 
 THEN at next round D will be at [0 0].
-THEN message contains "Ships don't drive on land".
+THEN the attention message contains :ships-cant-drive-on-land.
 
 ;===============================================================
 ; Friendly army cannot move onto friendly army.
@@ -284,7 +284,7 @@ GIVEN A1 is waiting for input.
 WHEN the player presses d.
 
 THEN at next round A1 will be at [0 0].
-THEN message contains "Something's in the way".
+THEN the attention message contains :somethings-in-the-way.
 
 ;===============================================================
 ; Army conquers computer city when conquest succeeds.
@@ -319,4 +319,4 @@ GIVEN F is waiting for input.
 
 WHEN the player presses d.
 
-THEN line3-message contains "Fighter destroyed".
+THEN the error message contains "Fighter destroyed".

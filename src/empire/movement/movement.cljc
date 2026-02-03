@@ -228,7 +228,7 @@
     (swap! atoms/game-map assoc-in from-coords updated-origin)
     (swap! atoms/game-map assoc-in city-coords updated-city)
     (visibility/update-cell-visibility city-coords (:owner unit))
-    (reset! atoms/line2-message (str type-name " docked for repair."))
+    (reset! atoms/turn-message (str type-name " docked for repair."))
     {:result :docked :pos city-coords}))
 
 (defn- handle-movement-result

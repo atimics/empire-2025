@@ -56,40 +56,44 @@
   "An atom containing the current message to display."
   (atom ""))
 
-(def line2-message
-  "An atom containing the message to display on line 2."
+(def turn-message
+  "An atom containing the turn message to display (row 2, Game Info region)."
   (atom ""))
 
-(def confirmation-until
-  "An atom containing the timestamp until which line2-message should not be overwritten."
+(def turn-message-until
+  "An atom containing the timestamp until which turn-message should not be overwritten."
   (atom 0))
 
 (def hover-message
   "An atom containing the hover info message to display on line 3."
   (atom ""))
 
-(def line3-message
-  "An atom containing the flashing warning message to display on line 3."
+(def error-message
+  "An atom containing the error message to display (row 3, Game Info region). Red, flashing, timed."
   (atom ""))
 
-(def line3-until
-  "An atom containing the timestamp until which line3-message should be displayed."
+(def error-until
+  "An atom containing the timestamp until which error-message should be displayed."
   (atom 0))
 
-(defn set-line3-message
-  "Sets a flashing message on line 3 that displays for the specified milliseconds."
+(defn set-error-message
+  "Sets a flashing error message (row 3) that displays for the specified milliseconds."
   [msg ms]
-  (reset! line3-message msg)
-  (reset! line3-until (+ (System/currentTimeMillis) ms)))
+  (reset! error-message msg)
+  (reset! error-until (+ (System/currentTimeMillis) ms)))
 
-(defn set-confirmation-message
-  "Sets a confirmation message on line 2 that persists for the specified milliseconds.
+(defn set-turn-message
+  "Sets a turn message (row 2) that persists for the specified milliseconds.
    Use Long/MAX_VALUE for a permanent message."
   [msg ms]
-  (reset! line2-message msg)
-  (reset! confirmation-until (if (= ms Long/MAX_VALUE)
+  (reset! turn-message msg)
+  (reset! turn-message-until (if (= ms Long/MAX_VALUE)
                                Long/MAX_VALUE
                                (+ (System/currentTimeMillis) ms))))
+
+(def production-status
+  "Formatted string showing player unit counts and exploration %."
+  (atom ""))
 
 (def computer-map
   "An atom containing the computer's visible map areas."

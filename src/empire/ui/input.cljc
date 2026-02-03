@@ -76,7 +76,7 @@
         coastal? (map-utils/on-coast? x y)
         naval? (dispatcher/naval-units item)]
     (if (and naval? (not coastal?))
-      (atoms/set-line3-message (format "Must be coastal city to produce %s." (name item)) 3000)
+      (atoms/set-error-message (format "Must be coastal city to produce %s." (name item)) 3000)
       (do
         (production/set-city-production coords item)
         (game-loop/item-processed)))
@@ -321,7 +321,7 @@
     (when (and (= (:type cell) :city)
                (= (:city-status cell) :player))
       (swap! atoms/game-map assoc-in [cx cy :marching-orders] :lookaround)
-      (atoms/set-confirmation-message "Marching orders set to lookaround" 2000)
+      (atoms/set-turn-message "Marching orders set to lookaround" 2000)
       true)))
 
 (defn set-lookaround-at-mouse []
@@ -354,14 +354,14 @@
                  (= (:city-status cell) :player))
             (do (swap! atoms/game-map assoc-in [cx cy :marching-orders] dest)
                 (reset! atoms/destination nil)
-                (atoms/set-confirmation-message (str "Marching orders set to " (first dest) "," (second dest)) 2000)
+                (atoms/set-turn-message (str "Marching orders set to " (first dest) "," (second dest)) 2000)
                 true)
 
             (and (= (:type contents) :transport)
                  (= (:owner contents) :player))
             (do (swap! atoms/game-map assoc-in [cx cy :contents :marching-orders] dest)
                 (reset! atoms/destination nil)
-                (atoms/set-confirmation-message (str "Marching orders set to " (first dest) "," (second dest)) 2000)
+                (atoms/set-turn-message (str "Marching orders set to " (first dest) "," (second dest)) 2000)
                 true)
 
             (:waypoint cell)
@@ -384,14 +384,14 @@
                  (= (:city-status cell) :player))
             (do (swap! atoms/game-map assoc-in [cx cy :flight-path] dest)
                 (reset! atoms/destination nil)
-                (atoms/set-confirmation-message (str "Flight path set to " (first dest) "," (second dest)) 2000)
+                (atoms/set-turn-message (str "Flight path set to " (first dest) "," (second dest)) 2000)
                 true)
 
             (and (= (:type contents) :carrier)
                  (= (:owner contents) :player))
             (do (swap! atoms/game-map assoc-in [cx cy :contents :flight-path] dest)
                 (reset! atoms/destination nil)
-                (atoms/set-confirmation-message (str "Flight path set to " (first dest) "," (second dest)) 2000)
+                (atoms/set-turn-message (str "Flight path set to " (first dest) "," (second dest)) 2000)
                 true)
 
             :else nil))))))
@@ -405,8 +405,8 @@
         (when (waypoint/create-waypoint [cx cy])
           (let [cell (get-in @atoms/game-map [cx cy])]
             (if (:waypoint cell)
-              (atoms/set-confirmation-message (str "Waypoint placed at " cx "," cy) 2000)
-              (atoms/set-confirmation-message (str "Waypoint removed from " cx "," cy) 2000)))
+              (atoms/set-turn-message (str "Waypoint placed at " cx "," cy) 2000)
+              (atoms/set-turn-message (str "Waypoint removed from " cx "," cy) 2000)))
           true)))))
 
 (defn set-city-marching-orders-by-direction [k]
@@ -430,7 +430,7 @@
                                (recur nx ny)
                                [tx ty])))]
               (swap! atoms/game-map assoc-in [cx cy :marching-orders] target)
-              (atoms/set-confirmation-message (str "Marching orders set to " (first target) "," (second target)) 2000)
+              (atoms/set-turn-message (str "Marching orders set to " (first target) "," (second target)) 2000)
               true)
 
             (:waypoint cell)

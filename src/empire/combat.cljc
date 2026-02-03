@@ -62,7 +62,7 @@
         (swap! atoms/game-map assoc-in city-coords (assoc city-cell :city-status :player))
         (conquer-city-contents city-coords :player)
         (visibility/update-cell-visibility city-coords :player))
-      (atoms/set-line3-message (:conquest-failed config/messages) 3000))
+      (atoms/set-error-message (:conquest-failed config/messages) 3000))
     true))
 
 (defn attempt-conquest
@@ -82,7 +82,7 @@
         shot-down-fighter (assoc fighter :mode :awake :hits 0 :steps-remaining 0 :reason :fighter-shot-down)]
     (swap! atoms/game-map assoc-in fighter-coords (dissoc fighter-cell :contents))
     (swap! atoms/game-map assoc-in city-coords (assoc city-cell :contents shot-down-fighter))
-    (atoms/set-line3-message (:fighter-destroyed-by-city config/messages) 3000)
+    (atoms/set-error-message (:fighter-destroyed-by-city config/messages) 3000)
     true))
 
 (defn hostile-unit?
@@ -253,5 +253,5 @@
         (drown-excess-cargo target-coords (:survivor result))
         ;; Clear escort pairing if destroyer or transport died
         (clear-escort-on-death dead-unit)
-        (atoms/set-confirmation-message message Long/MAX_VALUE)
+        (atoms/set-turn-message message Long/MAX_VALUE)
         true))))

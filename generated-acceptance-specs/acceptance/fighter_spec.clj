@@ -35,7 +35,7 @@
       (should= 31 (:fuel unit)))
     ;; THEN F is waiting for input and "Fighter hit edge of map" is displayed in line 2.
     (should @atoms/waiting-for-input)
-    (should-contain "Fighter hit edge of map" @atoms/line2-message))
+    (should-contain "Fighter hit edge of map" @atoms/turn-message))
 
   (it "fighter.txt:20 - Fighter refuels at player city."
     (reset-all-atoms!)
@@ -114,7 +114,7 @@
     (game-loop/start-new-round)
     ;; THEN there is no F on the map and the crash message is displayed.
     (should-be-nil (get-test-unit atoms/game-map "F"))
-    (should-not= "" @atoms/line3-message))
+    (should-not= "" @atoms/error-message))
 
   (it "fighter.txt:65 - Fighter lands on carrier."
     (reset-all-atoms!)

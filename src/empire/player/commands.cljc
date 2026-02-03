@@ -20,7 +20,7 @@
         coastal? (map-utils/on-coast? x y)
         naval? (dispatcher/naval-units item)]
     (if (and naval? (not coastal?))
-      (atoms/set-line3-message (format "Must be coastal city to produce %s." (name item)) 3000)
+      (atoms/set-error-message (format "Must be coastal city to produce %s." (name item)) 3000)
       (do
         (production/set-city-production coords item)
         (game-loop/item-processed)))

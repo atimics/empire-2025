@@ -87,6 +87,33 @@
                       :else nil)]
     (str "[" (first coords) "," (second coords) "] " status)))
 
+(def ^:private unit-type-order
+  [:army :fighter :transport :destroyer :submarine :patrol-boat :carrier :battleship :satellite])
+
+(def ^:private unit-type-labels
+  {:army "A" :fighter "F" :transport "T" :destroyer "D" :submarine "S"
+   :patrol-boat "P" :carrier "C" :battleship "B" :satellite "Z"})
+
+(defn format-production-status
+  "Formats production status string: unit counts and exploration %.
+   Format: A:n F:n T:n D:n S:n P:n C:n B:n Z:n | nn%"
+  [game-map player-map]
+  (let [counts (atom (zipmap unit-type-order (repeat 0)))
+        total-cells (atom 0)
+        explored-cells (atom 0)]
+    (doseq [col (range (count game-map))
+            row (range (count (first game-map)))]
+      (swap! total-cells inc)
+      (when (get-in player-map [col row])
+        (swap! explored-cells inc))
+      (let [cell (get-in game-map [col row])
+            unit (:contents cell)]
+        (when (and unit (= :player (:owner unit)))
+          (swap! counts update (:type unit) inc))))
+    (let [pct (if (zero? @total-cells) 0 (int (* 100 (/ @explored-cells @total-cells))))
+          unit-strs (map #(str (unit-type-labels %) ":" (get @counts %)) unit-type-order)]
+      (str (clojure.string/join " " unit-strs) " | " pct "%"))))
+
 (defn determine-display-unit
   "Determines which unit to display, handling attention blinking.
    attention-coords is the list of cells needing attention (or nil).

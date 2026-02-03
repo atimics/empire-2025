@@ -192,7 +192,7 @@
   (it "shoots down fighter when flying over free city"
     (reset! atoms/game-map (build-test-map ["F+"]))
     (set-test-unit atoms/game-map "F" :mode :awake)
-    (reset! atoms/line3-message "")
+    (reset! atoms/error-message "")
     (combat/attempt-fighter-overfly [0 0] [1 0])
     ;; Fighter should be removed from original cell
     (should= nil (:contents (get-in @atoms/game-map [0 0])))
@@ -202,12 +202,12 @@
       (should= 0 (:steps-remaining fighter))
       (should= :awake (:mode fighter))
       (should= :fighter-shot-down (:reason fighter)))
-    (should= (:fighter-destroyed-by-city config/messages) @atoms/line3-message))
+    (should= (:fighter-destroyed-by-city config/messages) @atoms/error-message))
 
   (it "shoots down fighter when flying over computer city"
     (reset! atoms/game-map (build-test-map ["FX"]))
     (set-test-unit atoms/game-map "F" :mode :awake)
-    (reset! atoms/line3-message "")
+    (reset! atoms/error-message "")
     (combat/attempt-fighter-overfly [0 0] [1 0])
     ;; Fighter should be removed from original cell
     (should= nil (:contents (get-in @atoms/game-map [0 0])))
@@ -217,7 +217,7 @@
       (should= 0 (:steps-remaining fighter))
       (should= :awake (:mode fighter))
       (should= :fighter-shot-down (:reason fighter)))
-    (should= (:fighter-destroyed-by-city config/messages) @atoms/line3-message)))
+    (should= (:fighter-destroyed-by-city config/messages) @atoms/error-message)))
 
 (describe "sentry mode"
   (before (reset-all-atoms!))

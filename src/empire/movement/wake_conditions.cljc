@@ -197,7 +197,7 @@
                        {:wake? true :reason :enemy-spotted}
                        result)]
     (when (:shot-down? final-result)
-      (atoms/set-line3-message (:fighter-destroyed-by-city config/messages) 3000))
+      (atoms/set-error-message (:fighter-destroyed-by-city config/messages) 3000))
     (cond
       waypoint-orders
       (-> unit

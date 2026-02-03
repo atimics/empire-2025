@@ -198,6 +198,48 @@
           result (ru/group-cells-by-color the-map [[0 0]] production true true)]
       (should= 1 (count (get result [0 0 0]))))))
 
+(describe "format-production-status"
+  (it "returns all zeros and 0% for empty map"
+    (let [game-map [[{:type :sea} {:type :land}]]
+          player-map [[nil nil]]]
+      (should= "A:0 F:0 T:0 D:0 S:0 P:0 C:0 B:0 Z:0 | 0%"
+               (ru/format-production-status game-map player-map))))
+
+  (it "counts player units by type"
+    (let [game-map [[{:type :land :contents {:type :army :owner :player}}
+                     {:type :sea :contents {:type :destroyer :owner :player}}
+                     {:type :land :contents {:type :army :owner :player}}]]
+          player-map [[nil nil nil]]]
+      (should= "A:2 F:0 T:0 D:1 S:0 P:0 C:0 B:0 Z:0 | 0%"
+               (ru/format-production-status game-map player-map))))
+
+  (it "does not count computer units"
+    (let [game-map [[{:type :land :contents {:type :army :owner :computer}}
+                     {:type :land :contents {:type :army :owner :player}}]]
+          player-map [[nil nil]]]
+      (should= "A:1 F:0 T:0 D:0 S:0 P:0 C:0 B:0 Z:0 | 0%"
+               (ru/format-production-status game-map player-map))))
+
+  (it "computes exploration percentage"
+    (let [game-map [[{:type :land} {:type :sea} {:type :land} {:type :sea}]]
+          player-map [[{:type :land} nil {:type :land} nil]]]
+      (should= "A:0 F:0 T:0 D:0 S:0 P:0 C:0 B:0 Z:0 | 50%"
+               (ru/format-production-status game-map player-map))))
+
+  (it "counts all unit types"
+    (let [game-map [[{:type :land :contents {:type :army :owner :player}}
+                     {:type :land :contents {:type :fighter :owner :player}}
+                     {:type :sea :contents {:type :transport :owner :player}}
+                     {:type :sea :contents {:type :destroyer :owner :player}}
+                     {:type :sea :contents {:type :submarine :owner :player}}
+                     {:type :sea :contents {:type :patrol-boat :owner :player}}
+                     {:type :sea :contents {:type :carrier :owner :player}}
+                     {:type :sea :contents {:type :battleship :owner :player}}
+                     {:type :land :contents {:type :satellite :owner :player}}]]
+          player-map [[nil nil nil nil nil nil nil nil nil]]]
+      (should= "A:1 F:1 T:1 D:1 S:1 P:1 C:1 B:1 Z:1 | 0%"
+               (ru/format-production-status game-map player-map)))))
+
 (describe "should-show-paused?"
   (it "returns true when paused is true"
     (should (ru/should-show-paused? true false)))

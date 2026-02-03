@@ -73,7 +73,7 @@
     ;; and there is no D on the map.
     (should-be-nil (get-test-unit atoms/game-map "D"))
     ;; and line2-message contains "Destroyer destroyed"
-    (should-contain "Destroyer destroyed" @atoms/line2-message))
+    (should-contain "Destroyer destroyed" @atoms/turn-message))
 
   (it "destroyer.txt:41 - Destroyer put to sentry mode."
     (reset-all-atoms!)

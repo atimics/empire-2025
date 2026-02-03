@@ -160,24 +160,24 @@
                                        "~O~"
                                        "~~~"])]
       (reset! atoms/game-map game-map)
-      (reset! atoms/line2-message "")
+      (reset! atoms/turn-message "")
       (tu/set-test-unit atoms/game-map "D" :hits 2 :mode :moving :target [1 1])
       (movement/move-unit [1 0] [1 1]
                           (get-in @atoms/game-map [1 0])
                           atoms/game-map)
-      (should= "Destroyer docked for repair." @atoms/line2-message)))
+      (should= "Destroyer docked for repair." @atoms/turn-message)))
 
   (it "displays dock message for battleship"
     (let [game-map (tu/build-test-map ["~B~"
                                        "~O~"
                                        "~~~"])]
       (reset! atoms/game-map game-map)
-      (reset! atoms/line2-message "")
+      (reset! atoms/turn-message "")
       (tu/set-test-unit atoms/game-map "B" :hits 5 :mode :moving :target [1 1])
       (movement/move-unit [1 0] [1 1]
                           (get-in @atoms/game-map [1 0])
                           atoms/game-map)
-      (should= "Battleship docked for repair." @atoms/line2-message))))
+      (should= "Battleship docked for repair." @atoms/turn-message))))
 
 (describe "repair-damaged-ships"
   (before

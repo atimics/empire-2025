@@ -7,7 +7,8 @@
             [empire.movement.visibility :as visibility]
             [empire.player.production :as production]
             [empire.game-loop.round-setup :as round-setup]
-            [empire.game-loop.item-processing :as item-processing]))
+            [empire.game-loop.item-processing :as item-processing]
+            [empire.ui.rendering-util :as ru]))
 
 (defn update-player-map
   "Reveals cells near player-owned units on the visible map."
@@ -81,7 +82,8 @@
   (reset! atoms/computer-items (vec (build-computer-items)))
   (reset! atoms/waiting-for-input false)
   (reset! atoms/message "")
-  (reset! atoms/cells-needing-attention []))
+  (reset! atoms/cells-needing-attention [])
+  (reset! atoms/production-status (ru/format-production-status @atoms/game-map @atoms/player-map)))
 
 (defn advance-game
   "Advances the game by processing player items, then computer items.

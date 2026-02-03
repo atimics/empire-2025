@@ -30,6 +30,11 @@
 (def msg-line-3-y 42)
 (def msg-separator-offset 4)
 
+;; Display area width fractions for three-region layout
+(def game-info-width-fraction 0.375)    ;; Game Info (left)
+(def debug-width-fraction 0.25)         ;; Debug (center)
+(def game-status-width-fraction 0.375)  ;; Game Status (right)
+
 (def smooth-count 10)
 
 (def land-fraction 0.3)
@@ -157,7 +162,25 @@
    :blocked "Blocked."
    :steps-exhausted "Lookaround limit reached."
    :not-near-coast "Not near coast."
-   :skipping-this-round "Skipping this round."})
+   :skipping-this-round "Skipping this round."
+   ;; Turn messages (displayed in Turn line via set-turn-message)
+   :marching-orders-set "Marching orders set to %d,%d"
+   :marching-orders-lookaround "Marching orders set to lookaround"
+   :flight-path-set "Flight path set to %d,%d"
+   :waypoint-placed "Waypoint placed at %d,%d"
+   :waypoint-removed "Waypoint removed from %d,%d"
+   :waypoint-orders-set "Waypoint orders set to %d,%d"
+   :docked-for-repair "%s docked for repair."
+   :combat-result "%s. %s destroyed."
+   :destination "Dest: %d,%d"
+   ;; Error messages (displayed in Error line via set-error-message)
+   :coastal-city-required "Must be coastal city to produce %s."
+   ;; Attention messages
+   :fighter-airport-attention "Fighter needs attention - Landed and refueled.%s"
+   :fighter-carrier-attention "Fighter needs attention - aboard carrier (%d fighters)%s"
+   :army-transport-attention "Army needs attention - aboard transport (%d armies) - At beach."
+   :damaged-unit-attention "Damaged %s needs attention%s%s%s"
+   :unit-attention "%s needs attention%s%s%s"})
 
 ;; Key to movement direction mapping [dx dy]
 (def key->direction

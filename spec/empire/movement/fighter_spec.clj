@@ -62,12 +62,12 @@
           city-coords (:pos (get-test-city atoms/game-map "O"))]
       (set-test-unit atoms/game-map "F" :mode :moving :target city-coords :fuel 10 :steps-remaining 1)
       (reset! atoms/player-map (make-initial-test-map 1 3 nil))
-      (reset! atoms/line3-message "")
+      (reset! atoms/error-message "")
       (game-loop/move-current-unit fighter-coords)
       (let [city-cell (get-in @atoms/game-map city-coords)]
         (should= 1 (:fighter-count city-cell))
         (should= 0 (:awake-fighters city-cell 0)))
-      (should= "" @atoms/line3-message)))
+      (should= "" @atoms/error-message)))
 
   (it "fighter wakes before flying over free city"
     (reset! atoms/game-map (build-test-map ["F+#"]))
@@ -346,7 +346,7 @@
           city-coords (:pos (get-test-city atoms/game-map "X"))]
       (set-test-unit atoms/game-map "F" :mode :moving :target city-coords :fuel 10 :steps-remaining 1 :hits 1)
       (reset! atoms/player-map (make-initial-test-map 1 3 nil))
-      (reset! atoms/line3-message "")
+      (reset! atoms/error-message "")
       ;; wake-after-move takes unit, from-pos, final-pos, and current-map (atom)
       (let [cell (get-in @atoms/game-map fighter-coords)
             unit (:contents cell)

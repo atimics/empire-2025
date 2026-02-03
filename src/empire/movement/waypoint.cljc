@@ -30,7 +30,7 @@
       (when (:waypoint cell)
         (swap! atoms/game-map assoc-in [cx cy :waypoint :marching-orders] dest)
         (reset! atoms/destination nil)
-        (atoms/set-confirmation-message (str "Waypoint orders set to " (first dest) "," (second dest)) 2000)
+        (atoms/set-turn-message (str "Waypoint orders set to " (first dest) "," (second dest)) 2000)
         true))))
 
 (defn set-waypoint-orders-by-direction
@@ -48,5 +48,5 @@
                          (recur nx ny)
                          [tx ty])))]
         (swap! atoms/game-map assoc-in [cx cy :waypoint :marching-orders] target)
-        (atoms/set-confirmation-message (str "Waypoint orders set to " (first target) "," (second target)) 2000)
+        (atoms/set-turn-message (str "Waypoint orders set to " (first target) "," (second target)) 2000)
         true))))

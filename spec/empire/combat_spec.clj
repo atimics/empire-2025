@@ -58,7 +58,7 @@
   (it "removes army from original cell on failure"
     (with-redefs [rand (constantly 0.9)]
       (reset! atoms/game-map (build-test-map ["A+"]))
-      (reset! atoms/line3-message "")
+      (reset! atoms/error-message "")
       (let [army-coords (:pos (get-test-unit atoms/game-map "A"))
             city-coords (:pos (get-test-city atoms/game-map "+"))]
         (combat/attempt-conquest army-coords city-coords)
@@ -67,7 +67,7 @@
   (it "keeps city status on failure"
     (with-redefs [rand (constantly 0.9)]
       (reset! atoms/game-map (build-test-map ["A+"]))
-      (reset! atoms/line3-message "")
+      (reset! atoms/error-message "")
       (let [army-coords (:pos (get-test-unit atoms/game-map "A"))
             city-coords (:pos (get-test-city atoms/game-map "+"))]
         (combat/attempt-conquest army-coords city-coords)
@@ -76,11 +76,11 @@
   (it "sets failure message on failed conquest"
     (with-redefs [rand (constantly 0.9)]
       (reset! atoms/game-map (build-test-map ["A+"]))
-      (reset! atoms/line3-message "")
+      (reset! atoms/error-message "")
       (let [army-coords (:pos (get-test-unit atoms/game-map "A"))
             city-coords (:pos (get-test-city atoms/game-map "+"))]
         (combat/attempt-conquest army-coords city-coords)
-        (should= (:conquest-failed config/messages) @atoms/line3-message))))
+        (should= (:conquest-failed config/messages) @atoms/error-message))))
 
   (it "returns true regardless of outcome"
     (with-redefs [rand (constantly 0.5)]
@@ -323,52 +323,52 @@
     (reset! atoms/game-map (build-test-map ["Da"]))
     (set-test-unit atoms/game-map "D" :hits 3)
     (set-test-unit atoms/game-map "a" :hits 1)
-    (reset! atoms/line2-message "")
+    (reset! atoms/turn-message "")
     (with-redefs [rand (constantly 0.4)]
       (combat/attempt-attack [0 0] [1 0])
-      (should= "a-1. Army destroyed." @atoms/line2-message)))
+      (should= "a-1. Army destroyed." @atoms/turn-message)))
 
   (it "displays combat log when attacker loses"
     (reset! atoms/game-map (build-test-map ["Ad"]))
     (set-test-unit atoms/game-map "A" :hits 1)
     (set-test-unit atoms/game-map "d" :hits 3)
-    (reset! atoms/line2-message "")
+    (reset! atoms/turn-message "")
     (with-redefs [rand (constantly 0.6)]
       (combat/attempt-attack [0 0] [1 0])
-      (should= "A-1. Army destroyed." @atoms/line2-message)))
+      (should= "A-1. Army destroyed." @atoms/turn-message)))
 
   (it "displays combat log with multiple exchanges"
     (reset! atoms/game-map (build-test-map ["Dd"]))
     (set-test-unit atoms/game-map "D" :hits 3)
     (set-test-unit atoms/game-map "d" :hits 3)
-    (reset! atoms/line2-message "")
+    (reset! atoms/turn-message "")
     ;; Rolls: 0.4 (D hits d:2), 0.6 (d hits D:2), 0.4 (D hits d:1), 0.4 (D hits d:0)
     (let [rolls (atom [0.4 0.6 0.4 0.4])]
       (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
         (combat/attempt-attack [0 0] [1 0])
-        (should= "d-1,D-1,d-1,d-1. Destroyer destroyed." @atoms/line2-message))))
+        (should= "d-1,D-1,d-1,d-1. Destroyer destroyed." @atoms/turn-message))))
 
   (it "displays combat log for submarine vs carrier"
     (reset! atoms/game-map (build-test-map ["Sc"]))
     (set-test-unit atoms/game-map "S" :hits 2)
     (set-test-unit atoms/game-map "c" :hits 8)
-    (reset! atoms/line2-message "")
+    (reset! atoms/turn-message "")
     ;; Rolls: 0.6 (c hits S:1), 0.6 (c hits S:0)
     (let [rolls (atom [0.6 0.6])]
       (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
         (combat/attempt-attack [0 0] [1 0])
-        (should= "S-1,S-1. Submarine destroyed." @atoms/line2-message))))
+        (should= "S-1,S-1. Submarine destroyed." @atoms/turn-message))))
 
   (it "displays combat log for submarine defeating carrier"
     (reset! atoms/game-map (build-test-map ["Sc"]))
     (set-test-unit atoms/game-map "S" :hits 2)
     (set-test-unit atoms/game-map "c" :hits 8)
-    (reset! atoms/line2-message "")
+    (reset! atoms/turn-message "")
     ;; Rolls: 0.4 (S hits c:5), 0.6 (c hits S:1), 0.4 (S hits c:2), 0.4 (S hits c:0)
     (let [rolls (atom [0.4 0.6 0.4 0.4])]
       (with-redefs [rand (fn [] (let [v (first @rolls)] (swap! rolls rest) v))]
         (combat/attempt-attack [0 0] [1 0])
-        (should= "c-3,S-1,c-3,c-3. Carrier destroyed." @atoms/line2-message)))))
+        (should= "c-3,S-1,c-3,c-3. Carrier destroyed." @atoms/turn-message)))))
 
 (describe "conquer-city-contents"
   (before (reset-all-atoms!))
@@ -700,7 +700,7 @@
   (it "does not convert city on failed roll"
     (with-redefs [rand (constantly 0.9)]
       (reset! atoms/game-map (build-test-map ["+"]))
-      (reset! atoms/line3-message "")
+      (reset! atoms/error-message "")
       (let [city-coords (:pos (get-test-city atoms/game-map "+"))]
         (combat/attempt-city-conquest city-coords)
         (should= :free (:city-status (get-in @atoms/game-map city-coords))))))
@@ -708,15 +708,15 @@
   (it "sets failure message on failed roll"
     (with-redefs [rand (constantly 0.9)]
       (reset! atoms/game-map (build-test-map ["+"]))
-      (reset! atoms/line3-message "")
+      (reset! atoms/error-message "")
       (let [city-coords (:pos (get-test-city atoms/game-map "+"))]
         (combat/attempt-city-conquest city-coords)
-        (should= (:conquest-failed config/messages) @atoms/line3-message))))
+        (should= (:conquest-failed config/messages) @atoms/error-message))))
 
   (it "returns true on failed roll"
     (with-redefs [rand (constantly 0.9)]
       (reset! atoms/game-map (build-test-map ["+"]))
-      (reset! atoms/line3-message "")
+      (reset! atoms/error-message "")
       (let [city-coords (:pos (get-test-city atoms/game-map "+"))]
         (should (combat/attempt-city-conquest city-coords)))))
 

@@ -1,3 +1,4 @@
+
 # Plan: Acceptance Test Framework
 
 ## Overview
@@ -138,6 +139,8 @@ GIVEN player map
 GIVEN computer map ["~~a~" "####"]
 ```
 
+**Whitespace stripping:** Many acceptance tests indent map lines with leading spaces (e.g., `  A#`). Since `build-test-map` maps space characters to nil cells, **always strip leading whitespace** from map text lines before passing them to `build-test-map`.
+
 All map formats translate to:
 ```clojure
 (reset! atoms/<target>-map (build-test-map <rows>))
@@ -221,12 +224,27 @@ WHEN the player presses Q.
 WHEN the player types d d d.
 ```
 
-**Mocking approach:** Call `input/key-down` directly with the key keyword. No Quil dependency — it operates entirely on atoms. Reset `atoms/last-key` to nil between keys to simulate key release.
+**Critical: `handle-key` vs `key-down`**
+
+`input/key-down` for **lowercase direction keys** (q/w/e/a/d/z/x/c) triggers `set-city-marching-orders-by-direction` (`input.cljc:412`) which calls `q/mouse-x`, crashing in test context without Quil. The correct dispatch depends on the key:
+
+| Key type | Function | Notes |
+|----------|----------|-------|
+| Lowercase direction (q/w/e/a/d/z/x/c) when unit has attention | `(input/handle-key :d)` | Single-step movement. Avoids Quil call. |
+| Uppercase direction (Q/W/E/A/D/Z/X/C) | `(reset! atoms/last-key nil) (input/key-down :D)` | Extended movement to map edge. Safe — `config/key->direction` returns nil for uppercase. |
+| Non-direction keys (s, l, u, space, etc.) | `(reset! atoms/last-key nil) (input/key-down :s)` | Mode changes, skip, etc. Safe — not in direction dispatch. |
 
 ```clojure
-;; "WHEN the player presses d"
+;; "WHEN the player presses d" (lowercase direction, unit has attention)
+(input/handle-key :d)
+
+;; "WHEN the player presses D" (uppercase direction, extended movement)
 (reset! atoms/last-key nil)
-(input/key-down :d)
+(input/key-down :D)
+
+;; "WHEN the player presses s" (non-direction key)
+(reset! atoms/last-key nil)
+(input/key-down :s)
 ```
 
 ### Randomized Outcomes
@@ -239,17 +257,23 @@ WHEN the player presses d and loses the battle.
 WHEN the game advances and the dice choose east.
 ```
 
-Translates to `with-redefs [rand (constantly <value>)]` wrapping the action. Choose the value that produces the described outcome:
+Translates to `with-redefs [rand (constantly <value>)]` wrapping the action. Choose the value that produces the described outcome.
+
+**Important:** For ship-to-ship combat, `handle-key` only sets `:mode :moving` with a target. The actual combat resolves during `advance-game` when `move-current-unit` processes the movement. The `with-redefs [rand ...]` wrapper must cover both `handle-key` and `advance-game`:
 
 ```clojure
-;; "and wins the battle" — rand < 0.5 → conquest succeeds
+;; "and wins the battle" — rand < 0.5 → attacker always hits
 (with-redefs [rand (constantly 0.0)]
-  (input/handle-key :d))
+  (input/handle-key :d)
+  (game-loop/advance-game))
 
-;; "and loses the battle" — rand >= 0.5 → conquest fails
+;; "and loses the battle" — rand >= 0.5 → defender always hits
 (with-redefs [rand (constantly 1.0)]
-  (input/handle-key :d))
+  (input/handle-key :d)
+  (game-loop/advance-game))
 ```
+
+For army city conquest, combat resolves immediately in `handle-key` (via `attempt-conquest`), so `advance-game` is not needed.
 
 ### Mouse Input
 
@@ -278,8 +302,11 @@ WHEN the mouse is at cell [3 5] and the player presses m.
 WHEN the game advances.
 WHEN the game advances one batch.
 WHEN a new round starts.
+WHEN the next round begins.
 WHEN player items are processed.
 ```
+
+**Synonyms:** "a new round starts" and "the next round begins" are equivalent.
 
 Translates to:
 ```clojure
@@ -327,12 +354,7 @@ THEN line2-message contains "Submarine destroyed".
 THEN line3-message contains "Conquest Failed".
 ```
 
-Translates to:
-```clojure
-(should-contain "fuel:20" @atoms/message)
-(should= "fighter needs attention (fuel:20)" @atoms/message)
-(should-contain "Submarine destroyed" @atoms/line2-message)
-```
+These are deprecated. When encountered, report `Deprecated: <the line>` as an error rather than translating them.
 
 ### Cell Assertions
 
@@ -379,6 +401,8 @@ Translates to:
 
 **Map sizing:** The target cell (`%` or `=`) must be placed at a distance of `1 + speed` from the unit's starting position — 1 cell for the drain step plus `speed` cells for the full round. For example, a fighter (speed 8) starting at position 0 needs the target at position 9: `F~~~~~~~~=` (10 cells).
 
+**Timing after combat WHENs:** When the WHEN clause includes `advance-game` (e.g., ship combat with `with-redefs`), the THEN assertions check state **immediately after** — no additional advances needed. The 3-advance pattern only applies after WHENs that only press a key. The phrase "at the next round" in a THEN after a combat WHEN means "after the combat resolves," not "after 3 more advances."
+
 ```
 THEN eventually A will be at %.
 ```
@@ -400,6 +424,7 @@ For movements that take multiple rounds (target farther than one round of moveme
 4. On failure, report file name and line number of the first GIVEN line of the failing test.
 5. If a directive is ambiguous, report the ambiguity rather than guessing.
 6. Generated specs in `generated-acceptance-specs/` should be committed after regeneration.
+7. Never modify a generated spec file. Generated specs may only be created (from the `.txt` source) or deleted — never edited. If a spec needs to change, delete it and regenerate from the `.txt`.
 
 ## CLAUDE.md Updates
 
@@ -658,5 +683,80 @@ Translates to:
 (let [{:keys [unit]} (get-test-unit atoms/game-map "T")]
   (should-not-contain :transport-mission unit))
 ```
+
+## Spec Generation Pitfalls
+
+Lessons learned from translating all acceptance test files into Speclj specs.
+
+### City Attention Interference
+
+When a test calls `start-new-round` and the map contains a player city (O), the city may intercept attention before the unit being tested. The city gets added to `player-items` and `process-player-items-batch` stops at it, blocking the target unit from being processed.
+
+**Fix:** Set dummy production for any player city not under test:
+
+```clojure
+(let [o-pos (:pos (get-test-city atoms/game-map "O"))]
+  (swap! atoms/production assoc o-pos {:item :army :remaining-rounds 10}))
+```
+
+This is required whenever:
+- The test map has a player city AND
+- The test is about a non-city unit AND
+- The test calls `start-new-round` or advances through a round boundary
+
+### City vs Unit Key Dispatch
+
+When a **city** has attention, lowercase direction keys are **production keys** (d→destroyer, s→submarine, a→army, etc.), not movement keys. When a **unit** has attention, those same keys are movement/mode keys. The dispatch is determined by what `cells-needing-attention` points to.
+
+When translating tests, check whether the GIVEN sets attention on a city or a unit — this determines what "the player presses d" means.
+
+### "and" Continuations
+
+Lines beginning with "and" (lowercase) are continuations of the preceding THEN directive, not new directives:
+
+```
+THEN F wakes up and asks for input,
+and the out-of-fuel message is displayed.
+```
+
+Both clauses are assertions in the same `it` block. Translate as separate `should` calls.
+
+### Untranslatable Directives
+
+Some acceptance tests use directives not in the catalog above. When encountered:
+
+1. Report the specific directive and file/line to the user.
+2. Generate a **failing test** that documents the desired behavior (per CLAUDE.md rules).
+3. Use a `(pending "directive not yet supported: ...")` or a clear `should` that will fail with context.
+
+Common untranslatable patterns seen in practice:
+- `"WHEN computer city at X is processed"` — requires computer item processing internals
+- `"WHEN visibility updates"` — no direct function to call
+- `"GIVEN all computer armies have country-id 1"` — bulk state mutation not in test-utils
+- `"GIVEN game map with 11 computer cities"` — procedural map generation
+- Prose-style THENs: `"THEN combat ensues and if the army wins..."` — conditional outcomes
+
+### Bingo / Out-of-Fuel / Crash Pattern
+
+For tests about fighter fuel events during round start:
+
+```clojure
+;; WHEN a new round starts
+(game-loop/start-new-round)
+;; Advance to process items and trigger wake/attention
+(game-loop/advance-game)
+```
+
+`start-new-round` calls `consume-sentry-fighter-fuel` (decrements fuel, sets hits to 0 if fuel reaches 0) and `remove-dead-units` (removes units with 0 hits). Then `advance-game` processes the surviving units, triggering bingo/out-of-fuel wake conditions and setting messages.
+
+### Additional THEN Patterns
+
+These assertion patterns appear frequently across test files:
+
+| Acceptance test phrasing | Speclj translation |
+|---|---|
+| `O has one fighter in its airport` | `(should= 1 (:fighter-count (get-in @atoms/game-map (:pos (get-test-city atoms/game-map "O")))))` |
+| `C has one fighter aboard` | `(should= 1 (:fighter-count (:unit (get-test-unit atoms/game-map "C"))))` |
+| `F wakes up and asks for input` | `(should= :awake (:mode (:unit (get-test-unit atoms/game-map "F")))) (should @atoms/waiting-for-input)` |
 
 ## Status: permanent

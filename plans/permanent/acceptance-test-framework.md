@@ -226,25 +226,40 @@ WHEN the player types d d d.
 
 **Critical: `handle-key` vs `key-down`**
 
-`input/key-down` for **lowercase direction keys** (q/w/e/a/d/z/x/c) triggers `set-city-marching-orders-by-direction` (`input.cljc:412`) which calls `q/mouse-x`, crashing in test context without Quil. The correct dispatch depends on the key:
+`input/key-down` dispatches through several handlers that call `q/mouse-x`/`q/mouse-y` before reaching `handle-key`. These include `set-city-marching-orders-by-direction` (direction keys), `set-lookaround-at-mouse` (`:l`), `wake-at-mouse` (`:u`), and others. Without Quil running, these crash.
 
 | Key type | Function | Notes |
 |----------|----------|-------|
-| Lowercase direction (q/w/e/a/d/z/x/c) when unit has attention | `(input/handle-key :d)` | Single-step movement. Avoids Quil call. |
-| Uppercase direction (Q/W/E/A/D/Z/X/C) | `(reset! atoms/last-key nil) (input/key-down :D)` | Extended movement to map edge. Safe — `config/key->direction` returns nil for uppercase. |
-| Non-direction keys (s, l, u, space, etc.) | `(reset! atoms/last-key nil) (input/key-down :s)` | Mode changes, skip, etc. Safe — not in direction dispatch. |
+| Lowercase direction (q/w/e/a/d/z/x/c) when unit has attention | `(input/handle-key :d)` | Single-step movement. Bypasses key-down dispatch entirely. |
+| Uppercase direction (Q/W/E/A/D/Z/X/C) | Mock Quil + `(input/key-down :D)` | Extended movement to map edge. |
+| Non-direction keys (s, l, u, space, etc.) | Mock Quil + `(input/key-down :s)` | Mode changes, skip, etc. |
+
+**Quil mocking:** All `key-down` calls in specs must wrap Quil mouse functions with `with-redefs`:
+
+```clojure
+(with-redefs [quil.core/mouse-x (constantly 0)
+              quil.core/mouse-y (constantly 0)]
+  (reset! atoms/last-key nil)
+  (input/key-down :l))
+```
+
+With `map-screen-dimensions` at `[0 0]` (from `reset-all-atoms!`), `on-map?` returns false for pixel `(0, 0)`, causing all mouse-dependent handlers to return nil. The key then falls through to `handle-key`.
 
 ```clojure
 ;; "WHEN the player presses d" (lowercase direction, unit has attention)
 (input/handle-key :d)
 
 ;; "WHEN the player presses D" (uppercase direction, extended movement)
-(reset! atoms/last-key nil)
-(input/key-down :D)
+(with-redefs [quil.core/mouse-x (constantly 0)
+              quil.core/mouse-y (constantly 0)]
+  (reset! atoms/last-key nil)
+  (input/key-down :D))
 
 ;; "WHEN the player presses s" (non-direction key)
-(reset! atoms/last-key nil)
-(input/key-down :s)
+(with-redefs [quil.core/mouse-x (constantly 0)
+              quil.core/mouse-y (constantly 0)]
+  (reset! atoms/last-key nil)
+  (input/key-down :s))
 ```
 
 ### Randomized Outcomes
@@ -346,15 +361,64 @@ Translates to:
 
 ### Message Assertions
 
+Tests assert against three named display areas: **attention** (row 1),
+**turn** (row 2), and **error** (row 3).
+
+**By literal string** (quotes required):
+
 ```
-THEN the message contains "fuel:20".
-THEN message contains fuel:20
-THEN the message is "fighter needs attention (fuel:20)".
-THEN line2-message contains "Submarine destroyed".
-THEN line3-message contains "Conquest Failed".
+THEN the attention message contains "fuel:20".
+THEN the attention message is "City needs attention".
+THEN the turn message contains "Submarine destroyed".
+THEN the error message contains "Conquest Failed".
+THEN there is no attention message.
+THEN there is no turn message.
+THEN there is no error message.
 ```
 
-These are deprecated. When encountered, report `Deprecated: <the line>` as an error rather than translating them.
+Translates to:
+```clojure
+(should-contain "fuel:20" @atoms/message)
+(should= "City needs attention" @atoms/message)
+(should-contain "Submarine destroyed" @atoms/turn-message)
+(should-contain "Conquest Failed" @atoms/error-message)
+(should= "" @atoms/message)
+(should= "" @atoms/turn-message)
+(should= "" @atoms/error-message)
+```
+
+**By config key** (`:key` syntax — preferred, decouples test from exact wording):
+
+```
+THEN the attention message contains :army-found-city.
+THEN the error message is :conquest-failed.
+THEN the attention message contains :cant-move-into-city.
+```
+
+Translates to:
+```clojure
+(should-contain (:army-found-city config/messages) @atoms/message)
+(should= (:conquest-failed config/messages) @atoms/error-message)
+(should-contain (:cant-move-into-city config/messages) @atoms/message)
+```
+
+**By format function** (for messages with `%s`/`%d` placeholders):
+
+```
+THEN the turn message is (fmt :marching-orders-set 3 7).
+THEN the error message is (fmt :coastal-city-required "transport").
+```
+
+Translates to:
+```clojure
+(should= (format (:marching-orders-set config/messages) 3 7) @atoms/turn-message)
+(should= (format (:coastal-city-required config/messages) "transport") @atoms/error-message)
+```
+
+**Backward compatibility:** Bare `message` (without "attention", "turn", or
+"error") maps to the attention message (`@atoms/message`). `line2-message`
+maps to `@atoms/turn-message`. `line3-message` maps to `@atoms/error-message`.
+These old forms are deprecated; new tests should use the semantic names.
 
 ### Cell Assertions
 
@@ -486,10 +550,11 @@ This section documents the Clojure functions and calling patterns needed to tran
           [empire.game-loop.item-processing :as item-processing]
           [empire.player.production :as production]
           [empire.containers.ops :as container-ops]
-          [empire.ui.input :as input])
+          [empire.ui.input :as input]
+          [quil.core :as q])
 ```
 
-Add only namespaces actually used by the generated spec.
+Add only namespaces actually used by the generated spec. Include `[quil.core :as q]` when the spec uses `key-down` (for Quil mocking).
 
 ### Game Loop Functions
 
@@ -748,6 +813,25 @@ For tests about fighter fuel events during round start:
 ```
 
 `start-new-round` calls `consume-sentry-fighter-fuel` (decrements fuel, sets hits to 0 if fuel reaches 0) and `remove-dead-units` (removes units with 0 hits). Then `advance-game` processes the surviving units, triggering bingo/out-of-fuel wake conditions and setting messages.
+
+### Advance Until Next Round
+
+When a WHEN action puts a unit into a non-attention state (e.g., `:moving` from `handle-key`, or `:explore` at round start) and the THEN asserts an attention message or wake state, the unit must be processed through a complete round before getting attention. Use a helper that watches `atoms/round-number`:
+
+```clojure
+(defn- advance-until-next-round []
+  (let [start-round @atoms/round-number]
+    (while (= start-round @atoms/round-number)
+      (game-loop/advance-game)))
+  (game-loop/advance-game))
+```
+
+The loop drains the current round (processes all movement, explore, etc.), then detects when `start-new-round` increments the round number and exits. The final `advance-game` processes the first batch of the new round, giving newly-awake units attention.
+
+Use this when:
+- `handle-key` sets a unit to `:moving` and the THEN checks a wake reason or message
+- `start-new-round` triggers explore processing and the THEN checks the result
+- Any WHEN that starts automated movement followed by THENs about the outcome
 
 ### Additional THEN Patterns
 

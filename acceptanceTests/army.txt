@@ -29,12 +29,10 @@ THEN A has mode explore.
 GIVEN game map
   A+
 A is explore.
-GIVEN player-items A.
 
-WHEN player items are processed.
+WHEN the next round begins
 
-THEN A has mode awake.
-THEN waiting-for-input.
+THEN A is awake.
 THEN message contains "Army found a city".
 
 ;===============================================================

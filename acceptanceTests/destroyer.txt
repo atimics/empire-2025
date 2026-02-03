@@ -12,15 +12,6 @@ WHEN the player presses D.
 THEN at next round D will be at =.
 
 ;===============================================================
-; Destroyer has 3 hits.
-;===============================================================
-GIVEN game map
-  D~
-GIVEN D is waiting for input.
-
-THEN D has hits 3.
-
-;===============================================================
 ; Destroyer attacks enemy ship and wins.
 ;===============================================================
 GIVEN game map
@@ -29,8 +20,20 @@ GIVEN D is waiting for input.
 
 WHEN the player presses d and wins the battle.
 
-THEN D is at [1 0].
-THEN there is no s on the map.
+THEN at the next round D occupies the s cell and there is no s.
+
+;===============================================================
+; Destroyer attacks enemy ship and loses.
+;===============================================================
+GIVEN game map
+  Ds
+GIVEN D is waiting for input.
+
+WHEN the player presses d and loses the battle.
+
+THEN at the next round s remains unmoved.
+and there is no D on the map.
+and line2-message contains "Destroyer destroyed"
 
 ;===============================================================
 ; Destroyer put to sentry mode.

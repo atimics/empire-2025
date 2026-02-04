@@ -1,0 +1,489 @@
+(ns empire.acceptance.parser-spec
+  (:require [speclj.core :refer :all]
+            [empire.acceptance.parser :as parser]))
+
+(describe "acceptance test parser"
+
+  (describe "split-into-tests"
+    (it "splits a simple single test"
+      (let [lines ["; Comment"
+                   ""
+                   ";==============================================================="
+                   "; Army put to sentry mode."
+                   ";==============================================================="
+                   "GIVEN game map"
+                   "  A#"
+                   "GIVEN A is waiting for input."
+                   ""
+                   "WHEN the player presses s."
+                   ""
+                   "THEN A has mode sentry."]
+            tests (parser/split-into-tests lines)]
+        (should= 1 (count tests))
+        (should= "Army put to sentry mode." (:description (first tests)))
+        (should= 6 (:line (first tests)))))
+
+    (it "splits multiple tests"
+      (let [lines [";==============================================================="
+                   "; Test one."
+                   ";==============================================================="
+                   "GIVEN game map"
+                   "  A#"
+                   ""
+                   "WHEN the player presses s."
+                   ""
+                   "THEN A has mode sentry."
+                   ""
+                   ";==============================================================="
+                   "; Test two."
+                   ";==============================================================="
+                   "GIVEN game map"
+                   "  A+"
+                   ""
+                   "WHEN the player presses d."
+                   ""
+                   "THEN A is at [1 0]."]
+            tests (parser/split-into-tests lines)]
+        (should= 2 (count tests))
+        (should= "Test one." (:description (first tests)))
+        (should= 4 (:line (first tests)))
+        (should= "Test two." (:description (second tests)))
+        (should= 14 (:line (second tests))))))
+
+  (describe "parse-given"
+    (it "parses game map"
+      (let [lines ["GIVEN game map" "  A#" "  ##"]
+            result (parser/parse-given lines {})]
+        (should= [{:type :map :target :game-map :rows ["A#" "##"]}]
+                 (:givens result))))
+
+    (it "parses player map"
+      (let [lines ["GIVEN player map" "  A." "  .."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :map :target :player-map :rows ["A." ".."]}]
+                 (:givens result))))
+
+    (it "parses computer map"
+      (let [lines ["GIVEN computer map" "  ~~a~" "  ####"]
+            result (parser/parse-given lines {})]
+        (should= [{:type :map :target :computer-map :rows ["~~a~" "####"]}]
+                 (:givens result))))
+
+    (it "parses bare map (defaults to game-map)"
+      (let [lines ["GIVEN map" "  A#"]
+            result (parser/parse-given lines {})]
+        (should= [{:type :map :target :game-map :rows ["A#"]}]
+                 (:givens result))))
+
+    (it "parses unit properties - mode"
+      (let [lines ["A is awake."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "A" :props {:mode :awake}}]
+                 (:givens result))))
+
+    (it "parses unit properties - mode and fuel"
+      (let [lines ["F has fuel 32."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "F" :props {:fuel 32}}]
+                 (:givens result))))
+
+    (it "parses unit properties - sentry with fuel"
+      (let [lines ["F is sentry with fuel 9."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "F" :props {:mode :sentry :fuel 9}}]
+                 (:givens result))))
+
+    (it "parses unit properties - explore"
+      (let [lines ["A is explore."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "A" :props {:mode :explore}}]
+                 (:givens result))))
+
+    (it "parses waiting-for-input"
+      (let [lines ["GIVEN A is waiting for input."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :waiting-for-input :unit "A" :set-mode true}]
+                 (:givens result))))
+
+    (it "does not set-mode when mode already set"
+      (let [lines ["F has fuel 20." "GIVEN F is waiting for input."]
+            result (parser/parse-given lines {})]
+        (should= 2 (count (:givens result)))
+        (should= {:type :waiting-for-input :unit "F" :set-mode true}
+                 (second (:givens result)))))
+
+    (it "does not set-mode when mode explicitly set prior"
+      (let [lines ["F is sentry with fuel 9." "GIVEN F is waiting for input."]
+            result (parser/parse-given lines {})]
+        (should= {:type :waiting-for-input :unit "F" :set-mode false}
+                 (second (:givens result)))))
+
+    (it "parses production"
+      (let [lines ["GIVEN production at O is army."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :production :city "O" :item :army}]
+                 (:givens result))))
+
+    (it "parses production with remaining rounds"
+      (let [lines ["GIVEN production at O is transport with 1 round remaining."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :production :city "O" :item :transport :remaining-rounds 1}]
+                 (:givens result))))
+
+    (it "parses round"
+      (let [lines ["GIVEN round 5."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :round :value 5}]
+                 (:givens result))))
+
+    (it "parses destination"
+      (let [lines ["GIVEN destination [3 7]."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :destination :coords [3 7]}]
+                 (:givens result))))
+
+    (it "parses cell props"
+      (let [lines ["GIVEN cell [0 0] has awake-fighters 1 and fighter-count 1."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :cell-props :coords [0 0] :props {:awake-fighters 1 :fighter-count 1}}]
+                 (:givens result))))
+
+    (it "parses player-items single"
+      (let [lines ["GIVEN player-items F."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :player-items :items ["F"]}]
+                 (:givens result))))
+
+    (it "parses player-items multiple"
+      (let [lines ["GIVEN player-items are A, T, O."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :player-items :items ["A" "T" "O"]}]
+                 (:givens result))))
+
+    (it "parses container state - city airport"
+      (let [lines ["GIVEN O has one fighter in its airport."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :container-state :target "O" :props {:fighter-count 1 :awake-fighters 1}}]
+                 (:givens result))))
+
+    (it "parses container state - no fighters"
+      (let [lines ["C has no fighters."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :container-state :target "C" :props {:fighter-count 0}}]
+                 (:givens result))))
+
+    (it "parses waiting-for-input for city"
+      (let [lines ["GIVEN O is waiting for input."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :waiting-for-input :unit "O" :set-mode true}]
+                 (:givens result)))))
+
+  (describe "parse-when"
+    (it "parses simple key press - direction with attention"
+      (let [lines ["WHEN the player presses d."]
+            ctx {:has-waiting-for-input true}
+            result (parser/parse-when lines ctx)]
+        (should= [{:type :key-press :key :d :input-fn :handle-key}]
+                 (:whens result))))
+
+    (it "parses uppercase direction key"
+      (let [lines ["WHEN the player presses D."]
+            ctx {:has-waiting-for-input true}
+            result (parser/parse-when lines ctx)]
+        (should= [{:type :key-press :key :D :input-fn :key-down}]
+                 (:whens result))))
+
+    (it "parses non-direction key"
+      (let [lines ["WHEN the player presses s."]
+            ctx {:has-waiting-for-input true}
+            result (parser/parse-when lines ctx)]
+        (should= [{:type :key-press :key :s :input-fn :key-down}]
+                 (:whens result))))
+
+    (it "parses space key"
+      (let [lines ["WHEN the player presses space."]
+            ctx {:has-waiting-for-input true}
+            result (parser/parse-when lines ctx)]
+        (should= [{:type :key-press :key :space :input-fn :key-down}]
+                 (:whens result))))
+
+    (it "parses battle win for army"
+      (let [lines ["WHEN the player presses d and wins the battle."]
+            ctx {:has-waiting-for-input true :unit-types #{"A"}}
+            result (parser/parse-when lines ctx)]
+        (should= [{:type :battle :key :d :outcome :win :combat-type :army}]
+                 (:whens result))))
+
+    (it "parses battle win for ship"
+      (let [lines ["WHEN the player presses d and wins the battle."]
+            ctx {:has-waiting-for-input true :unit-types #{"D"}}
+            result (parser/parse-when lines ctx)]
+        (should= [{:type :battle :key :d :outcome :win :combat-type :ship}]
+                 (:whens result))))
+
+    (it "parses battle lose for ship"
+      (let [lines ["WHEN the player presses d and loses the battle."]
+            ctx {:has-waiting-for-input true :unit-types #{"D"}}
+            result (parser/parse-when lines ctx)]
+        (should= [{:type :battle :key :d :outcome :lose :combat-type :ship}]
+                 (:whens result))))
+
+    (it "parses backtick command"
+      (let [lines ["WHEN the mouse is at cell [0 0] and the player presses backtick then A."]
+            ctx {}
+            result (parser/parse-when lines ctx)]
+        (should= [{:type :backtick :key :A :mouse-cell [0 0]}]
+                 (:whens result))))
+
+    (it "parses new round starts"
+      (let [lines ["WHEN a new round starts."]
+            result (parser/parse-when lines {})]
+        (should= [{:type :start-new-round}]
+                 (:whens result))))
+
+    (it "parses next round begins"
+      (let [lines ["WHEN the next round begins"]
+            result (parser/parse-when lines {})]
+        (should= [{:type :start-new-round}]
+                 (:whens result))))
+
+    (it "parses game advances"
+      (let [lines ["WHEN the game advances."]
+            result (parser/parse-when lines {})]
+        (should= [{:type :advance-game}]
+                 (:whens result))))
+
+    (it "parses player items processed"
+      (let [lines ["WHEN player items are processed."]
+            result (parser/parse-when lines {})]
+        (should= [{:type :process-player-items}]
+                 (:whens result)))))
+
+  (describe "parse-then"
+    (it "parses unit at position"
+      (let [lines ["THEN A is at [0 2]."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-at :unit "A" :coords [0 2]}]
+                 (:thens result))))
+
+    (it "parses unit mode property"
+      (let [lines ["THEN A has mode sentry."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-prop :unit "A" :property :mode :expected :sentry}]
+                 (:thens result))))
+
+    (it "parses unit mode with 'is'"
+      (let [lines ["THEN A is awake."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-prop :unit "A" :property :mode :expected :awake}]
+                 (:thens result))))
+
+    (it "parses unit fuel property"
+      (let [lines ["THEN F has fuel 19."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-prop :unit "F" :property :fuel :expected 19}]
+                 (:thens result))))
+
+    (it "parses unit owner property"
+      (let [lines ["THEN A has owner player."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-prop :unit "A" :property :owner :expected :player}]
+                 (:thens result))))
+
+    (it "parses unit absent"
+      (let [lines ["THEN there is no A on the map."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-absent :unit "A"}]
+                 (:thens result))))
+
+    (it "parses no F on the map"
+      (let [lines ["THEN there is no F on the map."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-absent :unit "F"}]
+                 (:thens result))))
+
+    (it "parses there is no D"
+      (let [lines ["and there is no D on the map."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-absent :unit "D"}]
+                 (:thens result))))
+
+    (it "parses unit present at coords"
+      (let [lines ["THEN there is an A at [0 0]."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-present :unit "A" :coords [0 0]}]
+                 (:thens result))))
+
+    (it "parses unit present with 'a' article"
+      (let [lines ["THEN there is a T at [0 0]."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-present :unit "T" :coords [0 0]}]
+                 (:thens result))))
+
+    (it "parses there is an F at target"
+      (let [lines ["THEN there is an F at %."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-present :unit "F" :target "%"}]
+                 (:thens result))))
+
+    (it "parses message contains literal"
+      (let [lines ["THEN the attention message contains \"fuel:20\"."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :message-contains :area :attention :text "fuel:20"}]
+                 (:thens result))))
+
+    (it "parses message contains config key"
+      (let [lines ["THEN the attention message contains :army-found-city."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :message-contains :area :attention :config-key :army-found-city}]
+                 (:thens result))))
+
+    (it "parses message contains :cant-move-into-city"
+      (let [lines ["THEN the attention message contains :cant-move-into-city."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :message-contains :area :attention :config-key :cant-move-into-city}]
+                 (:thens result))))
+
+    (it "parses turn message contains literal"
+      (let [lines ["THEN the turn message contains \"Destroyer destroyed\"."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :message-contains :area :turn :text "Destroyer destroyed"}]
+                 (:thens result))))
+
+    (it "parses turn message contains with hit edge"
+      (let [lines ["THEN the turn message contains \"hit edge of map\"."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :message-contains :area :turn :text "hit edge of map"}]
+                 (:thens result))))
+
+    (it "parses error message contains config key"
+      (let [lines ["THEN the error message contains :fighter-out-of-fuel."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :message-contains :area :error :config-key :fighter-out-of-fuel}]
+                 (:thens result))))
+
+    (it "parses error message is config key"
+      (let [lines ["THEN the error message is :conquest-failed."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :message-is :area :error :config-key :conquest-failed}]
+                 (:thens result))))
+
+    (it "parses no message"
+      (let [lines ["THEN there is no attention message."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :no-message :area :attention}]
+                 (:thens result))))
+
+    (it "parses cell property"
+      (let [lines ["THEN cell [1 0] has city-status player."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :cell-prop :coords [1 0] :property :city-status :expected :player}]
+                 (:thens result))))
+
+    (it "parses cell type"
+      (let [lines ["THEN cell [0 0] is a city."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :cell-type :coords [0 0] :expected :city}]
+                 (:thens result))))
+
+    (it "parses waiting-for-input true"
+      (let [lines ["THEN waiting-for-input."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :waiting-for-input :expected true}]
+                 (:thens result))))
+
+    (it "parses not waiting-for-input"
+      (let [lines ["THEN not waiting-for-input."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :waiting-for-input :expected false}]
+                 (:thens result))))
+
+    (it "parses unit-at-next-round"
+      (let [lines ["THEN at next round F will be at =."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-at-next-round :unit "F" :target "="}]
+                 (:thens result))))
+
+    (it "parses unit-at-next-round D"
+      (let [lines ["THEN at next round D will be at =."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-at-next-round :unit "D" :target "="}]
+                 (:thens result))))
+
+    (it "parses eventually at"
+      (let [lines ["THEN eventually A will be at %."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-eventually-at :unit "A" :target "%"}]
+                 (:thens result))))
+
+    (it "parses and-continuation"
+      (let [lines ["THEN F wakes up and asks for input,"
+                   "and the out-of-fuel message is displayed."]
+            result (parser/parse-then lines {})]
+        (should (>= (count (:thens result)) 2))))
+
+    (it "parses 'F is waiting for input'"
+      (let [lines ["THEN F is waiting for input."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-waiting-for-input :unit "F"}]
+                 (:thens result))))
+
+    (it "parses compound then with 'at the next round O has one fighter' and 'no fighter on the map'"
+      (let [lines ["THEN at the next round O has one fighter in its airport and there is no fighter on the map."]
+            result (parser/parse-then lines {})]
+        (should= 2 (count (:thens result)))
+        (should= :container-prop (:type (first (:thens result))))
+        (should= :unit-absent (:type (second (:thens result))))))
+
+    (it "parses 'D occupies the s cell'"
+      (let [lines ["THEN at the next round D occupies the s cell and there is no s."]
+            result (parser/parse-then lines {})]
+        (should (>= (count (:thens result)) 2))
+        (should= :unit-occupies-cell (:type (first (:thens result))))))
+
+    (it "parses 's remains unmoved'"
+      (let [lines ["THEN at the next round s remains unmoved."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-unmoved :unit "s"}]
+                 (:thens result))))
+
+    (it "parses 'O has no fighters'"
+      (let [lines ["and O has no fighters."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :container-prop :target "O" :property :fighter-count :expected 0 :lookup :city}]
+                 (:thens result))))
+
+    (it "parses 'C has one fighter aboard'"
+      (let [lines ["THEN At the next round C has one fighter aboard"]
+            result (parser/parse-then lines {})]
+        (should= [{:type :container-prop :target "C" :property :fighter-count :expected 1 :lookup :unit}]
+                 (:thens result))))
+
+    (it "parses message contains :fighter-bingo"
+      (let [lines ["and the attention message contains :fighter-bingo."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :message-contains :area :attention :config-key :fighter-bingo}]
+                 (:thens result)))))
+
+  (describe "parse-file integration"
+    (it "parses army.txt correctly"
+      (let [result (parser/parse-file "acceptanceTests/army.txt")]
+        (should= "army.txt" (:source result))
+        (should= 6 (count (:tests result)))
+        (should= 7 (:line (first (:tests result))))
+        (should= "Army put to sentry mode." (:description (first (:tests result))))))
+
+    (it "parses fighter.txt correctly"
+      (let [result (parser/parse-file "acceptanceTests/fighter.txt")]
+        (should= "fighter.txt" (:source result))
+        (should= 9 (count (:tests result)))))
+
+    (it "parses destroyer.txt correctly"
+      (let [result (parser/parse-file "acceptanceTests/destroyer.txt")]
+        (should= "destroyer.txt" (:source result))
+        (should= 4 (count (:tests result)))))
+
+    (it "parses backtick-commands.txt correctly"
+      (let [result (parser/parse-file "acceptanceTests/backtick-commands.txt")]
+        (should= "backtick-commands.txt" (:source result))
+        (should= 13 (count (:tests result)))))))

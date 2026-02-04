@@ -424,7 +424,27 @@
     (let [result (gen/generate-then {:type :player-map-cell-nil :coords [1 2]} [])]
       (should-contain "should-be-nil" result)
       (should-contain "atoms/player-map" result)
-      (should-contain "[1 2]" result))))
+      (should-contain "[1 2]" result)))
+
+  (it "generates production-with-rounds then"
+    (let [result (gen/generate-then {:type :production-with-rounds :city "O" :expected :army :remaining-rounds 5} [])]
+      (should-contain "should=" result)
+      (should-contain ":army" result)
+      (should-contain ":remaining-rounds" result)
+      (should-contain "5" result)
+      (should-contain "get-test-city" result)))
+
+  (it "generates cell-props given with coordinate value"
+    (let [result (gen/generate-given {:type :cell-props :coords [0 0] :props {:marching-orders [4 0]}})]
+      (should-contain "update-in" result)
+      (should-contain "[4 0]" result)
+      (should-contain ":marching-orders" result)))
+
+  (it "generates cell-props given with keyword value"
+    (let [result (gen/generate-given {:type :cell-props :coords [0 0] :props {:marching-orders :lookaround}})]
+      (should-contain "update-in" result)
+      (should-contain ":lookaround" result)
+      (should-contain ":marching-orders" result))))
 
 ;; --- Integration: generate-spec on actual EDN data ---
 

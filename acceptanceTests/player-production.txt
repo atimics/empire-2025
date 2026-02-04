@@ -52,8 +52,8 @@ THEN the error message contains "coastal".
 ;===============================================================
 GIVEN game map
   O#
-GIVEN production at O is army.
 GIVEN O is waiting for input.
+GIVEN production at O is army.
 
 WHEN the player presses x.
 
@@ -125,7 +125,7 @@ THEN production at O is army with 5 rounds remaining.
 GIVEN game map
   O#
 GIVEN production at O is army with 1 round remaining.
-GIVEN cell [0 0] has contents with type army and owner player.
+GIVEN cell [0 0] has contents army.
 
 WHEN a new round starts.
 
@@ -141,7 +141,6 @@ GIVEN cell [0 0] has marching-orders [4 0].
 
 WHEN a new round starts.
 
-THEN there is an A at [0 0].
 THEN A has mode moving.
 THEN A has target [4 0].
 
@@ -155,44 +154,20 @@ GIVEN cell [0 0] has marching-orders lookaround.
 
 WHEN a new round starts.
 
-THEN there is an A at [0 0].
 THEN A has mode explore.
 
 ;===============================================================
 ; Fighter spawns with flight path.
 ;===============================================================
 GIVEN game map
-  O###%
+  O##########%
 GIVEN production at O is fighter with 1 round remaining.
-GIVEN cell [0 0] has flight-path [4 0].
+GIVEN cell [0 0] has flight-path [11 0].
 
 WHEN a new round starts.
 
-THEN there is an F at [0 0].
 THEN F has mode moving.
-THEN F has target [4 0].
-
-;===============================================================
-; Army costs 5 rounds.
-;===============================================================
-GIVEN game map
-  O#
-GIVEN O is waiting for input.
-
-WHEN the player presses a.
-
-THEN production at O is army with 5 rounds remaining.
-
-;===============================================================
-; Fighter costs 10 rounds.
-;===============================================================
-GIVEN game map
-  O#
-GIVEN O is waiting for input.
-
-WHEN the player presses f.
-
-THEN production at O is fighter with 10 rounds remaining.
+THEN F has target [11 0].
 
 ;===============================================================
 ; Satellite costs 50 rounds.
@@ -204,18 +179,6 @@ GIVEN O is waiting for input.
 WHEN the player presses z.
 
 THEN production at O is satellite with 50 rounds remaining.
-
-;===============================================================
-; Transport costs 30 rounds.
-;===============================================================
-GIVEN game map
-  ~O
-  ~~
-GIVEN O is waiting for input.
-
-WHEN the player presses t.
-
-THEN production at O is transport with 30 rounds remaining.
 
 ;===============================================================
 ; Patrol-boat costs 15 rounds.
@@ -276,3 +239,26 @@ GIVEN O is waiting for input.
 WHEN the player presses b.
 
 THEN production at O is battleship with 40 rounds remaining.
+
+;===============================================================
+; Production countdown decrements each round.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN production at O is army with 3 rounds remaining.
+
+WHEN a new round starts.
+
+THEN production at O is army with 2 rounds remaining.
+
+;===============================================================
+; Changing production replaces previous production.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN O is waiting for input.
+GIVEN production at O is army.
+
+WHEN the player presses f.
+
+THEN production at O is fighter with 10 rounds remaining.

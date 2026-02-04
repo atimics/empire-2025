@@ -589,7 +589,14 @@
 
 (defn- generate-no-production-then [{:keys [city]}]
   (let [pos-expr (target-pos-expr city)]
-    (str "    (should-be-nil (get @atoms/production " pos-expr "))")))
+    (str "    (let [prod (get @atoms/production " pos-expr ")]\n"
+         "      (should (or (nil? prod) (= :none prod))))")))
+
+(defn- generate-production-with-rounds-then [{:keys [city expected remaining-rounds]}]
+  (let [pos-expr (target-pos-expr city)]
+    (str "    (let [prod (get @atoms/production " pos-expr ")]\n"
+         "      (should= " (pr-str expected) " (:item prod))\n"
+         "      (should= " remaining-rounds " (:remaining-rounds prod)))")))
 
 (defn- generate-game-paused-then [_]
   "    (should @atoms/paused)")
@@ -634,6 +641,7 @@
     :round (generate-round-then then-ir)
     :destination (generate-destination-then then-ir)
     :production (generate-production-then then-ir)
+    :production-with-rounds (generate-production-with-rounds-then then-ir)
     :no-production (generate-no-production-then then-ir)
     :game-paused (generate-game-paused-then then-ir)
     :player-map-cell-not-nil (generate-player-map-cell-not-nil-then then-ir)

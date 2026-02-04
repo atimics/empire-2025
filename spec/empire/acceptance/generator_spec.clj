@@ -1,13 +1,10 @@
 (ns empire.acceptance.generator-spec
   (:require [speclj.core :refer :all]
             [empire.acceptance.generator :as gen]
-            [clojure.string :as str]
-            [clojure.edn :as edn]))
+            [clojure.string :as str]))
 
-;; --- Helper to load EDN test data ---
-
-(defn- load-edn [filename]
-  (edn/read-string (slurp (str "acceptanceTests/edn/" filename))))
+(defn- stub-test [n desc]
+  {:line n :description desc :givens [] :whens [] :thens []})
 
 (defn- normalize-whitespace [s]
   (-> s
@@ -431,7 +428,38 @@
 (describe "generate-spec integration"
 
   (it "generates army spec with correct ns form"
-    (let [edn-data (load-edn "army.edn")
+    (let [edn-data {:source "army.txt"
+                    :tests [{:line 7 :description "Army put to sentry mode."
+                             :givens [{:type :map :target :game-map :rows ["A#"]}
+                                      {:type :waiting-for-input :unit "A" :set-mode true}]
+                             :whens [{:type :key-press :key :s :input-fn :key-down}]
+                             :thens [{:type :unit-prop :unit "A" :property :mode :expected :sentry}]}
+                            {:line 18 :description "Army set to explore mode."
+                             :givens [{:type :map :target :game-map :rows ["A#"]}
+                                      {:type :waiting-for-input :unit "A" :set-mode true}]
+                             :whens [{:type :key-press :key :l :input-fn :key-down}]
+                             :thens [{:type :unit-prop :unit "A" :property :mode :expected :explore}]}
+                            {:line 29 :description "Army wakes near hostile city with reason."
+                             :givens [{:type :map :target :game-map :rows ["A#+"]}
+                                      {:type :unit-target :unit "A" :target "+"}]
+                             :whens [{:type :start-new-round}]
+                             :thens [{:type :unit-prop :unit "A" :property :mode :expected :awake}
+                                     {:type :message-contains :area :attention :config-key :army-found-city}]}
+                            {:line 41 :description "Army conquers free city."
+                             :givens [{:type :map :target :game-map :rows ["A+"]}
+                                      {:type :waiting-for-input :unit "A" :set-mode true}]
+                             :whens [{:type :battle :key :d :outcome :win :combat-type :army}]
+                             :thens [{:type :cell-prop :coords [1 0] :property :city-status :expected :player}]}
+                            {:line 52 :description "Army skips round with space."
+                             :givens [{:type :map :target :game-map :rows ["A#"]}
+                                      {:type :waiting-for-input :unit "A" :set-mode true}]
+                             :whens [{:type :key-press :key :space :input-fn :key-down}]
+                             :thens [{:type :waiting-for-input :expected false}]}
+                            {:line 63 :description "Army blocked by friendly city."
+                             :givens [{:type :map :target :game-map :rows ["AO"]}
+                                      {:type :waiting-for-input :unit "A" :set-mode true}]
+                             :whens [{:type :key-press :key :d :input-fn :handle-key}]
+                             :thens [{:type :message-contains :area :attention :config-key :cant-move-into-city :at-next-step true}]}]}
           result (gen/generate-spec edn-data)]
       (should-contain "(ns acceptance.army-spec" result)
       (should-contain "speclj.core :refer :all" result)
@@ -441,17 +469,25 @@
       (should-contain "quil.core :as q" result)))
 
   (it "generates army spec with correct describe"
-    (let [edn-data (load-edn "army.edn")
+    (let [edn-data {:source "army.txt"
+                    :tests [(stub-test 1 "test")]}
           result (gen/generate-spec edn-data)]
       (should-contain "(describe \"army.txt\"" result)))
 
   (it "generates army spec with all 6 tests"
-    (let [edn-data (load-edn "army.edn")
+    (let [edn-data {:source "army.txt"
+                    :tests (mapv #(stub-test % (str "test " %)) (range 1 7))}
           result (gen/generate-spec edn-data)]
       (should= 6 (count (re-seq #"\(it " result)))))
 
   (it "generates army spec with correct test descriptions"
-    (let [edn-data (load-edn "army.edn")
+    (let [edn-data {:source "army.txt"
+                    :tests [{:line 7 :description "Army put to sentry mode." :givens [] :whens [] :thens []}
+                            {:line 18 :description "Army set to explore mode." :givens [] :whens [] :thens []}
+                            {:line 29 :description "Army wakes near hostile city with reason." :givens [] :whens [] :thens []}
+                            {:line 41 :description "Army conquers free city." :givens [] :whens [] :thens []}
+                            {:line 52 :description "Army skips round with space." :givens [] :whens [] :thens []}
+                            {:line 63 :description "Army blocked by friendly city." :givens [] :whens [] :thens []}]}
           result (gen/generate-spec edn-data)]
       (should-contain "army.txt:7 - Army put to sentry mode" result)
       (should-contain "army.txt:18 - Army set to explore mode" result)
@@ -461,49 +497,82 @@
       (should-contain "army.txt:63 - Army blocked by friendly city" result)))
 
   (it "generates army spec sentry test with correct assertions"
-    (let [edn-data (load-edn "army.edn")
+    (let [edn-data {:source "army.txt"
+                    :tests [{:line 7 :description "Army put to sentry mode."
+                             :givens [{:type :map :target :game-map :rows ["A#"]}
+                                      {:type :waiting-for-input :unit "A" :set-mode true}]
+                             :whens [{:type :key-press :key :s :input-fn :key-down}]
+                             :thens [{:type :unit-prop :unit "A" :property :mode :expected :sentry}]}]}
           result (gen/generate-spec edn-data)]
       (should-contain "build-test-map [\"A#\"]" result)
       (should-contain "(should= :sentry (:mode (:unit (get-test-unit atoms/game-map \"A\"))))" result)))
 
   (it "generates backtick-commands spec with correct ns form"
-    (let [edn-data (load-edn "backtick-commands.edn")
+    (let [edn-data {:source "backtick-commands.txt"
+                    :tests [{:line 6 :description "Spawn army."
+                             :givens [{:type :map :target :game-map :rows ["##"]}]
+                             :whens [{:type :backtick :key :A :mouse-cell [0 0]}]
+                             :thens [{:type :unit-present :unit "A" :coords [0 0]}]}]}
           result (gen/generate-spec edn-data)]
       (should-contain "(ns acceptance.backtick-commands-spec" result)
       (should-contain "quil.core :as q" result)))
 
   (it "generates backtick-commands spec with all 13 tests"
-    (let [edn-data (load-edn "backtick-commands.edn")
+    (let [edn-data {:source "backtick-commands.txt"
+                    :tests (into [{:line 6 :description "Spawn army."
+                                   :givens [] :whens [{:type :backtick :key :A :mouse-cell [0 0]}] :thens []}]
+                                 (mapv #(stub-test % (str "test " %)) (range 2 14)))}
           result (gen/generate-spec edn-data)]
       (should= 13 (count (re-seq #"\(it " result)))))
 
   (it "generates backtick-commands spec with map-screen-dimensions"
-    (let [edn-data (load-edn "backtick-commands.edn")
+    (let [edn-data {:source "backtick-commands.txt"
+                    :tests [{:line 6 :description "Spawn army."
+                             :givens [{:type :map :target :game-map :rows ["##"]}]
+                             :whens [{:type :backtick :key :A :mouse-cell [0 0]}]
+                             :thens []}]}
           result (gen/generate-spec edn-data)]
       (should-contain "map-screen-dimensions" result)))
 
   (it "generates destroyer spec with all 4 tests"
-    (let [edn-data (load-edn "destroyer.edn")
+    (let [edn-data {:source "destroyer.txt"
+                    :tests (mapv #(stub-test % (str "test " %)) (range 1 5))}
           result (gen/generate-spec edn-data)]
       (should= 4 (count (re-seq #"\(it " result)))))
 
   (it "generates destroyer spec with advance-game for ship battles"
-    (let [edn-data (load-edn "destroyer.edn")
+    (let [edn-data {:source "destroyer.txt"
+                    :tests [{:line 17 :description "Destroyer attacks enemy ship."
+                             :givens [{:type :map :target :game-map :rows ["Ds"]}
+                                      {:type :waiting-for-input :unit "D" :set-mode true}]
+                             :whens [{:type :battle :key :d :outcome :win :combat-type :ship}]
+                             :thens [{:type :unit-occupies-cell :unit "D" :target-unit "s"}]}]}
           result (gen/generate-spec edn-data)]
       (should-contain "advance-game" result)))
 
   (it "generates fighter spec with all 9 tests"
-    (let [edn-data (load-edn "fighter.edn")
+    (let [edn-data {:source "fighter.txt"
+                    :tests (mapv #(stub-test % (str "test " %)) (range 1 10))}
           result (gen/generate-spec edn-data)]
       (should= 9 (count (re-seq #"\(it " result)))))
 
   (it "generates fighter spec with advance-until-next-round helper"
-    (let [edn-data (load-edn "fighter.edn")
+    (let [edn-data {:source "fighter.txt"
+                    :tests [{:line 104 :description "Fighter speed is 8 per round."
+                             :givens [{:type :map :target :game-map :rows ["F~~~~~~~~=~"]}
+                                      {:type :waiting-for-input :unit "F" :set-mode true}]
+                             :whens [{:type :key-press :key :D :input-fn :key-down}]
+                             :thens [{:type :unit-at-next-round :unit "F" :target "=" :at-next-round true}]}]}
           result (gen/generate-spec edn-data)]
       (should-contain "defn- advance-until-next-round" result)))
 
   (it "generates advance-until-next-round with loop and timeout"
-    (let [edn-data (load-edn "fighter.edn")
+    (let [edn-data {:source "fighter.txt"
+                    :tests [{:line 104 :description "Fighter speed is 8 per round."
+                             :givens [{:type :map :target :game-map :rows ["F~~~~~~~~=~"]}
+                                      {:type :waiting-for-input :unit "F" :set-mode true}]
+                             :whens [{:type :key-press :key :D :input-fn :key-down}]
+                             :thens [{:type :unit-at-next-round :unit "F" :target "=" :at-next-round true}]}]}
           result (gen/generate-spec edn-data)]
       (should-contain "loop [n 100]" result)
       (should-contain ":timeout" result)

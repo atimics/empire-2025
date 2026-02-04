@@ -27,8 +27,8 @@ THEN A has mode explore.
 ; Army wakes near hostile city with reason.
 ;===============================================================
 GIVEN game map
-  A+
-A is explore.
+  A#+
+A's target is +
 
 WHEN the next round begins
 
@@ -66,4 +66,4 @@ GIVEN A is waiting for input.
 
 WHEN the player presses d.
 
-THEN the attention message contains :cant-move-into-city.
+THEN at the next round the attention message contains :cant-move-into-city.

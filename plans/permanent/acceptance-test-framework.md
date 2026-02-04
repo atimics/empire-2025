@@ -447,37 +447,35 @@ THEN at next round A will be at %.
 THEN at next round D will be at =.
 ```
 
-Asserts the unit's position after one full round of movement. Requires three `advance-game` calls:
-
-1. **Drain** — after `handle-key`, the unit's old position is still in `player-items` with no `steps-remaining` set (defaults to 1). The first advance processes that leftover item.
-2. **Start round** — both lists are now empty, so `advance-game` calls `start-new-round`, which sets `steps-remaining` to the unit's speed and rebuilds `player-items`.
-3. **Process round** — the unit moves up to its full speed (e.g., 8 for fighters, 2 for destroyers, 1 for armies).
-
-Translates to:
+Asserts the unit's position after one full round of movement. Use the `advance-until-next-round` helper to drain the current round, cross the round boundary, and process the first batch of the new round:
 
 ```clojure
-;; Drain leftover, start new round, process round
-(dotimes [_ 3] (game-loop/advance-game))
+(advance-until-next-round)
 (let [{:keys [pos]} (get-test-unit atoms/game-map "A")
       target-pos (:pos (get-test-cell atoms/game-map "%"))]
   (should= target-pos pos))
 ```
 
+**Important:** Do NOT use `(dotimes [_ 3] (game-loop/advance-game))` or any fixed number of advances. The number of `advance-game` calls needed to reach a round boundary varies depending on game state (player cities needing attention, number of items in lists, etc.). Always use `advance-until-next-round` which watches `atoms/round-number` for the transition.
+
 **Map sizing:** The target cell (`%` or `=`) must be placed at a distance of `1 + speed` from the unit's starting position — 1 cell for the drain step plus `speed` cells for the full round. For example, a fighter (speed 8) starting at position 0 needs the target at position 9: `F~~~~~~~~=` (10 cells).
 
-**Timing after combat WHENs:** When the WHEN clause includes `advance-game` (e.g., ship combat with `with-redefs`), the THEN assertions check state **immediately after** — no additional advances needed. The 3-advance pattern only applies after WHENs that only press a key. The phrase "at the next round" in a THEN after a combat WHEN means "after the combat resolves," not "after 3 more advances."
+**Timing after combat WHENs:** When the WHEN clause includes `advance-game` (e.g., ship combat with `with-redefs`), the THEN assertions check state **immediately after** — no additional advances needed. The `advance-until-next-round` pattern only applies after WHENs that only press a key. The phrase "at the next round" in a THEN after a combat WHEN means "after the combat resolves," not "after more advances."
 
 ```
 THEN eventually A will be at %.
 ```
 
-For movements that take multiple rounds (target farther than one round of movement). Advances game enough times to guarantee arrival:
+For movements that take multiple rounds (target farther than one round of movement). Advances through rounds until the unit arrives at the target:
 
 ```clojure
-(dotimes [_ 20] (game-loop/advance-game))
-(let [{:keys [pos]} (get-test-unit atoms/game-map "A")
-      target-pos (:pos (get-test-cell atoms/game-map "%"))]
-  (should= target-pos pos))
+(let [target-pos (:pos (get-test-cell atoms/game-map "%"))]
+  (loop [rounds 0]
+    (when (and (< rounds 20)
+               (not= target-pos (:pos (get-test-unit atoms/game-map "A"))))
+      (advance-until-next-round)
+      (recur (inc rounds))))
+  (should= target-pos (:pos (get-test-unit atoms/game-map "A"))))
 ```
 
 ## Rules
@@ -816,7 +814,9 @@ For tests about fighter fuel events during round start:
 
 ### Advance Until Next Round
 
-When a WHEN action puts a unit into a non-attention state (e.g., `:moving` from `handle-key`, or `:explore` at round start) and the THEN asserts an attention message or wake state, the unit must be processed through a complete round before getting attention. Use a helper that watches `atoms/round-number`:
+**This is the canonical pattern for all "at next round" / "at the next round" THEN assertions.** Never use `(dotimes [_ N] ...)` with a fixed count — the number of `advance-game` calls needed varies with game state.
+
+Every spec that uses "at next round" assertions must include this helper:
 
 ```clojure
 (defn- advance-until-next-round []
@@ -829,9 +829,12 @@ When a WHEN action puts a unit into a non-attention state (e.g., `:moving` from 
 The loop drains the current round (processes all movement, explore, etc.), then detects when `start-new-round` increments the round number and exits. The final `advance-game` processes the first batch of the new round, giving newly-awake units attention.
 
 Use this when:
-- `handle-key` sets a unit to `:moving` and the THEN checks a wake reason or message
+- Any THEN says "at next round" or "at the next round" (position, state, or message assertions)
+- `handle-key` sets a unit to `:moving` and the THEN checks position, wake reason, or message
 - `start-new-round` triggers explore processing and the THEN checks the result
 - Any WHEN that starts automated movement followed by THENs about the outcome
+
+**Do NOT use** `(dotimes [_ 3] (game-loop/advance-game))` or any other fixed advance count. Player cities without production, extra units on the map, and other state can change how many advances are needed to cross a round boundary.
 
 ### Additional THEN Patterns
 

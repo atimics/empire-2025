@@ -34,95 +34,88 @@
   [nodes]
   (set (map :type nodes)))
 
+(defn- build-need-context
+  "Pre-compute aggregated data from a single test for need-rules."
+  [test]
+  (let [givens (:givens test)
+        whens (:whens test)
+        thens (:thens test)
+        all-nodes (concat givens whens thens)
+        types (node-types all-nodes)
+        then-targets (keep :target thens)
+        given-pi-targets (mapcat :items (filter #(= :player-items (:type %)) givens))
+        given-ut-targets (keep :target (filter #(= :unit-target (:type %)) givens))
+        given-prod-cities (keep :city (filter #(= :production (:type %)) givens))
+        all-targets (concat then-targets given-pi-targets given-ut-targets given-prod-cities)
+        map-rows (:rows (first (filter #(= :map (:type %)) givens)))
+        wfi-units (keep #(when (= :waiting-for-input (:type %)) (:unit %)) givens)]
+    {:givens givens :whens whens :thens thens
+     :types types :all-targets all-targets
+     :map-rows map-rows :wfi-units wfi-units}))
+
+(def ^:private need-rules
+  [{:need :config
+    :pred (fn [{:keys [thens whens]}]
+            (some :config-key (concat thens whens)))}
+   {:need :game-loop
+    :pred (fn [{:keys [types whens thens]}]
+            (or (some #{:start-new-round :advance-game :advance-game-batch :visibility-update} types)
+                (some #{:unit-at-next-round :unit-after-moves :unit-after-steps :message-for-unit} types)
+                (some #(= :battle (:type %)) whens)
+                (some :at-next-round thens)
+                (some :at-next-step thens)))}
+   {:need :item-processing
+    :pred (fn [{:keys [givens whens types]}]
+            (or (some #(= :waiting-for-input (:type %)) (concat givens whens))
+                (some #{:process-player-items} types)))}
+   {:need :get-test-cell
+    :pred (fn [{:keys [all-targets]}]
+            (some #(or (= "=" %) (= "%" %)) all-targets))}
+   {:need :get-test-city
+    :pred (fn [{:keys [all-targets thens givens map-rows wfi-units]}]
+            (or (some #(contains? city-chars %) all-targets)
+                (some #(contains? city-chars %) (keep :target-unit thens))
+                (some #(and (= :container-prop (:type %)) (= :city (:lookup %))) thens)
+                (some #(and (= :container-state (:type %))
+                            (contains? city-chars (:target %))) givens)
+                (some #(and (= :production (:type %))
+                            (contains? city-chars (:city %))) givens)
+                (some #(and (= :waiting-for-input (:type %))
+                            (contains? city-chars (:unit %))) givens)
+                (some (fn [u] (and (not (contains? city-chars u))
+                                   map-rows
+                                   (not (some #(str/includes? % u) map-rows)))) wfi-units)))}
+   {:need :make-initial-test-map
+    :pred (fn [{:keys [givens whens]}]
+            (some #(= :waiting-for-input (:type %)) (concat givens whens)))}
+   {:need :advance-until-waiting-helper
+    :needs-also #{:quil :game-loop}
+    :pred (fn [{:keys [whens thens]}]
+            (or (some #(= :advance-until-waiting (:type %)) whens)
+                (some #(= :unit-waiting-for-input (:type %)) thens)))}
+   {:need :quil
+    :pred (fn [{:keys [whens]}]
+            (or (some #(and (= :key-press (:type %)) (= :key-down (:input-fn %))) whens)
+                (some #(= :backtick (:type %)) whens)
+                (some #(= :mouse-at-key (:type %)) whens)))}
+   {:need :advance-helper
+    :pred (fn [{:keys [types thens]}]
+            (or (some #{:unit-eventually-at :unit-after-steps} types)
+                (some :at-next-round thens)
+                (some #(and (= :unit-at-next-round (:type %))
+                            (not (:at-next-step %))) thens)))}])
+
 (defn determine-needs
   "Scan all IR nodes across all tests. Returns a set of keywords
    indicating which requires/helpers are needed."
   [tests]
-  (let [needs (atom #{})]
-    (doseq [test tests]
-      (let [givens (:givens test)
-            whens (:whens test)
-            thens (:thens test)
-            all-nodes (concat givens whens thens)
-            types (node-types all-nodes)]
-        ;; :config — any message assertion with :config-key
-        (when (some :config-key (concat thens whens))
-          (swap! needs conj :config))
-        ;; :game-loop
-        (when (some #{:start-new-round :advance-game :advance-game-batch :visibility-update} types)
-          (swap! needs conj :game-loop))
-        (when (some #{:unit-at-next-round :unit-after-moves :unit-after-steps :message-for-unit} types)
-          (swap! needs conj :game-loop))
-        ;; battle whens with :ship combat-type need advance-game
-        (when (some #(= :battle (:type %)) whens)
-          (swap! needs conj :game-loop))
-        ;; :item-processing
-        (when (some #(= :waiting-for-input (:type %)) (concat givens whens))
-          (swap! needs conj :item-processing))
-        (when (some #{:process-player-items} types)
-          (swap! needs conj :item-processing))
-        ;; Collect targets that actually generate target-pos-expr calls
-        ;; thens: :target from unit-at-next-round, unit-after-moves, unit-after-steps, unit-eventually-at, unit-present
-        ;; givens: :player-items, :unit-target, and :production use target-pos-expr
-        (let [then-targets (keep :target thens)
-              given-pi-targets (mapcat :items (filter #(= :player-items (:type %)) givens))
-              given-ut-targets (keep :target (filter #(= :unit-target (:type %)) givens))
-              given-prod-cities (keep :city (filter #(= :production (:type %)) givens))
-              all-targets (concat then-targets given-pi-targets given-ut-targets given-prod-cities)]
-          ;; :get-test-cell
-          (when (some #(or (= "=" %) (= "%" %)) all-targets)
-            (swap! needs conj :get-test-cell))
-          ;; :get-test-city (from targets)
-          (when (some #(contains? city-chars %) all-targets)
-            (swap! needs conj :get-test-city)))
-        ;; :get-test-city (from target-unit in thens)
-        (when (some #(contains? city-chars %) (keep :target-unit thens))
-          (swap! needs conj :get-test-city))
-        (when (some #(and (= :container-prop (:type %)) (= :city (:lookup %))) thens)
-          (swap! needs conj :get-test-city))
-        (when (some #(and (= :container-state (:type %))
-                          (contains? city-chars (:target %))) givens)
-          (swap! needs conj :get-test-city))
-        ;; :get-test-city from production givens referencing a city
-        (when (some #(and (= :production (:type %))
-                          (contains? city-chars (:city %))) givens)
-          (swap! needs conj :get-test-city))
-        ;; :get-test-city from waiting-for-input with city unit
-        (when (some #(and (= :waiting-for-input (:type %))
-                          (contains? city-chars (:unit %))) givens)
-          (swap! needs conj :get-test-city))
-        ;; :get-test-city from waiting-for-input with unit not on map (airport fighter)
-        (let [map-rows (:rows (first (filter #(= :map (:type %)) givens)))
-              wfi-units (keep #(when (= :waiting-for-input (:type %)) (:unit %)) givens)
-              has-airport-unit? (some (fn [u] (and (not (contains? city-chars u))
-                                                    map-rows
-                                                    (not (some #(str/includes? % u) map-rows)))) wfi-units)]
-          (when has-airport-unit?
-            (swap! needs conj :get-test-city)))
-        ;; :make-initial-test-map
-        (when (some #(= :waiting-for-input (:type %)) (concat givens whens))
-          (swap! needs conj :make-initial-test-map))
-        ;; :advance-until-waiting-helper
-        (when (or (some #(= :advance-until-waiting (:type %)) whens)
-                  (some #(= :unit-waiting-for-input (:type %)) thens))
-          (swap! needs conj :advance-until-waiting-helper :quil :game-loop))
-        ;; :quil
-        (when (some #(and (= :key-press (:type %)) (= :key-down (:input-fn %))) whens)
-          (swap! needs conj :quil))
-        (when (some #(= :backtick (:type %)) whens)
-          (swap! needs conj :quil))
-        (when (some #(= :mouse-at-key (:type %)) whens)
-          (swap! needs conj :quil))
-        ;; :advance-helper — unit-at-next-round (without at-next-step), unit-eventually-at, unit-after-steps, or :at-next-round flag
-        (when (or (some #{:unit-eventually-at :unit-after-steps} types)
-                  (some :at-next-round thens)
-                  (some #(and (= :unit-at-next-round (:type %))
-                              (not (:at-next-step %))) thens))
-          (swap! needs conj :advance-helper))
-        (when (or (some :at-next-round thens)
-                  (some :at-next-step thens))
-          (swap! needs conj :game-loop))))
-    @needs))
+  (let [all-contexts (map build-need-context tests)]
+    (reduce (fn [needs {:keys [need pred] :as rule}]
+              (if (some pred all-contexts)
+                (apply conj needs need (seq (or (:needs-also rule) [])))
+                needs))
+            #{}
+            need-rules)))
 
 ;; --- NS form generation ---
 

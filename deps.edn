@@ -19,5 +19,7 @@
 					                  :extra-paths ["spec"]}
 					 :parse-tests {:main-opts ["-m" "empire.acceptance.parser"]
 					               :extra-paths ["spec"]}
+					 :generate-specs {:main-opts ["-m" "empire.acceptance.generator"]
+					                  :extra-paths ["generated-acceptance-specs"]}
 				 }
 			 }

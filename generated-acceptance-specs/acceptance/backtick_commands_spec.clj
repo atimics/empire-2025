@@ -1,7 +1,6 @@
 (ns acceptance.backtick-commands-spec
   (:require [speclj.core :refer :all]
-            [empire.test-utils :refer [build-test-map get-test-unit
-                                       reset-all-atoms!]]
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit reset-all-atoms!]]
             [empire.atoms :as atoms]
             [empire.ui.input :as input]
             [quil.core :as q]))
@@ -10,19 +9,14 @@
 
   (it "backtick-commands.txt:6 - Spawn player army on land"
     (reset-all-atoms!)
-    ;; GIVEN game map
     (reset! atoms/game-map (build-test-map ["##"]))
-    ;; Set map-screen-dimensions so on-map? returns true for mouse at (0,0)
     (reset! atoms/map-screen-dimensions [22 16])
-    ;; WHEN the mouse is at cell [0 0] and the player presses backtick then A
     (with-redefs [q/mouse-x (constantly 0)
                   q/mouse-y (constantly 0)]
       (input/key-down (keyword "`"))
       (input/key-down :A))
-    ;; THEN there is an A at [0 0]
     (let [{:keys [pos]} (get-test-unit atoms/game-map "A")]
       (should= [0 0] pos))
-    ;; THEN A has owner player
     (should= :player (:owner (:unit (get-test-unit atoms/game-map "A")))))
 
   (it "backtick-commands.txt:17 - Spawn player fighter on land"
@@ -117,10 +111,8 @@
                   q/mouse-y (constantly 0)]
       (input/key-down (keyword "`"))
       (input/key-down :Z))
-    ;; THEN there is a V at [0 0] (V = satellite)
     (let [{:keys [pos]} (get-test-unit atoms/game-map "V")]
       (should= [0 0] pos))
-    ;; THEN V has owner player
     (should= :player (:owner (:unit (get-test-unit atoms/game-map "V")))))
 
   (it "backtick-commands.txt:105 - Spawn computer army on land"
@@ -131,10 +123,8 @@
                   q/mouse-y (constantly 0)]
       (input/key-down (keyword "`"))
       (input/key-down :a))
-    ;; THEN there is an a at [0 0]
     (let [{:keys [pos]} (get-test-unit atoms/game-map "a")]
       (should= [0 0] pos))
-    ;; THEN a has owner computer
     (should= :computer (:owner (:unit (get-test-unit atoms/game-map "a")))))
 
   (it "backtick-commands.txt:116 - Spawn computer fighter on land"
@@ -145,10 +135,8 @@
                   q/mouse-y (constantly 0)]
       (input/key-down (keyword "`"))
       (input/key-down :f))
-    ;; THEN there is an f at [0 0]
     (let [{:keys [pos]} (get-test-unit atoms/game-map "f")]
       (should= [0 0] pos))
-    ;; THEN f has owner computer
     (should= :computer (:owner (:unit (get-test-unit atoms/game-map "f")))))
 
   (it "backtick-commands.txt:127 - Own free city at mouse"
@@ -159,7 +147,6 @@
                   q/mouse-y (constantly 0)]
       (input/key-down (keyword "`"))
       (input/key-down :o))
-    ;; THEN cell [0 0] has city-status player
     (should= :player (:city-status (get-in @atoms/game-map [0 0]))))
 
   (it "backtick-commands.txt:137 - Own computer city at mouse"
@@ -170,5 +157,4 @@
                   q/mouse-y (constantly 0)]
       (input/key-down (keyword "`"))
       (input/key-down :o))
-    ;; THEN cell [0 0] has city-status player
     (should= :player (:city-status (get-in @atoms/game-map [0 0])))))

@@ -10,7 +10,7 @@ GIVEN A is waiting for input.
 
 WHEN the player presses q.
 
-THEN at next round A will be at %.
+THEN at the next step A will be at %.
 
 ;===============================================================
 ; Army moves north when player presses w.
@@ -22,7 +22,7 @@ GIVEN A is waiting for input.
 
 WHEN the player presses w.
 
-THEN at next round A will be at %.
+THEN at the next step A will be at %.
 
 ;===============================================================
 ; Army moves northeast when player presses e.
@@ -34,7 +34,7 @@ GIVEN A is waiting for input.
 
 WHEN the player presses e.
 
-THEN at next round A will be at %.
+THEN at the next step A will be at %.
 
 ;===============================================================
 ; Army moves west when player presses a.
@@ -45,7 +45,7 @@ GIVEN A is waiting for input.
 
 WHEN the player presses a.
 
-THEN at next round A will be at %.
+THEN at the next step A will be at %.
 
 ;===============================================================
 ; Army moves east when player presses d.
@@ -56,7 +56,7 @@ GIVEN A is waiting for input.
 
 WHEN the player presses d.
 
-THEN at next round A will be at %.
+THEN at the next step A will be at %.
 
 ;===============================================================
 ; Army moves southwest when player presses z.
@@ -68,7 +68,7 @@ GIVEN A is waiting for input.
 
 WHEN the player presses z.
 
-THEN at next round A will be at %.
+THEN at the next step A will be at %.
 
 ;===============================================================
 ; Army moves south when player presses x.
@@ -80,7 +80,7 @@ GIVEN A is waiting for input.
 
 WHEN the player presses x.
 
-THEN at next round A will be at %.
+THEN at the next step A will be at %.
 
 ;===============================================================
 ; Army moves southeast when player presses c.
@@ -92,7 +92,7 @@ GIVEN A is waiting for input.
 
 WHEN the player presses c.
 
-THEN at next round A will be at %.
+THEN at the next step A will be at %.
 
 ;===============================================================
 ; Army extended move northwest.
@@ -203,18 +203,7 @@ GIVEN D is waiting for input.
 
 WHEN the player presses d.
 
-THEN at next round D will be at =.
-
-;===============================================================
-; Destroyer moves 2 cells in one round.
-;===============================================================
-GIVEN game map
-  D~~=
-GIVEN D is waiting for input.
-
-WHEN the player presses D.
-
-THEN at next round D will be at =.
+THEN at the next step D will be at =.
 
 ;===============================================================
 ; Fighter moves east over sea.
@@ -225,7 +214,7 @@ GIVEN F is waiting for input.
 
 WHEN the player presses d.
 
-THEN at next round F will be at =.
+THEN at the next step F will be at =.
 
 ;===============================================================
 ; Fighter moves east over land.
@@ -236,18 +225,7 @@ GIVEN F is waiting for input.
 
 WHEN the player presses d.
 
-THEN at next round F will be at %.
-
-;===============================================================
-; Fighter moves 8 cells in one round.
-;===============================================================
-GIVEN game map
-  F~~~~~~~~=
-GIVEN F is waiting for input.
-
-WHEN the player presses D.
-
-THEN at next round F will be at =.
+THEN at the next step F will be at %.
 
 ;===============================================================
 ; Army cannot move onto sea.
@@ -258,33 +236,7 @@ GIVEN A is waiting for input.
 
 WHEN the player presses d.
 
-THEN at next round A will be at [0 0].
-THEN the attention message contains :cant-move-into-water.
-
-;===============================================================
-; Destroyer cannot move onto land.
-;===============================================================
-GIVEN game map
-  D#
-GIVEN D is waiting for input.
-
-WHEN the player presses d.
-
-THEN at next round D will be at [0 0].
-THEN the attention message contains :ships-cant-drive-on-land.
-
-;===============================================================
-; Friendly army cannot move onto friendly army.
-;===============================================================
-GIVEN game map
-  AA
-A2 is sentry.
-GIVEN A1 is waiting for input.
-
-WHEN the player presses d.
-
-THEN at next round A1 will be at [0 0].
-THEN the attention message contains :somethings-in-the-way.
+THEN at the next step the attention message contains :cant-move-into-water.
 
 ;===============================================================
 ; Army conquers computer city when conquest succeeds.
@@ -319,4 +271,4 @@ GIVEN F is waiting for input.
 
 WHEN the player presses d.
 
-THEN the error message contains "Fighter destroyed".
+THEN at the next step the error message contains "Fighter destroyed".

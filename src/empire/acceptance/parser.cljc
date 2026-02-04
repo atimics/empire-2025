@@ -416,6 +416,10 @@
             (re-find #"player\s+items\s+are\s+processed" no-when)
             (swap! whens conj {:type :process-player-items})
 
+            ;; Visibility updates
+            (re-find #"visibility\s+updates" no-when)
+            (swap! whens conj {:type :visibility-update})
+
             ;; Production updates
             (re-find #"production\s+updates" no-when)
             (swap! whens conj {:type :update-production})
@@ -608,6 +612,16 @@
       ;; Out-of-fuel message displayed (special case)
       (re-find #"out-of-fuel\s+message\s+is\s+displayed" no-prefix)
       {:type :message-contains :area :attention :config-key :fighter-out-of-fuel}
+
+      ;; Player-map cell is not nil
+      (re-find #"player-map\s+cell\s+\[(\d+)\s+(\d+)\]\s+is\s+not\s+nil" no-prefix)
+      (let [[_ x y] (re-find #"player-map\s+cell\s+\[(\d+)\s+(\d+)\]\s+is\s+not\s+nil" no-prefix)]
+        {:type :player-map-cell-not-nil :coords [(Integer/parseInt x) (Integer/parseInt y)]})
+
+      ;; Player-map cell is nil
+      (re-find #"player-map\s+cell\s+\[(\d+)\s+(\d+)\]\s+is\s+nil" no-prefix)
+      (let [[_ x y] (re-find #"player-map\s+cell\s+\[(\d+)\s+(\d+)\]\s+is\s+nil" no-prefix)]
+        {:type :player-map-cell-nil :coords [(Integer/parseInt x) (Integer/parseInt y)]})
 
       ;; Cell property
       (re-find #"cell\s+\[(\d+)\s+(\d+)\]\s+has\s+(\S+)\s+(\S+)" no-prefix)

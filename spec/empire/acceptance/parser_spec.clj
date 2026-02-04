@@ -336,6 +336,18 @@
         (should= [{:type :waiting-for-input :unit "F" :set-mode true}]
                  (:whens result))))
 
+    (it "parses visibility updates"
+      (let [lines ["WHEN visibility updates."]
+            result (parser/parse-when lines {})]
+        (should= [{:type :visibility-update}]
+                 (:whens result))))
+
+    (it "parses mouse-at-key"
+      (let [lines ["WHEN the mouse is at cell [0 1] and the player presses period."]
+            result (parser/parse-when lines {})]
+        (should= [{:type :mouse-at-key :coords [0 1] :key :period}]
+                 (:whens result))))
+
     (it "warns on unconsumed trailing text after simple key press"
       (let [lines ["WHEN the player presses D and something unexpected."]
             ctx {:has-waiting-for-input true}
@@ -618,6 +630,18 @@
       (let [lines ["THEN at next move A will be at =."]
             result (parser/parse-then lines {})]
         (should= [{:type :unit-at-next-round :unit "A" :target "=" :at-next-step true}]
+                 (:thens result))))
+
+    (it "parses player-map cell is not nil"
+      (let [lines ["THEN player-map cell [1 2] is not nil."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :player-map-cell-not-nil :coords [1 2]}]
+                 (:thens result))))
+
+    (it "parses player-map cell is nil"
+      (let [lines ["THEN player-map cell [1 2] is nil."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :player-map-cell-nil :coords [1 2]}]
                  (:thens result)))))
 
   (describe "parse-file integration"

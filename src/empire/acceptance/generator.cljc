@@ -49,7 +49,7 @@
         (when (some :config-key (concat thens whens))
           (swap! needs conj :config))
         ;; :game-loop
-        (when (some #{:start-new-round :advance-game :advance-game-batch} types)
+        (when (some #{:start-new-round :advance-game :advance-game-batch :visibility-update} types)
           (swap! needs conj :game-loop))
         (when (some #{:unit-at-next-round :unit-after-moves :unit-after-steps :message-for-unit} types)
           (swap! needs conj :game-loop))
@@ -63,11 +63,12 @@
           (swap! needs conj :item-processing))
         ;; Collect targets that actually generate target-pos-expr calls
         ;; thens: :target from unit-at-next-round, unit-after-moves, unit-after-steps, unit-eventually-at, unit-present
-        ;; givens: :player-items and :unit-target use target-pos-expr
+        ;; givens: :player-items, :unit-target, and :production use target-pos-expr
         (let [then-targets (keep :target thens)
               given-pi-targets (mapcat :items (filter #(= :player-items (:type %)) givens))
               given-ut-targets (keep :target (filter #(= :unit-target (:type %)) givens))
-              all-targets (concat then-targets given-pi-targets given-ut-targets)]
+              given-prod-cities (keep :city (filter #(= :production (:type %)) givens))
+              all-targets (concat then-targets given-pi-targets given-ut-targets given-prod-cities)]
           ;; :get-test-cell
           (when (some #(or (= "=" %) (= "%" %)) all-targets)
             (swap! needs conj :get-test-cell))
@@ -106,9 +107,13 @@
           (swap! needs conj :quil))
         (when (some #(= :backtick (:type %)) whens)
           (swap! needs conj :quil))
-        ;; :advance-helper — unit-at-next-round, unit-eventually-at, unit-after-steps, or :at-next-round flag
-        (when (or (some #{:unit-at-next-round :unit-eventually-at :unit-after-steps} types)
-                  (some :at-next-round thens))
+        (when (some #(= :mouse-at-key (:type %)) whens)
+          (swap! needs conj :quil))
+        ;; :advance-helper — unit-at-next-round (without at-next-step), unit-eventually-at, unit-after-steps, or :at-next-round flag
+        (when (or (some #{:unit-eventually-at :unit-after-steps} types)
+                  (some :at-next-round thens)
+                  (some #(and (= :unit-at-next-round (:type %))
+                              (not (:at-next-step %))) thens))
           (swap! needs conj :advance-helper))
         (when (or (some :at-next-round thens)
                   (some :at-next-step thens))
@@ -204,9 +209,13 @@
 
 ;; --- GIVEN generation ---
 
-(defn- generate-map-given [{:keys [rows]}]
-  (let [row-strs (str/join " " (map #(str "\"" % "\"") rows))]
-    (str "    (reset! atoms/game-map (build-test-map [" row-strs "]))")))
+(defn- generate-map-given [{:keys [rows target]}]
+  (let [row-strs (str/join " " (map #(str "\"" % "\"") rows))
+        atom-str (case target
+                   :player-map "atoms/player-map"
+                   :computer-map "atoms/computer-map"
+                   "atoms/game-map")]
+    (str "    (reset! " atom-str " (build-test-map [" row-strs "]))")))
 
 (defn- generate-unit-props-given [{:keys [unit props]}]
   (let [kvs (mapv (fn [[k v]]
@@ -355,6 +364,28 @@
          "      (input/key-down (keyword \"`\"))\n"
          "      (input/key-down :" (name key) "))")))
 
+(defn- mouse-at-key-expr [key]
+  (case key
+    :period "(keyword \".\")"
+    (str ":" (name key))))
+
+(defn- generate-mouse-at-key-when [{:keys [coords key]}]
+  (let [[cx cy] coords
+        key-expr (mouse-at-key-expr key)]
+    (str "    (let [map-w 22 map-h 16\n"
+         "          cols (count @atoms/game-map)\n"
+         "          rows (count (first @atoms/game-map))\n"
+         "          cell-w (/ map-w cols) cell-h (/ map-h rows)\n"
+         "          px (int (+ (* " cx " cell-w) (/ cell-w 2)))\n"
+         "          py (int (+ (* " cy " cell-h) (/ cell-h 2)))]\n"
+         "      (reset! atoms/map-screen-dimensions [map-w map-h])\n"
+         "      (with-redefs [q/mouse-x (constantly px)\n"
+         "                    q/mouse-y (constantly py)]\n"
+         "        (input/key-down " key-expr ")))")))
+
+(defn- generate-visibility-update-when [_]
+  "    (game-loop/update-player-map)")
+
 (defn- generate-start-new-round-when [_]
   (str "    (game-loop/start-new-round)\n"
        "    (game-loop/advance-game)"))
@@ -376,6 +407,8 @@
      :key-press (generate-key-press-when when-ir)
      :battle (generate-battle-when when-ir)
      :backtick (generate-backtick-when when-ir)
+     :mouse-at-key (generate-mouse-at-key-when when-ir)
+     :visibility-update (generate-visibility-update-when when-ir)
      :start-new-round (generate-start-new-round-when when-ir)
      :advance-game (generate-advance-game-when when-ir)
      :advance-game-batch (generate-advance-game-when when-ir)
@@ -412,9 +445,12 @@
     (str "    (let [{:keys [pos]} (get-test-unit atoms/game-map \"" unit "\")]\n"
          "      (should= " (pr-str coords) " pos))")))
 
-(defn- generate-unit-at-next-round-then [{:keys [unit target]}]
-  (let [target-expr (target-pos-expr target)]
-    (str "    (should= :ok (advance-until-next-round))\n"
+(defn- generate-unit-at-next-round-then [{:keys [unit target at-next-step]}]
+  (let [target-expr (target-pos-expr target)
+        advance (if at-next-step
+                  "    (game-loop/advance-game)\n"
+                  "    (should= :ok (advance-until-next-round))\n")]
+    (str advance
          "    (let [{:keys [pos]} (get-test-unit atoms/game-map \"" unit "\")\n"
          "          target-pos " target-expr "]\n"
          "      (should= target-pos pos))")))
@@ -445,7 +481,7 @@
          "            (when (not= target-pos pos)\n"
          "              (game-loop/advance-game)\n"
          "              (recur (inc n))))))\n"
-         "      (should= target-pos (:pos (get-test-unit atoms/game-map \"" unit "\")))")))
+         "      (should= target-pos (:pos (get-test-unit atoms/game-map \"" unit "\"))))")))
 
 (defn- find-unit-initial-pos
   "Given a map rows and a unit spec, find the [col row] position."
@@ -558,6 +594,14 @@
 (defn- generate-game-paused-then [_]
   "    (should @atoms/paused)")
 
+(defn- generate-player-map-cell-not-nil-then [{:keys [coords]}]
+  (let [[x y] coords]
+    (str "    (should-not-be-nil (get-in @atoms/player-map [" x " " y "]))")))
+
+(defn- generate-player-map-cell-nil-then [{:keys [coords]}]
+  (let [[x y] coords]
+    (str "    (should-be-nil (get-in @atoms/player-map [" x " " y "]))")))
+
 (defn- generate-no-unit-at-then [{:keys [coords]}]
   (str "    (should-be-nil (:contents (get-in @atoms/game-map " (pr-str coords) ")))"))
 
@@ -592,6 +636,8 @@
     :production (generate-production-then then-ir)
     :no-production (generate-no-production-then then-ir)
     :game-paused (generate-game-paused-then then-ir)
+    :player-map-cell-not-nil (generate-player-map-cell-not-nil-then then-ir)
+    :player-map-cell-nil (generate-player-map-cell-nil-then then-ir)
     :no-unit-at (generate-no-unit-at-then then-ir)
     :unit-prop-absent (generate-unit-prop-absent-then then-ir)
     :unrecognized (str "    (pending \"Unrecognized: " (:text then-ir) "\")")

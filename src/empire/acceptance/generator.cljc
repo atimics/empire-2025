@@ -82,6 +82,10 @@
         (when (some #(and (= :container-state (:type %))
                           (contains? city-chars (:target %))) givens)
           (swap! needs conj :get-test-city))
+        ;; :get-test-city from production givens referencing a city
+        (when (some #(and (= :production (:type %))
+                          (contains? city-chars (:city %))) givens)
+          (swap! needs conj :get-test-city))
         ;; :get-test-city from waiting-for-input with city unit
         (when (some #(and (= :waiting-for-input (:type %))
                           (contains? city-chars (:unit %))) givens)

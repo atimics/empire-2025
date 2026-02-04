@@ -1,0 +1,89 @@
+; Submarine-specific behavior tests.
+
+;===============================================================
+; Submarine has 2 hits.
+;===============================================================
+GIVEN game map
+  S~
+
+THEN S has hits 2.
+
+;===============================================================
+; Submarine moves on sea only.
+;===============================================================
+GIVEN game map
+  S#
+GIVEN S is waiting for input.
+
+WHEN the player presses d.
+
+THEN at the next step the attention message contains :ships-cant-drive-on-land.
+
+;===============================================================
+; Submarine attacks destroyer and wins.
+;===============================================================
+GIVEN game map
+  Sd
+GIVEN S is waiting for input.
+
+WHEN the player presses d and wins the battle.
+
+THEN at the next round S occupies the d cell and there is no d.
+
+;===============================================================
+; Submarine put to sentry mode.
+;===============================================================
+GIVEN game map
+  S~
+GIVEN S is waiting for input.
+
+WHEN the player presses s.
+
+THEN S has mode sentry.
+
+;===============================================================
+; Submarine moves 2 cells per round.
+;===============================================================
+GIVEN game map
+  S~~=
+GIVEN S is waiting for input.
+
+WHEN the player presses D.
+
+THEN at next round S will be at =.
+
+;===============================================================
+; Submarine attacks enemy and loses.
+;===============================================================
+GIVEN game map
+  Sd
+GIVEN S is waiting for input.
+
+WHEN the player presses d and loses the battle.
+
+THEN at the next round d remains unmoved.
+and there is no S on the map.
+and the turn message contains "Submarine destroyed".
+
+;===============================================================
+; Submarine blocked by friendly ship.
+;===============================================================
+GIVEN game map
+  SD~
+GIVEN S is waiting for input.
+
+WHEN the player presses d.
+
+THEN at the next step the attention message contains :somethings-in-the-way.
+
+;===============================================================
+; Sentry submarine wakes when enemy is adjacent.
+;===============================================================
+GIVEN game map
+  Sd~
+S is sentry.
+
+WHEN a new round starts and S is waiting for input.
+
+THEN S is awake.
+THEN the attention message contains :enemy-spotted.

@@ -111,7 +111,7 @@
     (set-test-unit atoms/game-map "A2" :hits -1)
     (game-loop/remove-dead-units)
     (should= {:type :land} (get-in @atoms/game-map [0 0]))
-    (should= {:type :land :contents {:type :fighter :hits 1 :owner :player}} (get-in @atoms/game-map [1 0]))
+    (should= {:type :land :contents {:type :fighter :hits 1 :owner :player :fuel 32}} (get-in @atoms/game-map [1 0]))
     (should= {:type :land} (get-in @atoms/game-map [2 0]))))
 
 (describe "reset-steps-remaining"

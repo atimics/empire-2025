@@ -1,0 +1,89 @@
+; Patrol-boat-specific behavior tests.
+
+;===============================================================
+; Patrol-boat moves 4 cells per round.
+;===============================================================
+GIVEN game map
+  P~~~~=
+GIVEN P is waiting for input.
+
+WHEN the player presses D.
+
+THEN at next round P will be at =.
+
+;===============================================================
+; Patrol-boat has 1 hit.
+;===============================================================
+GIVEN game map
+  P~
+
+THEN P has hits 1.
+
+;===============================================================
+; Patrol-boat sentry mode.
+;===============================================================
+GIVEN game map
+  P~
+GIVEN P is waiting for input.
+
+WHEN the player presses s.
+
+THEN P has mode sentry.
+
+;===============================================================
+; Patrol-boat attacks enemy and wins.
+;===============================================================
+GIVEN game map
+  Ps
+GIVEN P is waiting for input.
+
+WHEN the player presses d and wins the battle.
+
+THEN at the next round P occupies the s cell and there is no s.
+
+;===============================================================
+; Patrol-boat attacks enemy and loses.
+;===============================================================
+GIVEN game map
+  Ps
+GIVEN P is waiting for input.
+
+WHEN the player presses d and loses the battle.
+
+THEN at the next round s remains unmoved.
+and there is no P on the map.
+and the turn message contains "Patrol-boat destroyed".
+
+;===============================================================
+; Patrol-boat blocked by land.
+;===============================================================
+GIVEN game map
+  P#
+GIVEN P is waiting for input.
+
+WHEN the player presses d.
+
+THEN at the next step the attention message contains :ships-cant-drive-on-land.
+
+;===============================================================
+; Patrol-boat blocked by friendly ship.
+;===============================================================
+GIVEN game map
+  PD~
+GIVEN P is waiting for input.
+
+WHEN the player presses d.
+
+THEN at the next step the attention message contains :somethings-in-the-way.
+
+;===============================================================
+; Sentry patrol-boat wakes when enemy is adjacent.
+;===============================================================
+GIVEN game map
+  Ps~
+P is sentry.
+
+WHEN a new round starts and P is waiting for input.
+
+THEN P is awake.
+THEN the attention message contains :enemy-spotted.

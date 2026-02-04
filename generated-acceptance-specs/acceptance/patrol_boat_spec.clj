@@ -1,4 +1,4 @@
-(ns acceptance.battleship-spec
+(ns acceptance.patrol-boat-spec
   (:require [speclj.core :refer :all]
             [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell reset-all-atoms! make-initial-test-map]]
             [empire.atoms :as atoms]
@@ -46,15 +46,15 @@
       (do (game-loop/advance-game)
           (recur (dec n))))))
 
-(describe "battleship.txt"
+(describe "patrol-boat.txt"
 
-  (it "battleship.txt:6 - Battleship moves 2 cells per round"
+  (it "patrol-boat.txt:6 - Patrol-boat moves 4 cells per round"
     (reset-all-atoms!)
-    (reset! atoms/game-map (build-test-map ["B~~="]))
-    (set-test-unit atoms/game-map "B" :mode :awake)
+    (reset! atoms/game-map (build-test-map ["P~~~~="]))
+    (set-test-unit atoms/game-map "P" :mode :awake)
     (let [cols (count @atoms/game-map)
           rows (count (first @atoms/game-map))
-          pos (:pos (get-test-unit atoms/game-map "B"))]
+          pos (:pos (get-test-unit atoms/game-map "P"))]
       (reset! atoms/player-map (make-initial-test-map rows cols nil))
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
@@ -63,17 +63,22 @@
       (reset! atoms/last-key nil)
       (input/key-down :D))
     (should= :ok (advance-until-next-round))
-    (let [{:keys [pos]} (get-test-unit atoms/game-map "B")
+    (let [{:keys [pos]} (get-test-unit atoms/game-map "P")
           target-pos (:pos (get-test-cell atoms/game-map "="))]
       (should= target-pos pos)))
 
-  (it "battleship.txt:17 - Battleship put to sentry mode"
+  (it "patrol-boat.txt:17 - Patrol-boat has 1 hit"
     (reset-all-atoms!)
-    (reset! atoms/game-map (build-test-map ["B~"]))
-    (set-test-unit atoms/game-map "B" :mode :awake)
+    (reset! atoms/game-map (build-test-map ["P~"]))
+    (should= 1 (:hits (:unit (get-test-unit atoms/game-map "P")))))
+
+  (it "patrol-boat.txt:25 - Patrol-boat sentry mode"
+    (reset-all-atoms!)
+    (reset! atoms/game-map (build-test-map ["P~"]))
+    (set-test-unit atoms/game-map "P" :mode :awake)
     (let [cols (count @atoms/game-map)
           rows (count (first @atoms/game-map))
-          pos (:pos (get-test-unit atoms/game-map "B"))]
+          pos (:pos (get-test-unit atoms/game-map "P"))]
       (reset! atoms/player-map (make-initial-test-map rows cols nil))
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
@@ -81,32 +86,32 @@
                   q/mouse-y (constantly 0)]
       (reset! atoms/last-key nil)
       (input/key-down :s))
-    (should= :sentry (:mode (:unit (get-test-unit atoms/game-map "B")))))
+    (should= :sentry (:mode (:unit (get-test-unit atoms/game-map "P")))))
 
-  (it "battleship.txt:28 - Battleship attacks enemy submarine and wins"
+  (it "patrol-boat.txt:36 - Patrol-boat attacks enemy and wins"
     (reset-all-atoms!)
-    (reset! atoms/game-map (build-test-map ["Bs"]))
-    (set-test-unit atoms/game-map "B" :mode :awake)
+    (reset! atoms/game-map (build-test-map ["Ps"]))
+    (set-test-unit atoms/game-map "P" :mode :awake)
     (let [cols (count @atoms/game-map)
           rows (count (first @atoms/game-map))
-          pos (:pos (get-test-unit atoms/game-map "B"))]
+          pos (:pos (get-test-unit atoms/game-map "P"))]
       (reset! atoms/player-map (make-initial-test-map rows cols nil))
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
     (with-redefs [rand (constantly 0.0)]
       (input/handle-key :d)
       (game-loop/advance-game))
-    (let [{:keys [pos]} (get-test-unit atoms/game-map "B")]
+    (let [{:keys [pos]} (get-test-unit atoms/game-map "P")]
       (should= [1 0] pos))
     (should-be-nil (get-test-unit atoms/game-map "s")))
 
-  (it "battleship.txt:39 - Battleship attacks enemy submarine and loses"
+  (it "patrol-boat.txt:47 - Patrol-boat attacks enemy and loses"
     (reset-all-atoms!)
-    (reset! atoms/game-map (build-test-map ["Bs"]))
-    (set-test-unit atoms/game-map "B" :mode :awake)
+    (reset! atoms/game-map (build-test-map ["Ps"]))
+    (set-test-unit atoms/game-map "P" :mode :awake)
     (let [cols (count @atoms/game-map)
           rows (count (first @atoms/game-map))
-          pos (:pos (get-test-unit atoms/game-map "B"))]
+          pos (:pos (get-test-unit atoms/game-map "P"))]
       (reset! atoms/player-map (make-initial-test-map rows cols nil))
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
@@ -115,16 +120,16 @@
       (game-loop/advance-game))
     (let [{:keys [pos]} (get-test-unit atoms/game-map "s")]
       (should= [1 0] pos))
-    (should-be-nil (get-test-unit atoms/game-map "B"))
-    (should-contain "Battleship destroyed" @atoms/turn-message))
+    (should-be-nil (get-test-unit atoms/game-map "P"))
+    (should-contain "Patrol-boat destroyed" @atoms/turn-message))
 
-  (it "battleship.txt:52 - Battleship blocked by land"
+  (it "patrol-boat.txt:60 - Patrol-boat blocked by land"
     (reset-all-atoms!)
-    (reset! atoms/game-map (build-test-map ["B#"]))
-    (set-test-unit atoms/game-map "B" :mode :awake)
+    (reset! atoms/game-map (build-test-map ["P#"]))
+    (set-test-unit atoms/game-map "P" :mode :awake)
     (let [cols (count @atoms/game-map)
           rows (count (first @atoms/game-map))
-          pos (:pos (get-test-unit atoms/game-map "B"))]
+          pos (:pos (get-test-unit atoms/game-map "P"))]
       (reset! atoms/player-map (make-initial-test-map rows cols nil))
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
@@ -133,13 +138,13 @@
     (should-not-be-nil (:ships-cant-drive-on-land config/messages))
     (should-contain (:ships-cant-drive-on-land config/messages) @atoms/attention-message))
 
-  (it "battleship.txt:63 - Battleship blocked by friendly ship"
+  (it "patrol-boat.txt:71 - Patrol-boat blocked by friendly ship"
     (reset-all-atoms!)
-    (reset! atoms/game-map (build-test-map ["BS~"]))
-    (set-test-unit atoms/game-map "B" :mode :awake)
+    (reset! atoms/game-map (build-test-map ["PD~"]))
+    (set-test-unit atoms/game-map "P" :mode :awake)
     (let [cols (count @atoms/game-map)
           rows (count (first @atoms/game-map))
-          pos (:pos (get-test-unit atoms/game-map "B"))]
+          pos (:pos (get-test-unit atoms/game-map "P"))]
       (reset! atoms/player-map (make-initial-test-map rows cols nil))
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
@@ -148,46 +153,13 @@
     (should-not-be-nil (:somethings-in-the-way config/messages))
     (should-contain (:somethings-in-the-way config/messages) @atoms/attention-message))
 
-  (it "battleship.txt:74 - Damaged battleship attention message"
+  (it "patrol-boat.txt:82 - Sentry patrol-boat wakes when enemy is adjacent"
     (reset-all-atoms!)
-    (reset! atoms/game-map (build-test-map ["B~"]))
-    (set-test-unit atoms/game-map "B" :hits 5)
-    (set-test-unit atoms/game-map "B" :mode :awake)
-    (let [cols (count @atoms/game-map)
-          rows (count (first @atoms/game-map))
-          pos (:pos (get-test-unit atoms/game-map "B"))]
-      (reset! atoms/player-map (make-initial-test-map rows cols nil))
-      (reset! atoms/player-items [pos])
-      (item-processing/process-player-items-batch))
-    (should-contain "Damaged" @atoms/attention-message))
-
-  (it "battleship.txt:85 - Damaged battleship has reduced speed"
-    (reset-all-atoms!)
-    (reset! atoms/game-map (build-test-map ["B~=~"]))
-    (set-test-unit atoms/game-map "B" :hits 5)
-    (set-test-unit atoms/game-map "B" :mode :awake)
-    (let [cols (count @atoms/game-map)
-          rows (count (first @atoms/game-map))
-          pos (:pos (get-test-unit atoms/game-map "B"))]
-      (reset! atoms/player-map (make-initial-test-map rows cols nil))
-      (reset! atoms/player-items [pos])
-      (item-processing/process-player-items-batch))
-    (with-redefs [q/mouse-x (constantly 0)
-                  q/mouse-y (constantly 0)]
-      (reset! atoms/last-key nil)
-      (input/key-down :D))
-    (should= :ok (advance-until-next-round))
-    (let [{:keys [pos]} (get-test-unit atoms/game-map "B")
-          target-pos (:pos (get-test-cell atoms/game-map "="))]
-      (should= target-pos pos)))
-
-  (it "battleship.txt:97 - Sentry battleship wakes when enemy is adjacent"
-    (reset-all-atoms!)
-    (reset! atoms/game-map (build-test-map ["Bs~"]))
-    (set-test-unit atoms/game-map "B" :mode :sentry)
+    (reset! atoms/game-map (build-test-map ["Ps~"]))
+    (set-test-unit atoms/game-map "P" :mode :sentry)
     (game-loop/start-new-round)
     (game-loop/advance-game)
-    (should= :ok (advance-until-unit-waiting "B"))
-    (should= :awake (:mode (:unit (get-test-unit atoms/game-map "B"))))
+    (should= :ok (advance-until-unit-waiting "P"))
+    (should= :awake (:mode (:unit (get-test-unit atoms/game-map "P"))))
     (should-not-be-nil (:enemy-spotted config/messages))
     (should-contain (:enemy-spotted config/messages) @atoms/attention-message)))

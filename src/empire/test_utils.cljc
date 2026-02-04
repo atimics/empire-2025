@@ -4,7 +4,8 @@
             [empire.units.dispatcher :as dispatcher]))
 
 (defn- make-unit [unit-type owner]
-  {:type unit-type :owner owner :hits (dispatcher/hits unit-type)})
+  (merge {:type unit-type :owner owner :hits (dispatcher/hits unit-type)}
+         (dispatcher/initial-state unit-type)))
 
 (defn char->cell [c]
   (case c

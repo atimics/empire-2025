@@ -60,7 +60,7 @@
 
   (it "keeps units with hits > 0"
     (game-loop/remove-dead-units)
-    (should= {:type :fighter :owner :player :hits 1} (:contents (get-in @atoms/game-map [1 0])))))
+    (should= {:type :fighter :owner :player :hits 1 :fuel 32} (:contents (get-in @atoms/game-map [1 0])))))
 
 (describe "reset-steps-remaining"
   (before
@@ -116,13 +116,13 @@
     (reset! atoms/game-map (build-test-map ["c"]))
     (set-test-unit atoms/game-map "c" :fighter-count 3)
     (game-loop/wake-carrier-fighters)
-    (should-be-nil (:awake-fighters (:contents (get-in @atoms/game-map [0 0])))))
+    (should= 0 (:awake-fighters (:contents (get-in @atoms/game-map [0 0])))))
 
   (it "ignores carriers with no fighters"
     (reset! atoms/game-map (build-test-map ["C"]))
     (set-test-unit atoms/game-map "C" :fighter-count 0)
     (game-loop/wake-carrier-fighters)
-    (should-be-nil (:awake-fighters (:contents (get-in @atoms/game-map [0 0]))))))
+    (should= 0 (:awake-fighters (:contents (get-in @atoms/game-map [0 0]))))))
 
 (describe "consume-sentry-fighter-fuel"
   (before (reset-all-atoms!))

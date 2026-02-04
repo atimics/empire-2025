@@ -78,51 +78,75 @@
   (or (get word->number (str/lower-case s))
       (parse-number s)))
 
+;; --- Pattern table dispatch ---
+
+(defn- first-matching-pattern
+  "Scan patterns for the first whose :regex matches text.
+   Returns (handler match) or nil."
+  [patterns text]
+  (loop [entries patterns]
+    (when-let [{:keys [regex handler]} (first entries)]
+      (if-let [match (re-find regex text)]
+        (handler match)
+        (recur (rest entries))))))
+
+(defn- first-matching-pattern-with-context
+  "Like first-matching-pattern, but passes (match, context) to handler."
+  [patterns text context]
+  (loop [entries patterns]
+    (when-let [{:keys [regex handler]} (first entries)]
+      (if-let [match (re-find regex text)]
+        (handler match context)
+        (recur (rest entries))))))
+
 ;; --- GIVEN parsing ---
+
+(def ^:private unit-prop-extractors
+  [{:regex #"(?:is|has mode|mode)\s+(\w+)"
+    :extract-fn (fn [[_ mode]] {:props {:mode (keyword mode)}})}
+   {:regex #"(?:has\s+)?fuel\s+(\d+)"
+    :extract-fn (fn [[_ n]] {:props {:fuel (Integer/parseInt n)}})}
+   {:regex #"with\s+fuel\s+(\d+)"
+    :extract-fn (fn [[_ n]] {:props {:fuel (Integer/parseInt n)}})}
+   {:regex #"army-count\s+(\d+)"
+    :extract-fn (fn [[_ n]] {:props {:army-count (Integer/parseInt n)}})}
+   {:regex #"hits\s+(\d+)"
+    :extract-fn (fn [[_ n]] {:props {:hits (Integer/parseInt n)}})}
+   {:regex #"fighter-count\s+(\d+)"
+    :extract-fn (fn [[_ n]] {:container-props {:fighter-count (Integer/parseInt n)}})}
+   {:regex #"awake-fighters\s+(\d+)"
+    :extract-fn (fn [[_ n]] {:container-props {:awake-fighters (Integer/parseInt n)}})}
+   {:regex #"(\w+)\s+fighters?\b(?!\s+in)"
+    :extract-fn (fn [[_ n]]
+                  (when-let [cnt (parse-count n)]
+                    {:container-props {:fighter-count cnt}}))}
+   {:regex #"no\s+awake\s+fighters?"
+    :extract-fn (fn [_] {:container-props {:awake-fighters 0}})}
+   {:regex #"(\w+)\s+awake\s+fighters?"
+    :extract-fn (fn [[_ n]]
+                  (when (not= n "no")
+                    (when-let [cnt (parse-count n)]
+                      {:container-props {:awake-fighters cnt}})))}])
 
 (defn- parse-unit-props-line [line]
   (let [clean (strip-trailing-period (str/trim line))
         clean (strip-keyword-prefix clean)]
     (when-let [[_ unit rest-str] (re-matches #"(\w+)\s+(.*)" clean)]
       (when (city-or-unit-char? unit)
-        (let [props (atom {})
-              container-props (atom {})
-              text rest-str]
-          ;; Parse "is awake", "is explore", "is sentry", "is in mode X"
-          (when-let [[_ mode] (re-find #"(?:is|has mode|mode)\s+(\w+)" text)]
-            (swap! props assoc :mode (keyword mode)))
-          ;; Parse "has fuel N", "fuel N", "with fuel N"
-          (when-let [[_ n] (re-find #"(?:has\s+)?fuel\s+(\d+)" text)]
-            (swap! props assoc :fuel (Integer/parseInt n)))
-          ;; Parse "with fuel N"
-          (when-let [[_ n] (re-find #"with\s+fuel\s+(\d+)" text)]
-            (swap! props assoc :fuel (Integer/parseInt n)))
-          ;; Parse "army-count N"
-          (when-let [[_ n] (re-find #"army-count\s+(\d+)" text)]
-            (swap! props assoc :army-count (Integer/parseInt n)))
-          ;; Parse "hits N"
-          (when-let [[_ n] (re-find #"hits\s+(\d+)" text)]
-            (swap! props assoc :hits (Integer/parseInt n)))
-          ;; Parse container props: "fighter-count N", "awake-fighters N"
-          (when-let [[_ n] (re-find #"fighter-count\s+(\d+)" text)]
-            (swap! container-props assoc :fighter-count (Integer/parseInt n)))
-          (when-let [[_ n] (re-find #"awake-fighters\s+(\d+)" text)]
-            (swap! container-props assoc :awake-fighters (Integer/parseInt n)))
-          ;; Parse natural language: "two fighters", "no awake fighters"
-          (when-let [[_ n] (re-find #"(\w+)\s+fighters?\b(?!\s+in)" text)]
-            (when-let [count (parse-count n)]
-              (swap! container-props assoc :fighter-count count)))
-          (when (re-find #"no\s+awake\s+fighters?" text)
-            (swap! container-props assoc :awake-fighters 0))
-          (when-let [[_ n] (re-find #"(\w+)\s+awake\s+fighters?" text)]
-            (when (not= n "no")
-              (when-let [count (parse-count n)]
-                (swap! container-props assoc :awake-fighters count))))
-          (let [result {:type :unit-props :unit unit :props @props}]
-            (when (or (seq @props) (seq @container-props))
-              (if (seq @container-props)
-                (assoc result :container-props @container-props)
-                result))))))))
+        (let [{:keys [props container-props]}
+              (reduce (fn [acc {:keys [regex extract-fn]}]
+                        (if-let [match (re-find regex rest-str)]
+                          (if-let [extracted (extract-fn match)]
+                            (merge-with merge acc extracted)
+                            acc)
+                          acc))
+                      {:props {} :container-props {}}
+                      unit-prop-extractors)
+              result {:type :unit-props :unit unit :props props}]
+          (when (or (seq props) (seq container-props))
+            (if (seq container-props)
+              (assoc result :container-props container-props)
+              result)))))))
 
 (defn- parse-container-state-line [line]
   (let [clean (strip-trailing-period (str/trim line))
@@ -146,111 +170,109 @@
 
       :else nil)))
 
+;; --- GIVEN parsing: handler functions ---
+
+(defn- given-handle-game-map [_] {:directive :map-start :target :game-map})
+(defn- given-handle-game-map-explicit [_] {:directive :map-start :target :game-map})
+(defn- given-handle-player-map [_] {:directive :map-start :target :player-map})
+(defn- given-handle-computer-map [_] {:directive :map-start :target :computer-map})
+
+(defn- given-handle-waiting-for-input [[_ unit] ctx]
+  (let [mode-already-set (contains? (:units-with-mode ctx) unit)]
+    {:directive :waiting-for-input
+     :ir {:type :waiting-for-input :unit unit :set-mode (not mode-already-set)}}))
+
+(defn- given-handle-production-with-rounds [[_ city item n] _ctx]
+  {:directive :production
+   :ir {:type :production :city city :item (keyword item) :remaining-rounds (Integer/parseInt n)}})
+
+(defn- given-handle-production [[_ city item] _ctx]
+  {:directive :production
+   :ir {:type :production :city city :item (keyword item)}})
+
+(defn- given-handle-no-production [_ _ctx]
+  {:directive :no-production :ir {:type :no-production}})
+
+(defn- given-handle-round [[_ n] _ctx]
+  {:directive :round :ir {:type :round :value (Integer/parseInt n)}})
+
+(defn- given-handle-destination [[_ x y] _ctx]
+  {:directive :destination
+   :ir {:type :destination :coords [(Integer/parseInt x) (Integer/parseInt y)]}})
+
+(defn- given-handle-cell-props [[_ x y rest-str] _ctx]
+  (let [pairs (str/split rest-str #"\s+and\s+")
+        props (into {}
+                    (for [pair pairs
+                          :let [[_ k v] (re-find #"(\S+)\s+(.*\S)" (str/trim pair))]
+                          :when k]
+                      [(keyword k) (or (parse-number v)
+                                       (parse-coords v)
+                                       (keyword v))]))]
+    {:directive :cell-props
+     :ir {:type :cell-props :coords [(Integer/parseInt x) (Integer/parseInt y)] :props props}}))
+
+(defn- given-handle-player-items-multi [[_ items-str] _ctx]
+  (let [items (mapv str/trim (str/split items-str #",\s*"))]
+    {:directive :player-items :ir {:type :player-items :items items}}))
+
+(defn- given-handle-player-items-single [[_ item] _ctx]
+  {:directive :player-items :ir {:type :player-items :items [item]}})
+
+(defn- given-handle-waiting-for-input-bare [_ _ctx]
+  {:directive :waiting-for-input-bare :ir {:type :waiting-for-input-state}})
+
+(defn- given-handle-unit-target [[_ unit target] _ctx]
+  {:directive :unit-target :ir {:type :unit-target :unit unit :target target}})
+
+;; --- GIVEN parsing: pattern tables ---
+
+(def ^:private given-map-patterns
+  [{:regex #"(?i)^(?:GIVEN\s+)?(?:game\s+)?map\s*$"
+    :handler given-handle-game-map}
+   {:regex #"(?i)^(?:GIVEN\s+)?game\s+map"
+    :handler given-handle-game-map-explicit}
+   {:regex #"(?i)^(?:GIVEN\s+)?player\s+map"
+    :handler given-handle-player-map}
+   {:regex #"(?i)^(?:GIVEN\s+)?computer\s+map"
+    :handler given-handle-computer-map}])
+
+(def ^:private given-directive-patterns
+  [{:regex #"(\w+)\s+is\s+waiting\s+for\s+input"
+    :handler given-handle-waiting-for-input}
+   {:regex #"production\s+at\s+(\w+)\s+is\s+(\w+)\s+with\s+(\d+)\s+rounds?\s+remaining"
+    :handler given-handle-production-with-rounds}
+   {:regex #"production\s+at\s+(\w+)\s+is\s+(\w+)"
+    :handler given-handle-production}
+   {:regex #"no\s+production"
+    :handler given-handle-no-production}
+   {:regex #"round\s+(\d+)"
+    :handler given-handle-round}
+   {:regex #"destination\s+\[(\d+)\s+(\d+)\]"
+    :handler given-handle-destination}
+   {:regex #"cell\s+\[(\d+)\s+(\d+)\]\s+has\s+(.*)"
+    :handler given-handle-cell-props}
+   {:regex #"player-items\s+are\s+(.*)"
+    :handler given-handle-player-items-multi}
+   {:regex #"player-items\s+(\w+)"
+    :handler given-handle-player-items-single}
+   {:regex #"^waiting-for-input$"
+    :handler given-handle-waiting-for-input-bare}
+   {:regex #"(\w+)'s\s+target\s+is\s+(\S+)"
+    :handler given-handle-unit-target}])
+
 (defn- parse-given-line [line context]
   (let [clean (str/trim line)
         stripped (strip-trailing-period clean)
-        no-given (strip-keyword-prefix stripped)]
-    (cond
-      ;; Map directives
-      (re-find #"(?i)^(?:GIVEN\s+)?(?:game\s+)?map\s*$" stripped)
-      {:directive :map-start :target :game-map}
-
-      (re-find #"(?i)^(?:GIVEN\s+)?game\s+map" stripped)
-      {:directive :map-start :target :game-map}
-
-      (re-find #"(?i)^(?:GIVEN\s+)?player\s+map" stripped)
-      {:directive :map-start :target :player-map}
-
-      (re-find #"(?i)^(?:GIVEN\s+)?computer\s+map" stripped)
-      {:directive :map-start :target :computer-map}
-
-      ;; Waiting for input
-      (re-find #"(\w+)\s+is\s+waiting\s+for\s+input" no-given)
-      (let [[_ unit] (re-find #"(\w+)\s+is\s+waiting\s+for\s+input" no-given)
-            mode-already-set (contains? (:units-with-mode context) unit)]
-        {:directive :waiting-for-input
-         :ir {:type :waiting-for-input :unit unit :set-mode (not mode-already-set)}})
-
-      ;; Production with remaining rounds
-      (re-find #"production\s+at\s+(\w+)\s+is\s+(\w+)\s+with\s+(\d+)\s+rounds?\s+remaining" no-given)
-      (let [[_ city item n] (re-find #"production\s+at\s+(\w+)\s+is\s+(\w+)\s+with\s+(\d+)\s+rounds?\s+remaining" no-given)]
-        {:directive :production
-         :ir {:type :production :city city :item (keyword item) :remaining-rounds (Integer/parseInt n)}})
-
-      ;; Production
-      (re-find #"production\s+at\s+(\w+)\s+is\s+(\w+)" no-given)
-      (let [[_ city item] (re-find #"production\s+at\s+(\w+)\s+is\s+(\w+)" no-given)]
-        {:directive :production
-         :ir {:type :production :city city :item (keyword item)}})
-
-      ;; No production
-      (re-find #"no\s+production" no-given)
-      {:directive :no-production
-       :ir {:type :no-production}}
-
-      ;; Round
-      (re-find #"round\s+(\d+)" no-given)
-      (let [[_ n] (re-find #"round\s+(\d+)" no-given)]
-        {:directive :round
-         :ir {:type :round :value (Integer/parseInt n)}})
-
-      ;; Destination
-      (re-find #"destination\s+\[(\d+)\s+(\d+)\]" no-given)
-      (let [[_ x y] (re-find #"destination\s+\[(\d+)\s+(\d+)\]" no-given)]
-        {:directive :destination
-         :ir {:type :destination :coords [(Integer/parseInt x) (Integer/parseInt y)]}})
-
-      ;; Cell props
-      (re-find #"cell\s+\[(\d+)\s+(\d+)\]\s+has\s+(.*)" no-given)
-      (let [[_ x y rest-str] (re-find #"cell\s+\[(\d+)\s+(\d+)\]\s+has\s+(.*)" no-given)
-            pairs (str/split rest-str #"\s+and\s+")
-            props (into {}
-                        (for [pair pairs
-                              :let [[_ k v] (re-find #"(\S+)\s+(.*\S)" (str/trim pair))]
-                              :when k]
-                          [(keyword k) (or (parse-number v)
-                                          (parse-coords v)
-                                          (keyword v))]))]
-        {:directive :cell-props
-         :ir {:type :cell-props :coords [(Integer/parseInt x) (Integer/parseInt y)] :props props}})
-
-      ;; Player-items (multiple)
-      (re-find #"player-items\s+are\s+(.*)" no-given)
-      (let [[_ items-str] (re-find #"player-items\s+are\s+(.*)" no-given)
-            items (mapv str/trim (str/split items-str #",\s*"))]
-        {:directive :player-items
-         :ir {:type :player-items :items items}})
-
-      ;; Player-items (single)
-      (re-find #"player-items\s+(\w+)" no-given)
-      (let [[_ item] (re-find #"player-items\s+(\w+)" no-given)]
-        {:directive :player-items
-         :ir {:type :player-items :items [item]}})
-
-      ;; Waiting-for-input (bare)
-      (re-find #"^waiting-for-input$" no-given)
-      {:directive :waiting-for-input-bare
-       :ir {:type :waiting-for-input-state}}
-
-      ;; Unit target - "A's target is +"
-      (re-find #"(\w+)'s\s+target\s+is\s+(\S+)" no-given)
-      (let [[_ unit target] (re-find #"(\w+)'s\s+target\s+is\s+(\S+)" no-given)]
-        {:directive :unit-target
-         :ir {:type :unit-target :unit unit :target target}})
-
-      ;; Container state
-      (parse-container-state-line line)
-      (let [ir (parse-container-state-line line)]
-        {:directive :container-state :ir ir})
-
-      ;; Unit properties
-      (parse-unit-props-line line)
-      (let [ir (parse-unit-props-line line)]
-        {:directive :unit-props :ir ir})
-
-      :else
-      {:directive :unrecognized
-       :ir {:type :unrecognized :text clean}})))
+        given-text (strip-keyword-prefix stripped)]
+    (or (first-matching-pattern given-map-patterns stripped)
+        (first-matching-pattern-with-context given-directive-patterns given-text context)
+        (when-let [ir (parse-container-state-line line)]
+          {:directive :container-state :ir ir})
+        (when-let [ir (parse-unit-props-line line)]
+          {:directive :unit-props :ir ir})
+        {:directive :unrecognized
+         :ir {:type :unrecognized :text clean}})))
 
 (defn parse-given
   "Parse GIVEN lines into IR. Returns {:givens [...] :context updated-context}"
@@ -323,6 +345,114 @@
       :ship
       :army)))
 
+;; --- WHEN parsing: handler functions ---
+;; Handlers return a vector of IR nodes (compound patterns emit multiple).
+
+(defn- when-handle-backtick [[_ x y k] _ctx]
+  [{:type :backtick
+    :key (keyword k)
+    :mouse-cell [(Integer/parseInt x) (Integer/parseInt y)]}])
+
+(defn- when-handle-mouse-at-key [[_ x y k] _ctx]
+  [{:type :mouse-at-key
+    :coords [(Integer/parseInt x) (Integer/parseInt y)]
+    :key (keyword k)}])
+
+(defn- when-handle-waiting-and-key [[_ unit k] ctx]
+  (let [key-info (determine-key-type k ctx)]
+    [{:type :waiting-for-input :unit unit :set-mode true}
+     (merge {:type :key-press} key-info)]))
+
+(defn- when-handle-battle [[_ k outcome] ctx]
+  (let [outcome-kw (case outcome "wins" :win "loses" :lose (keyword outcome))]
+    [{:type :battle
+      :key (keyword k)
+      :outcome outcome-kw
+      :combat-type (determine-combat-type ctx)}]))
+
+(defn- when-handle-key-and-advance [[_ k unit] ctx]
+  (let [key-info (determine-key-type k ctx)]
+    [(merge {:type :key-press} key-info)
+     {:type :advance-until-waiting :unit unit}]))
+
+(defn- when-handle-key-press [[_ k] ctx]
+  (let [key-info (determine-key-type k ctx)
+        when-text (:when-text ctx)]
+    (when (and when-text (re-find #"presses\s+\w+\s+and\s+" when-text))
+      (println (str "WARNING: unconsumed trailing text in WHEN: " when-text)))
+    [(merge {:type :key-press} key-info)]))
+
+(defn- when-handle-types-keys [[_ keys-str] ctx]
+  (let [keys (str/split (str/trim keys-str) #"\s+")]
+    (mapv (fn [k] (merge {:type :key-press} (determine-key-type k ctx))) keys)))
+
+(defn- when-handle-mouse-click [[_ x y] _ctx]
+  [{:type :mouse-click :coords [(Integer/parseInt x) (Integer/parseInt y)]}])
+
+(defn- when-handle-new-round-and-waiting [[_ unit] _ctx]
+  [{:type :start-new-round}
+   {:type :advance-until-waiting :unit unit}])
+
+(defn- when-handle-new-round [_match ctx]
+  (let [when-text (:when-text ctx)]
+    (when (and when-text (re-find #"starts\s+and\s+" when-text))
+      (println (str "WARNING: unconsumed trailing text in WHEN: " (:clean-text ctx))))
+    [{:type :start-new-round}]))
+
+(defn- when-handle-advance-game-batch [_ _ctx]
+  [{:type :advance-game-batch}])
+
+(defn- when-handle-advance-game [_ _ctx]
+  [{:type :advance-game}])
+
+(defn- when-handle-process-player-items [_ _ctx]
+  [{:type :process-player-items}])
+
+(defn- when-handle-visibility-update [_ _ctx]
+  [{:type :visibility-update}])
+
+(defn- when-handle-production-updates [_ _ctx]
+  [{:type :update-production}])
+
+(defn- when-handle-standalone-waiting [[_ unit] _ctx]
+  [{:type :waiting-for-input :unit unit :set-mode true}])
+
+;; --- WHEN parsing: pattern table ---
+
+(def ^:private when-patterns
+  [{:regex #"mouse\s+is\s+at\s+cell\s+\[(\d+)\s+(\d+)\]\s+and.*backtick\s+then\s+(\w)"
+    :handler when-handle-backtick}
+   {:regex #"mouse\s+is\s+at\s+cell\s+\[(\d+)\s+(\d+)\]\s+and.*presses\s+(\w+)"
+    :handler when-handle-mouse-at-key}
+   {:regex #"(\w+)\s+is\s+waiting\s+for\s+input\s+and\s+the\s+player\s+presses\s+(\w+)"
+    :handler when-handle-waiting-and-key}
+   {:regex #"player\s+presses\s+(\w+)\s+and\s+(wins|loses)\s+the\s+battle"
+    :handler when-handle-battle}
+   {:regex #"player\s+presses\s+(\w+)\s+and\s+(?:the\s+game\s+advances\s+until\s+)?(\w+)\s+is\s+waiting\s+for\s+input"
+    :handler when-handle-key-and-advance}
+   {:regex #"player\s+presses\s+(\w+)"
+    :handler when-handle-key-press}
+   {:regex #"player\s+types\s+(.*)"
+    :handler when-handle-types-keys}
+   {:regex #"player\s+clicks\s+(?:cell\s+)?\[(\d+)\s+(\d+)\]"
+    :handler when-handle-mouse-click}
+   {:regex #"new\s+round\s+starts\s+and\s+(\w+)\s+is\s+waiting\s+for\s+input"
+    :handler when-handle-new-round-and-waiting}
+   {:regex #"(?:new\s+round\s+starts|next\s+round\s+begins)"
+    :handler when-handle-new-round}
+   {:regex #"game\s+advances\s+one\s+batch"
+    :handler when-handle-advance-game-batch}
+   {:regex #"game\s+advances"
+    :handler when-handle-advance-game}
+   {:regex #"player\s+items\s+are\s+processed"
+    :handler when-handle-process-player-items}
+   {:regex #"visibility\s+updates"
+    :handler when-handle-visibility-update}
+   {:regex #"production\s+updates"
+    :handler when-handle-production-updates}
+   {:regex #"(\w+)\s+is\s+waiting\s+for\s+input"
+    :handler when-handle-standalone-waiting}])
+
 (defn parse-when
   "Parse WHEN lines into IR. Returns {:whens [...]}"
   [lines context]
@@ -330,377 +460,304 @@
     (doseq [line lines]
       (let [clean (str/trim line)
             stripped (strip-trailing-period clean)
-            no-when (strip-keyword-prefix stripped)]
+            when-text (strip-keyword-prefix stripped)]
         (when-not (blank-or-comment? clean)
-          (cond
-            ;; Backtick command
-            (re-find #"mouse\s+is\s+at\s+cell\s+\[(\d+)\s+(\d+)\]\s+and.*backtick\s+then\s+(\w)" no-when)
-            (let [[_ x y k] (re-find #"mouse\s+is\s+at\s+cell\s+\[(\d+)\s+(\d+)\]\s+and.*backtick\s+then\s+(\w)" no-when)]
-              (swap! whens conj {:type :backtick
-                                 :key (keyword k)
-                                 :mouse-cell [(Integer/parseInt x) (Integer/parseInt y)]}))
-
-            ;; Mouse at cell + key press
-            (re-find #"mouse\s+is\s+at\s+cell\s+\[(\d+)\s+(\d+)\]\s+and.*presses\s+(\w+)" no-when)
-            (let [[_ x y k] (re-find #"mouse\s+is\s+at\s+cell\s+\[(\d+)\s+(\d+)\]\s+and.*presses\s+(\w+)" no-when)]
-              (swap! whens conj {:type :mouse-at-key
-                                 :coords [(Integer/parseInt x) (Integer/parseInt y)]
-                                 :key (keyword k)}))
-
-            ;; Waiting for input + key press
-            (re-find #"(\w+)\s+is\s+waiting\s+for\s+input\s+and\s+the\s+player\s+presses\s+(\w+)" no-when)
-            (let [[_ unit k] (re-find #"(\w+)\s+is\s+waiting\s+for\s+input\s+and\s+the\s+player\s+presses\s+(\w+)" no-when)
-                  key-info (determine-key-type k context)]
-              (swap! whens conj {:type :waiting-for-input :unit unit :set-mode true})
-              (swap! whens conj (merge {:type :key-press} key-info)))
-
-            ;; Key press with battle
-            (re-find #"player\s+presses\s+(\w+)\s+and\s+(wins|loses)\s+the\s+battle" no-when)
-            (let [[_ k outcome] (re-find #"player\s+presses\s+(\w+)\s+and\s+(wins|loses)\s+the\s+battle" no-when)
-                  outcome-kw (case outcome "wins" :win "loses" :lose (keyword outcome))]
-              (swap! whens conj {:type :battle
-                                 :key (keyword k)
-                                 :outcome outcome-kw
-                                 :combat-type (determine-combat-type context)}))
-
-            ;; Key press + advance until unit waiting
-            (re-find #"player\s+presses\s+(\w+)\s+and\s+(?:the\s+game\s+advances\s+until\s+)?(\w+)\s+is\s+waiting\s+for\s+input" no-when)
-            (let [[_ k unit] (re-find #"player\s+presses\s+(\w+)\s+and\s+(?:the\s+game\s+advances\s+until\s+)?(\w+)\s+is\s+waiting\s+for\s+input" no-when)
-                  key-info (determine-key-type k context)]
-              (swap! whens conj (merge {:type :key-press} key-info))
-              (swap! whens conj {:type :advance-until-waiting :unit unit}))
-
-            ;; Key press (simple)
-            (re-find #"player\s+presses\s+(\w+)" no-when)
-            (let [[_ k] (re-find #"player\s+presses\s+(\w+)" no-when)
-                  key-info (determine-key-type k context)]
-              (when (re-find #"presses\s+\w+\s+and\s+" no-when)
-                (println (str "WARNING: unconsumed trailing text in WHEN: " clean)))
-              (swap! whens conj (merge {:type :key-press} key-info)))
-
-            ;; Player types multiple keys
-            (re-find #"player\s+types\s+(.*)" no-when)
-            (let [[_ keys-str] (re-find #"player\s+types\s+(.*)" no-when)
-                  keys (str/split (str/trim keys-str) #"\s+")]
-              (doseq [k keys]
-                (let [key-info (determine-key-type k context)]
-                  (swap! whens conj (merge {:type :key-press} key-info)))))
-
-            ;; Mouse click
-            (re-find #"player\s+clicks\s+(?:cell\s+)?\[(\d+)\s+(\d+)\]" no-when)
-            (let [[_ x y] (re-find #"player\s+clicks\s+(?:cell\s+)?\[(\d+)\s+(\d+)\]" no-when)]
-              (swap! whens conj {:type :mouse-click
-                                 :coords [(Integer/parseInt x) (Integer/parseInt y)]}))
-
-            ;; New round + advance until unit waiting
-            (re-find #"new\s+round\s+starts\s+and\s+(\w+)\s+is\s+waiting\s+for\s+input" no-when)
-            (let [[_ unit] (re-find #"new\s+round\s+starts\s+and\s+(\w+)\s+is\s+waiting\s+for\s+input" no-when)]
-              (swap! whens conj {:type :start-new-round})
-              (swap! whens conj {:type :advance-until-waiting :unit unit}))
-
-            ;; New round / next round
-            (or (re-find #"new\s+round\s+starts" no-when)
-                (re-find #"next\s+round\s+begins" no-when))
-            (do
-              (when (re-find #"starts\s+and\s+" no-when)
-                (println (str "WARNING: unconsumed trailing text in WHEN: " clean)))
-              (swap! whens conj {:type :start-new-round}))
-
-            ;; Game advances one batch
-            (re-find #"game\s+advances\s+one\s+batch" no-when)
-            (swap! whens conj {:type :advance-game-batch})
-
-            ;; Game advances
-            (re-find #"game\s+advances" no-when)
-            (swap! whens conj {:type :advance-game})
-
-            ;; Player items processed
-            (re-find #"player\s+items\s+are\s+processed" no-when)
-            (swap! whens conj {:type :process-player-items})
-
-            ;; Visibility updates
-            (re-find #"visibility\s+updates" no-when)
-            (swap! whens conj {:type :visibility-update})
-
-            ;; Production updates
-            (re-find #"production\s+updates" no-when)
-            (swap! whens conj {:type :update-production})
-
-            ;; Standalone waiting for input
-            (re-find #"(\w+)\s+is\s+waiting\s+for\s+input" no-when)
-            (let [[_ unit] (re-find #"(\w+)\s+is\s+waiting\s+for\s+input" no-when)]
-              (swap! whens conj {:type :waiting-for-input :unit unit :set-mode true}))
-
-            :else
-            (swap! whens conj {:type :unrecognized :text clean})))))
+          (let [line-ctx (assoc context :when-text when-text :clean-text clean)
+                result (or (first-matching-pattern-with-context when-patterns when-text line-ctx)
+                           [{:type :unrecognized :text clean}])]
+            (doseq [ir result]
+              (swap! whens conj ir))))))
     {:whens @whens}))
+
+;; --- THEN parsing: handler functions ---
+
+(defn- then-handle-after-moves [[_ n unit target]]
+  {:type :unit-after-moves :unit unit :moves (parse-count n) :target target})
+
+(defn- then-handle-after-steps-coords [[_ n unit x y]]
+  {:type :unit-after-steps :unit unit :steps (parse-count n)
+   :coords [(Integer/parseInt x) (Integer/parseInt y)]})
+
+(defn- then-handle-after-steps-target [[_ n unit target]]
+  {:type :unit-after-steps :unit unit :steps (parse-count n) :target target})
+
+(defn- then-handle-unit-waiting-for-input [[_ unit]]
+  {:type :unit-waiting-for-input :unit unit})
+
+(defn- then-handle-unit-at-position-with-mode [[_ unit x y mode]]
+  [{:type :unit-at :unit unit :coords [(Integer/parseInt x) (Integer/parseInt y)]}
+   {:type :unit-prop :unit unit :property :mode :expected (keyword mode)}])
+
+(defn- then-handle-unit-at-coords [[_ unit x y]]
+  {:type :unit-at :unit unit :coords [(Integer/parseInt x) (Integer/parseInt y)]})
+
+(defn- then-handle-unit-at-target [[_ unit target]]
+  {:type :unit-at :unit unit :target target})
+
+(defn- then-handle-eventually-at [[_ unit target]]
+  {:type :unit-eventually-at :unit unit :target target})
+
+(defn- then-handle-unit-absent-on-map [[_ unit]]
+  {:type :unit-absent :unit (normalize-unit-ref unit)})
+
+(defn- then-handle-no-message [[_ area]]
+  {:type :no-message :area (keyword area)})
+
+(defn- then-handle-message-for-unit [[_ area unit key-str]]
+  {:type :message-for-unit :area (keyword area) :unit unit
+   :config-key (keyword (strip-trailing-period key-str))})
+
+(defn- then-handle-message-contains-literal [[_ area text]]
+  {:type :message-contains :area (keyword area) :text text})
+
+(defn- then-handle-message-contains-key [[_ area key-str]]
+  {:type :message-contains :area (keyword area)
+   :config-key (keyword (strip-trailing-period key-str))})
+
+(defn- then-handle-message-is-key [[_ area key-str]]
+  {:type :message-is :area (keyword area)
+   :config-key (keyword (strip-trailing-period key-str))})
+
+(defn- then-handle-message-is-format [[_ area key-str args-str]]
+  (let [args (mapv #(let [s (str/trim %)]
+                      (or (parse-number s) s))
+                   (str/split args-str #"\s+"))]
+    {:type :message-is :area (keyword area) :format {:key (keyword key-str) :args args}}))
+
+(defn- then-handle-bare-message-literal [[_ text]]
+  {:type :message-contains :area :attention :text text})
+
+(defn- then-handle-bare-message-key [[_ key-str]]
+  {:type :message-contains :area :attention
+   :config-key (keyword (strip-trailing-period key-str))})
+
+(defn- then-handle-out-of-fuel [_]
+  {:type :message-contains :area :attention :config-key :fighter-out-of-fuel})
+
+(defn- then-handle-player-map-not-nil [[_ x y]]
+  {:type :player-map-cell-not-nil :coords [(Integer/parseInt x) (Integer/parseInt y)]})
+
+(defn- then-handle-player-map-nil [[_ x y]]
+  {:type :player-map-cell-nil :coords [(Integer/parseInt x) (Integer/parseInt y)]})
+
+(defn- then-handle-cell-prop [[_ x y prop val]]
+  {:type :cell-prop :coords [(Integer/parseInt x) (Integer/parseInt y)]
+   :property (keyword prop) :expected (keyword val)})
+
+(defn- then-handle-cell-type [[_ x y t]]
+  {:type :cell-type :coords [(Integer/parseInt x) (Integer/parseInt y)]
+   :expected (keyword t)})
+
+(defn- then-handle-waiting-for-input [_]
+  {:type :waiting-for-input :expected true})
+
+(defn- then-handle-not-waiting-for-input [_]
+  {:type :waiting-for-input :expected false})
+
+(defn- then-handle-game-paused [_]
+  {:type :game-paused :expected true})
+
+(defn- then-handle-round [[_ n]]
+  {:type :round :expected (Integer/parseInt n)})
+
+(defn- then-handle-destination [[_ x y]]
+  {:type :destination :expected [(Integer/parseInt x) (Integer/parseInt y)]})
+
+(defn- then-handle-production-with-rounds [[_ city item n]]
+  {:type :production-with-rounds :city city :expected (keyword item)
+   :remaining-rounds (Integer/parseInt n)})
+
+(defn- then-handle-production [[_ city item]]
+  {:type :production :city city :expected (keyword item)})
+
+(defn- then-handle-no-production [[_ city]]
+  {:type :no-production :city city})
+
+(defn- then-handle-no-unit-at [[_ x y]]
+  {:type :no-unit-at :coords [(Integer/parseInt x) (Integer/parseInt y)]})
+
+(defn- then-handle-unit-has-prop [[_ unit prop val]]
+  (let [val (str/trim val)]
+    (when (city-or-unit-char? unit)
+      {:type :unit-prop :unit unit
+       :property (keyword prop)
+       :expected (or (parse-number val) (parse-coords val) (keyword val))})))
+
+(defn- then-handle-unit-is-mode [[_ unit val]]
+  (when (city-or-unit-char? unit)
+    {:type :unit-prop :unit unit :property :mode :expected (keyword val)}))
+
+(defn- then-handle-unit-prop-absent [[_ unit prop]]
+  {:type :unit-prop-absent :unit unit :property (keyword prop)})
+
+;; --- THEN parsing: timed-pattern handlers ---
+
+(defn- then-handle-will-be-at [[_ unit target]]
+  (if-let [coords (parse-coords (str "[" (str/replace target #"[\[\]]" "") "]"))]
+    {:type :unit-at-next-round :unit unit :coords coords}
+    {:type :unit-at-next-round :unit unit :target target}))
+
+(defn- then-handle-occupies-cell [[_ unit target]]
+  {:type :unit-occupies-cell :unit unit :target-unit target})
+
+(defn- then-handle-remains-unmoved [[_ unit]]
+  {:type :unit-unmoved :unit unit})
+
+(defn- then-handle-airport-fighter [[_ target]]
+  {:type :container-prop :target target :property :fighter-count :expected 1 :lookup :city})
+
+(defn- then-handle-fighter-aboard [[_ target]]
+  {:type :container-prop :target target :property :fighter-count :expected 1 :lookup :unit})
+
+(defn- then-handle-no-fighters [[_ target]]
+  {:type :container-prop :target target :property :fighter-count :expected 0
+   :lookup (if (contains? city-chars target) :city :unit)})
+
+(defn- then-handle-awake-fighters [[_ target n]]
+  {:type :container-prop :target target :property :awake-fighters
+   :expected (parse-count n)
+   :lookup (if (contains? city-chars target) :city :unit)})
+
+(defn- then-handle-unit-absent-short [[_ unit]]
+  {:type :unit-absent :unit (normalize-unit-ref unit)})
+
+(defn- then-handle-unit-present-coords [[_ unit x y]]
+  {:type :unit-present :unit unit :coords [(Integer/parseInt x) (Integer/parseInt y)]})
+
+(defn- then-handle-unit-present-target [[_ unit target]]
+  {:type :unit-present :unit unit :target target})
+
+;; --- THEN parsing: pattern tables ---
+
+(def ^:private then-bare-patterns
+  [{:regex #"^after\s+(\w+)\s+moves?\s+(\w+)\s+will\s+be\s+at\s+(\S+)"
+    :handler then-handle-after-moves}
+   {:regex #"^after\s+(\w+)\s+steps?\s+there\s+is\s+an?\s+(\w+)\s+at\s+\[(\d+)\s+(\d+)\]"
+    :handler then-handle-after-steps-coords}
+   {:regex #"^after\s+(\w+)\s+steps?\s+there\s+is\s+an?\s+(\w+)\s+at\s+(\S+)"
+    :handler then-handle-after-steps-target}
+   {:regex #"^(\w+)\s+is\s+waiting\s+for\s+input$"
+    :handler then-handle-unit-waiting-for-input}
+   {:regex #"^(\w+)\s+wakes\s+up\s+and\s+asks\s+for\s+input"
+    :handler then-handle-unit-waiting-for-input}
+   {:regex #"^(\w+)\s+is\s+at\s+\[(\d+)\s+(\d+)\]\s+in\s+mode\s+(\w+)"
+    :handler then-handle-unit-at-position-with-mode}
+   {:regex #"^(\w+)\s+is\s+at\s+\[(\d+)\s+(\d+)\]"
+    :handler then-handle-unit-at-coords}
+   {:regex #"^(\w+)\s+is\s+at\s+(\S+)$"
+    :handler then-handle-unit-at-target}
+   {:regex #"eventually\s+(\w+)\s+will\s+be\s+at\s+(\S+)"
+    :handler then-handle-eventually-at}
+   {:regex #"there\s+is\s+no\s+(\w+)\s+on\s+the\s+map"
+    :handler then-handle-unit-absent-on-map}
+   {:regex #"there\s+is\s+no\s+(attention|turn|error)\s+message"
+    :handler then-handle-no-message}
+   {:regex #"(?:the\s+)?(attention|turn|error)\s+message\s+for\s+(\w+)\s+contains\s+:(\S+)"
+    :handler then-handle-message-for-unit}
+   {:regex #"(?:the\s+)?(attention|turn|error)\s+message\s+contains\s+\"([^\"]+)\""
+    :handler then-handle-message-contains-literal}
+   {:regex #"(?:the\s+)?(attention|turn|error)\s+message\s+contains\s+:(\S+)"
+    :handler then-handle-message-contains-key}
+   {:regex #"(?:the\s+)?(attention|turn|error)\s+message\s+is\s+\(fmt\s+:(\S+)\s+(.*)\)"
+    :handler then-handle-message-is-format}
+   {:regex #"(?:the\s+)?(attention|turn|error)\s+message\s+is\s+:(\S+)"
+    :handler then-handle-message-is-key}
+   {:regex #"(?:the\s+)?message\s+contains\s+\"([^\"]+)\""
+    :handler then-handle-bare-message-literal}
+   {:regex #"(?:the\s+)?message\s+contains\s+:(\S+)"
+    :handler then-handle-bare-message-key}
+   {:regex #"out-of-fuel\s+message\s+is\s+displayed"
+    :handler then-handle-out-of-fuel}
+   {:regex #"player-map\s+cell\s+\[(\d+)\s+(\d+)\]\s+is\s+not\s+nil"
+    :handler then-handle-player-map-not-nil}
+   {:regex #"player-map\s+cell\s+\[(\d+)\s+(\d+)\]\s+is\s+nil"
+    :handler then-handle-player-map-nil}
+   {:regex #"cell\s+\[(\d+)\s+(\d+)\]\s+has\s+(\S+)\s+(\S+)"
+    :handler then-handle-cell-prop}
+   {:regex #"cell\s+\[(\d+)\s+(\d+)\]\s+is\s+(?:a\s+)?(\w+)"
+    :handler then-handle-cell-type}
+   {:regex #"^waiting-for-input$"
+    :handler then-handle-waiting-for-input}
+   {:regex #"^not\s+waiting-for-input$"
+    :handler then-handle-not-waiting-for-input}
+   {:regex #"game\s+is\s+paused"
+    :handler then-handle-game-paused}
+   {:regex #"round\s+is\s+(\d+)"
+    :handler then-handle-round}
+   {:regex #"destination\s+is\s+\[(\d+)\s+(\d+)\]"
+    :handler then-handle-destination}
+   {:regex #"production\s+at\s+(\w+)\s+is\s+([\w-]+)\s+with\s+(\d+)\s+rounds?\s+remaining"
+    :handler then-handle-production-with-rounds}
+   {:regex #"production\s+at\s+(\w+)\s+is\s+([\w-]+)"
+    :handler then-handle-production}
+   {:regex #"(?:there\s+is\s+)?no\s+production\s+at\s+(\w+)"
+    :handler then-handle-no-production}
+   {:regex #"no\s+unit\s+at\s+\[(\d+)\s+(\d+)\]"
+    :handler then-handle-no-unit-at}])
+
+(def ^:private then-timed-patterns
+  [{:regex #"^(\w+)\s+will\s+be\s+at\s+(\S+)$"
+    :handler then-handle-will-be-at}
+   {:regex #"^(\w+)\s+occupies\s+the\s+(\w+)\s+cell"
+    :handler then-handle-occupies-cell}
+   {:regex #"^(\w+)\s+remains\s+unmoved"
+    :handler then-handle-remains-unmoved}
+   {:regex #"^(\w+)\s+has\s+one\s+fighter\s+in\s+its\s+airport"
+    :handler then-handle-airport-fighter}
+   {:regex #"^(\w+)\s+has\s+one\s+fighter\s+aboard"
+    :handler then-handle-fighter-aboard}
+   {:regex #"^(\w+)\s+has\s+no\s+fighters"
+    :handler then-handle-no-fighters}
+   {:regex #"^(\w+)\s+has\s+(\w+)\s+awake\s+fighters?"
+    :handler then-handle-awake-fighters}
+   {:regex #"there\s+is\s+no\s+(\w+)$"
+    :handler then-handle-unit-absent-short}
+   {:regex #"there\s+is\s+an?\s+(\w+)\s+at\s+\[(\d+)\s+(\d+)\]"
+    :handler then-handle-unit-present-coords}
+   {:regex #"there\s+is\s+an?\s+(\w+)\s+at\s+(\S+)"
+    :handler then-handle-unit-present-target}
+   {:regex #"^(\w+)\s+has\s+(\w[\w-]*)\s+(.+)$"
+    :handler then-handle-unit-has-prop}
+   {:regex #"^(\w+)\s+(?:has\s+mode|is)\s+(\w+)$"
+    :handler then-handle-unit-is-mode}
+   {:regex #"^(\w+)\s+does\s+not\s+have\s+(\S+)"
+    :handler then-handle-unit-prop-absent}])
 
 ;; --- THEN parsing ---
 
-(defn- parse-single-then-clause [clause]
+(defn- strip-then-preamble
+  "Strip THEN/and prefix and timing prefix, returning
+   {:bare-text text :timed-text text :timing-key key-or-nil}"
+  [clause]
   (let [clean (str/trim clause)
         stripped (strip-trailing-period clean)
-        ;; Remove leading THEN/and
-        no-prefix (-> stripped
+        bare-text (-> stripped
                       (str/replace #"^(?:THEN|and)\s+" "")
                       str/trim)
-        ;; Strip "at the next round/step/move" prefix, tracking which keyword was used
-        timing-match (re-find #"^[Aa]t\s+(?:the\s+)?next\s+(round|step|move)\s+" no-prefix)
+        timing-match (re-find #"^[Aa]t\s+(?:the\s+)?next\s+(round|step|move)\s+" bare-text)
         timing-word (when timing-match (nth timing-match 1))
-        no-timing (if timing-match
-                    (str/trim (str/replace-first no-prefix (first timing-match) ""))
-                    no-prefix)
+        timed-text (if timing-match
+                     (str/trim (str/replace-first bare-text (first timing-match) ""))
+                     bare-text)
         timing-key (case timing-word
                      "round" :at-next-round
                      ("step" "move") :at-next-step
-                     nil)
-        tag-timing (fn [result]
-                     (if timing-key
-                       (if (map? result)
-                         (assoc result timing-key true)
-                         (update result 0 assoc timing-key true))
-                       result))]
-    (tag-timing
-    (cond
-      ;; After N moves unit will be at target
-      (re-find #"^after\s+(\w+)\s+moves?\s+(\w+)\s+will\s+be\s+at\s+(\S+)" no-prefix)
-      (let [[_ n unit target] (re-find #"^after\s+(\w+)\s+moves?\s+(\w+)\s+will\s+be\s+at\s+(\S+)" no-prefix)]
-        {:type :unit-after-moves :unit unit :moves (parse-count n) :target target})
+                     nil)]
+    {:bare-text bare-text :timed-text timed-text :timing-key timing-key :clean clean}))
 
-      ;; After N steps there is a unit at [x y]
-      (re-find #"^after\s+(\w+)\s+steps?\s+there\s+is\s+an?\s+(\w+)\s+at\s+\[(\d+)\s+(\d+)\]" no-prefix)
-      (let [[_ n unit x y] (re-find #"^after\s+(\w+)\s+steps?\s+there\s+is\s+an?\s+(\w+)\s+at\s+\[(\d+)\s+(\d+)\]" no-prefix)]
-        {:type :unit-after-steps :unit unit :steps (parse-count n)
-         :coords [(Integer/parseInt x) (Integer/parseInt y)]})
+(defn- tag-timing [timing-key result]
+  (if timing-key
+    (if (map? result)
+      (assoc result timing-key true)
+      (update result 0 assoc timing-key true))
+    result))
 
-      ;; After N steps there is a unit at target
-      (re-find #"^after\s+(\w+)\s+steps?\s+there\s+is\s+an?\s+(\w+)\s+at\s+(\S+)" no-prefix)
-      (let [[_ n unit target] (re-find #"^after\s+(\w+)\s+steps?\s+there\s+is\s+an?\s+(\w+)\s+at\s+(\S+)" no-prefix)]
-        {:type :unit-after-steps :unit unit :steps (parse-count n) :target target})
-
-      ;; Unit waiting for input
-      (re-find #"^(\w+)\s+is\s+waiting\s+for\s+input$" no-prefix)
-      (let [[_ unit] (re-find #"^(\w+)\s+is\s+waiting\s+for\s+input$" no-prefix)]
-        {:type :unit-waiting-for-input :unit unit})
-
-      ;; F wakes up and asks for input
-      (re-find #"^(\w+)\s+wakes\s+up\s+and\s+asks\s+for\s+input" no-prefix)
-      (let [[_ unit] (re-find #"^(\w+)\s+wakes\s+up\s+and\s+asks\s+for\s+input" no-prefix)]
-        {:type :unit-waiting-for-input :unit unit})
-
-      ;; Unit at next round (must be before unit-at)
-      (re-find #"^(\w+)\s+will\s+be\s+at\s+(\S+)$" no-timing)
-      (let [[_ unit target] (re-find #"^(\w+)\s+will\s+be\s+at\s+(\S+)$" no-timing)]
-        (if-let [coords (parse-coords (str "[" (str/replace target #"[\[\]]" "") "]"))]
-          {:type :unit-at-next-round :unit unit :coords coords}
-          {:type :unit-at-next-round :unit unit :target target}))
-
-      ;; Eventually at
-      (re-find #"eventually\s+(\w+)\s+will\s+be\s+at\s+(\S+)" no-prefix)
-      (let [[_ unit target] (re-find #"eventually\s+(\w+)\s+will\s+be\s+at\s+(\S+)" no-prefix)]
-        {:type :unit-eventually-at :unit unit :target target})
-
-      ;; Unit occupies cell
-      (re-find #"^(\w+)\s+occupies\s+the\s+(\w+)\s+cell" no-timing)
-      (let [[_ unit target] (re-find #"^(\w+)\s+occupies\s+the\s+(\w+)\s+cell" no-timing)]
-        {:type :unit-occupies-cell :unit unit :target-unit target})
-
-      ;; Unit remains unmoved
-      (re-find #"^(\w+)\s+remains\s+unmoved" no-timing)
-      (let [[_ unit] (re-find #"^(\w+)\s+remains\s+unmoved" no-timing)]
-        {:type :unit-unmoved :unit unit})
-
-      ;; Unit at position with mode
-      (re-find #"^(\w+)\s+is\s+at\s+\[(\d+)\s+(\d+)\]\s+in\s+mode\s+(\w+)" no-prefix)
-      (let [[_ unit x y mode] (re-find #"^(\w+)\s+is\s+at\s+\[(\d+)\s+(\d+)\]\s+in\s+mode\s+(\w+)" no-prefix)]
-        [{:type :unit-at :unit unit :coords [(Integer/parseInt x) (Integer/parseInt y)]}
-         {:type :unit-prop :unit unit :property :mode :expected (keyword mode)}])
-
-      ;; Unit at position
-      (re-find #"^(\w+)\s+is\s+at\s+\[(\d+)\s+(\d+)\]" no-prefix)
-      (let [[_ unit x y] (re-find #"^(\w+)\s+is\s+at\s+\[(\d+)\s+(\d+)\]" no-prefix)]
-        {:type :unit-at :unit unit :coords [(Integer/parseInt x) (Integer/parseInt y)]})
-
-      ;; Unit at named target (e.g. "F is at =")
-      (re-find #"^(\w+)\s+is\s+at\s+(\S+)$" no-prefix)
-      (let [[_ unit target] (re-find #"^(\w+)\s+is\s+at\s+(\S+)$" no-prefix)]
-        {:type :unit-at :unit unit :target target})
-
-      ;; Container - city airport has fighter(s)
-      (re-find #"^(\w+)\s+has\s+one\s+fighter\s+in\s+its\s+airport" no-timing)
-      (let [[_ target] (re-find #"^(\w+)\s+has\s+one\s+fighter\s+in\s+its\s+airport" no-timing)]
-        {:type :container-prop :target target :property :fighter-count :expected 1 :lookup :city})
-
-      ;; Container - unit has fighter(s) aboard
-      (re-find #"^(\w+)\s+has\s+one\s+fighter\s+aboard" no-timing)
-      (let [[_ target] (re-find #"^(\w+)\s+has\s+one\s+fighter\s+aboard" no-timing)]
-        {:type :container-prop :target target :property :fighter-count :expected 1 :lookup :unit})
-
-      ;; Container - no fighters (on city)
-      (re-find #"^(\w+)\s+has\s+no\s+fighters" no-timing)
-      (let [[_ target] (re-find #"^(\w+)\s+has\s+no\s+fighters" no-timing)]
-        (let [lookup (if (contains? city-chars target) :city :unit)]
-          {:type :container-prop :target target :property :fighter-count :expected 0 :lookup lookup}))
-
-      ;; Container - N awake fighters (natural language)
-      (re-find #"^(\w+)\s+has\s+(\w+)\s+awake\s+fighters?" no-timing)
-      (let [[_ target n] (re-find #"^(\w+)\s+has\s+(\w+)\s+awake\s+fighters?" no-timing)
-            lookup (if (contains? city-chars target) :city :unit)]
-        {:type :container-prop :target target :property :awake-fighters :expected (parse-count n) :lookup lookup})
-
-      ;; Unit absent - "there is no X on the map"
-      (re-find #"there\s+is\s+no\s+(\w+)\s+on\s+the\s+map" no-prefix)
-      (let [[_ unit] (re-find #"there\s+is\s+no\s+(\w+)\s+on\s+the\s+map" no-prefix)]
-        {:type :unit-absent :unit (normalize-unit-ref unit)})
-
-      ;; Unit absent - "there is no X" (short form)
-      (re-find #"there\s+is\s+no\s+(\w+)$" no-timing)
-      (let [[_ unit] (re-find #"there\s+is\s+no\s+(\w+)$" no-timing)]
-        {:type :unit-absent :unit (normalize-unit-ref unit)})
-
-      ;; Unit present - "there is an/a X at [coords]"
-      (re-find #"there\s+is\s+an?\s+(\w+)\s+at\s+\[(\d+)\s+(\d+)\]" no-timing)
-      (let [[_ unit x y] (re-find #"there\s+is\s+an?\s+(\w+)\s+at\s+\[(\d+)\s+(\d+)\]" no-timing)]
-        {:type :unit-present :unit unit :coords [(Integer/parseInt x) (Integer/parseInt y)]})
-
-      ;; Unit present at target cell
-      (re-find #"there\s+is\s+an?\s+(\w+)\s+at\s+(\S+)" no-timing)
-      (let [[_ unit target] (re-find #"there\s+is\s+an?\s+(\w+)\s+at\s+(\S+)" no-timing)]
-        {:type :unit-present :unit unit :target target})
-
-      ;; No message
-      (re-find #"there\s+is\s+no\s+(attention|turn|error)\s+message" no-prefix)
-      (let [[_ area] (re-find #"there\s+is\s+no\s+(attention|turn|error)\s+message" no-prefix)]
-        {:type :no-message :area (keyword area)})
-
-      ;; Message for unit contains config key (e.g. "attention message for F contains :fighter-bingo")
-      (re-find #"(?:the\s+)?(attention|turn|error)\s+message\s+for\s+(\w+)\s+contains\s+:(\S+)" no-prefix)
-      (let [[_ area unit key-str] (re-find #"(?:the\s+)?(attention|turn|error)\s+message\s+for\s+(\w+)\s+contains\s+:(\S+)" no-prefix)]
-        {:type :message-for-unit :area (keyword area) :unit unit :config-key (keyword (strip-trailing-period key-str))})
-
-      ;; Message contains literal string
-      (re-find #"(?:the\s+)?(attention|turn|error)\s+message\s+contains\s+\"([^\"]+)\"" no-prefix)
-      (let [[_ area text] (re-find #"(?:the\s+)?(attention|turn|error)\s+message\s+contains\s+\"([^\"]+)\"" no-prefix)]
-        {:type :message-contains :area (keyword area) :text text})
-
-      ;; Message contains config key
-      (re-find #"(?:the\s+)?(attention|turn|error)\s+message\s+contains\s+:(\S+)" no-prefix)
-      (let [[_ area key-str] (re-find #"(?:the\s+)?(attention|turn|error)\s+message\s+contains\s+:(\S+)" no-prefix)]
-        {:type :message-contains :area (keyword area) :config-key (keyword (strip-trailing-period key-str))})
-
-      ;; Message is config key
-      (re-find #"(?:the\s+)?(attention|turn|error)\s+message\s+is\s+:(\S+)" no-prefix)
-      (let [[_ area key-str] (re-find #"(?:the\s+)?(attention|turn|error)\s+message\s+is\s+:(\S+)" no-prefix)]
-        {:type :message-is :area (keyword area) :config-key (keyword (strip-trailing-period key-str))})
-
-      ;; Message is format function
-      (re-find #"(?:the\s+)?(attention|turn|error)\s+message\s+is\s+\(fmt\s+:(\S+)\s+(.*)\)" no-prefix)
-      (let [[_ area key-str args-str] (re-find #"(?:the\s+)?(attention|turn|error)\s+message\s+is\s+\(fmt\s+:(\S+)\s+(.*)\)" no-prefix)
-            args (mapv #(let [s (str/trim %)]
-                          (or (parse-number s) s))
-                       (str/split args-str #"\s+"))]
-        {:type :message-is :area (keyword area) :format {:key (keyword key-str) :args args}})
-
-      ;; Bare message contains (backward compat) - literal
-      (re-find #"(?:the\s+)?message\s+contains\s+\"([^\"]+)\"" no-prefix)
-      (let [[_ text] (re-find #"(?:the\s+)?message\s+contains\s+\"([^\"]+)\"" no-prefix)]
-        {:type :message-contains :area :attention :text text})
-
-      ;; Bare message contains (backward compat) - config key
-      (re-find #"(?:the\s+)?message\s+contains\s+:(\S+)" no-prefix)
-      (let [[_ key-str] (re-find #"(?:the\s+)?message\s+contains\s+:(\S+)" no-prefix)]
-        {:type :message-contains :area :attention :config-key (keyword (strip-trailing-period key-str))})
-
-      ;; Out-of-fuel message displayed (special case)
-      (re-find #"out-of-fuel\s+message\s+is\s+displayed" no-prefix)
-      {:type :message-contains :area :attention :config-key :fighter-out-of-fuel}
-
-      ;; Player-map cell is not nil
-      (re-find #"player-map\s+cell\s+\[(\d+)\s+(\d+)\]\s+is\s+not\s+nil" no-prefix)
-      (let [[_ x y] (re-find #"player-map\s+cell\s+\[(\d+)\s+(\d+)\]\s+is\s+not\s+nil" no-prefix)]
-        {:type :player-map-cell-not-nil :coords [(Integer/parseInt x) (Integer/parseInt y)]})
-
-      ;; Player-map cell is nil
-      (re-find #"player-map\s+cell\s+\[(\d+)\s+(\d+)\]\s+is\s+nil" no-prefix)
-      (let [[_ x y] (re-find #"player-map\s+cell\s+\[(\d+)\s+(\d+)\]\s+is\s+nil" no-prefix)]
-        {:type :player-map-cell-nil :coords [(Integer/parseInt x) (Integer/parseInt y)]})
-
-      ;; Cell property
-      (re-find #"cell\s+\[(\d+)\s+(\d+)\]\s+has\s+(\S+)\s+(\S+)" no-prefix)
-      (let [[_ x y prop val] (re-find #"cell\s+\[(\d+)\s+(\d+)\]\s+has\s+(\S+)\s+(\S+)" no-prefix)]
-        {:type :cell-prop :coords [(Integer/parseInt x) (Integer/parseInt y)]
-         :property (keyword prop) :expected (keyword val)})
-
-      ;; Cell type
-      (re-find #"cell\s+\[(\d+)\s+(\d+)\]\s+is\s+(?:a\s+)?(\w+)" no-prefix)
-      (let [[_ x y t] (re-find #"cell\s+\[(\d+)\s+(\d+)\]\s+is\s+(?:a\s+)?(\w+)" no-prefix)]
-        {:type :cell-type :coords [(Integer/parseInt x) (Integer/parseInt y)]
-         :expected (keyword t)})
-
-      ;; Waiting-for-input (bare)
-      (re-find #"^waiting-for-input$" no-prefix)
-      {:type :waiting-for-input :expected true}
-
-      ;; Not waiting-for-input
-      (re-find #"^not\s+waiting-for-input$" no-prefix)
-      {:type :waiting-for-input :expected false}
-
-      ;; Game is paused
-      (re-find #"game\s+is\s+paused" no-prefix)
-      {:type :game-paused :expected true}
-
-      ;; Round is N
-      (re-find #"round\s+is\s+(\d+)" no-prefix)
-      (let [[_ n] (re-find #"round\s+is\s+(\d+)" no-prefix)]
-        {:type :round :expected (Integer/parseInt n)})
-
-      ;; Destination is [x y]
-      (re-find #"destination\s+is\s+\[(\d+)\s+(\d+)\]" no-prefix)
-      (let [[_ x y] (re-find #"destination\s+is\s+\[(\d+)\s+(\d+)\]" no-prefix)]
-        {:type :destination :expected [(Integer/parseInt x) (Integer/parseInt y)]})
-
-      ;; Production at city is item with N rounds remaining
-      (re-find #"production\s+at\s+(\w+)\s+is\s+([\w-]+)\s+with\s+(\d+)\s+rounds?\s+remaining" no-prefix)
-      (let [[_ city item n] (re-find #"production\s+at\s+(\w+)\s+is\s+([\w-]+)\s+with\s+(\d+)\s+rounds?\s+remaining" no-prefix)]
-        {:type :production-with-rounds :city city :expected (keyword item) :remaining-rounds (Integer/parseInt n)})
-
-      ;; Production at city is item
-      (re-find #"production\s+at\s+(\w+)\s+is\s+([\w-]+)" no-prefix)
-      (let [[_ city item] (re-find #"production\s+at\s+(\w+)\s+is\s+([\w-]+)" no-prefix)]
-        {:type :production :city city :expected (keyword item)})
-
-      ;; No production at city
-      (re-find #"(?:there\s+is\s+)?no\s+production\s+at\s+(\w+)" no-prefix)
-      (let [[_ city] (re-find #"no\s+production\s+at\s+(\w+)" no-prefix)]
-        {:type :no-production :city city})
-
-      ;; No unit at coords
-      (re-find #"no\s+unit\s+at\s+\[(\d+)\s+(\d+)\]" no-prefix)
-      (let [[_ x y] (re-find #"no\s+unit\s+at\s+\[(\d+)\s+(\d+)\]" no-prefix)]
-        {:type :no-unit-at :coords [(Integer/parseInt x) (Integer/parseInt y)]})
-
-      ;; Unit has property (generic)
-      (re-find #"^(\w+)\s+has\s+(\w[\w-]*)\s+(.+)$" no-prefix)
-      (let [[_ unit prop val] (re-find #"^(\w+)\s+has\s+(\w[\w-]*)\s+(.+)$" no-prefix)
-            val (str/trim val)]
-        (when (city-or-unit-char? unit)
-          {:type :unit-prop :unit unit
-           :property (keyword prop)
-           :expected (or (parse-number val) (parse-coords val) (keyword val))}))
-
-      ;; Unit is mode
-      (re-find #"^(\w+)\s+(?:has\s+mode|is)\s+(\w+)$" no-prefix)
-      (let [[_ unit val] (re-find #"^(\w+)\s+(?:has\s+mode|is)\s+(\w+)$" no-prefix)]
-        (when (city-or-unit-char? unit)
-          {:type :unit-prop :unit unit :property :mode :expected (keyword val)}))
-
-      ;; Unit does not have property
-      (re-find #"^(\w+)\s+does\s+not\s+have\s+(\S+)" no-prefix)
-      (let [[_ unit prop] (re-find #"^(\w+)\s+does\s+not\s+have\s+(\S+)" no-prefix)]
-        {:type :unit-prop-absent :unit unit :property (keyword prop)})
-
-      :else
-      {:type :unrecognized :text clean}))))
+(defn- parse-single-then-clause [clause]
+  (let [{:keys [bare-text timed-text timing-key clean]} (strip-then-preamble clause)]
+    (tag-timing timing-key
+      (or (first-matching-pattern then-bare-patterns bare-text)
+          (first-matching-pattern then-timed-patterns timed-text)
+          {:type :unrecognized :text clean}))))
 
 (defn- split-then-continuations [lines]
   (let [result (atom [])

@@ -3,7 +3,15 @@
 
 ## Overview
 
-Acceptance tests are plain-text `.txt` files in the `acceptanceTests/` directory, written in Given/When/Then format. Claude Code is the test runner — it reads each `.txt` file, interprets the directives, translates each test into a Speclj spec file in `generated-acceptance-specs/`, and runs it with `clj -M:spec`. The source filename and GIVEN line number are embedded in the spec's `it` description so that failures trace back to the original acceptance test.
+Acceptance tests are plain-text `.txt` files in the `acceptanceTests/` directory, written in Given/When/Then format. An automated three-stage pipeline translates them into runnable Speclj specs:
+
+```
+.txt → Parser → .edn → Generator → .clj → Speclj runner
+```
+
+The source filename and GIVEN line number are embedded in each spec's `it` description so that failures trace back to the original acceptance test.
+
+**When to read this file:** Only when modifying or debugging the parser (`src/empire/acceptance/parser.cljc`) or generator (`src/empire/acceptance/generator.cljc`). This file is not needed for writing acceptance tests or running the pipeline.
 
 ## Design Principle
 
@@ -11,10 +19,33 @@ Prefer tests based on observable behavior rather than implementation details. As
 
 ## Execution Mechanism
 
-Generated specs live in `generated-acceptance-specs/` at the project root, tracked in git. Claude translates each acceptance test into a Speclj spec file in that directory. Each test (GIVEN...WHEN...THEN group) becomes one `it` block. The `it` description contains the source filename and line number of the first GIVEN line, plus the preceding comment as a human-readable label.
+### Pipeline
 
-- Naming convention: `acceptanceTests/transports.txt` → `generated-acceptance-specs/acceptance/transports_spec.clj`
-- Namespace convention: `acceptance.transports-spec`
+The pipeline has three stages, each with its own CLI alias:
+
+1. **Parse** (`clj -M:parse-tests`): The parser (`src/empire/acceptance/parser.cljc`) scans `acceptanceTests/` for `.txt` files and produces an EDN intermediate representation for each one (e.g., `acceptanceTests/army.txt` → `acceptanceTests/army.edn`). The EDN captures test structure (descriptions, line numbers, GIVEN/WHEN/THEN directives) in a machine-readable format.
+
+2. **Generate** (`clj -M:generate-specs`): The generator (`src/empire/acceptance/generator.cljc`) reads `.edn` files from `acceptanceTests/` and produces complete Speclj spec files in `generated-acceptance-specs/acceptance/` (e.g., `army.edn` → `generated-acceptance-specs/acceptance/army_spec.clj`). The generator determines required namespaces automatically based on the directives used.
+
+3. **Run** (`clj -M:spec generated-acceptance-specs/`): Standard Speclj execution.
+
+Shorthand to run the full pipeline:
+```bash
+clj -M:parse-tests && clj -M:generate-specs && clj -M:spec generated-acceptance-specs/
+```
+
+### Freshness Checks
+
+Before running, compare modification dates through the chain:
+- If `.txt` is newer than `.edn`, re-parse.
+- If `.edn` is newer than `.clj`, regenerate.
+
+### File Conventions
+
+- Naming: `acceptanceTests/transports.txt` → `acceptanceTests/transports.edn` → `generated-acceptance-specs/acceptance/transports_spec.clj`
+- Namespace: `acceptance.transports-spec`
+- Generated specs and `.edn` files are tracked in git and should be committed after regeneration.
+- Never modify generated specs or `.edn` files directly; only delete and regenerate from the `.txt` source.
 
 ### Generated Spec Structure
 
@@ -51,14 +82,7 @@ For a file `acceptanceTests/fighter-fuel-attention.txt` with a test starting at 
     ))
 ```
 
-### Execution Flow
-
-1. For each `.txt` file in `acceptanceTests/`:
-   a. Compute the corresponding spec path in `generated-acceptance-specs/acceptance/`.
-   b. Compare file modification dates: if the spec doesn't exist, or the `.txt` is newer than the `.clj`, regenerate the spec.
-   c. If the spec is up-to-date, skip regeneration.
-2. Run all specs: `clj -M:spec generated-acceptance-specs/`.
-3. Report results. Speclj failure output will include the `it` description which contains the source file and line number.
+Each test becomes one `it` block. The `it` description contains the source filename and line number of the first GIVEN line, plus the preceding comment as a human-readable label.
 
 ### Failure Reporting
 

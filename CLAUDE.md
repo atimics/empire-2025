@@ -15,19 +15,36 @@ If the working directory is named <x> then local rules will be stored in <x>.md.
 ## Acceptance Tests
 
 Acceptance tests are `.txt` files in `acceptanceTests/` in Given/When/Then format.
-See `plans/permanent/acceptance-test-framework.md` for the full directive catalog
-and execution protocol. Read that file before running or writing acceptance tests.
+The detailed directive catalog and translation reference is in `plans/permanent/acceptance-test-framework.md`.
+Only read that file when modifying or debugging the parser (`src/empire/acceptance/parser.cljc`) or generator (`src/empire/acceptance/generator.cljc`) — not when writing acceptance tests or running the pipeline.
 
-Rules:
+### Pipeline
+
+Tests flow through a three-stage automated pipeline:
+
+```
+.txt → Parser → .edn → Generator → .clj → Speclj runner
+```
+
+1. **Parse:** `clj -M:parse-tests` — reads `.txt` files from `acceptanceTests/`, produces `.edn` intermediate representations in the same directory. Source: `src/empire/acceptance/parser.cljc`.
+2. **Generate:** `clj -M:generate-specs` — reads `.edn` files, produces Speclj spec files in `generated-acceptance-specs/acceptance/`. Source: `src/empire/acceptance/generator.cljc`.
+3. **Run:** `clj -M:spec generated-acceptance-specs/` — executes the generated specs.
+
+Shorthand to run the full pipeline:
+```bash
+clj -M:parse-tests && clj -M:generate-specs && clj -M:spec generated-acceptance-specs/
+```
+
+### Rules
+
 - Never modify an acceptance test `.txt` file without explicit permission.
-- Always check `.txt` vs `.clj` modification dates before running acceptance tests; regenerate the spec if the `.txt` is newer.
+- Always check `.txt` vs `.edn` and `.edn` vs `.clj` modification dates before running acceptance tests; re-parse and/or regenerate if the source is newer.
 - Clear context (reset-all-atoms!) before each test.
 - Before a push, ask whether acceptance tests should be run.
 - On failure, report file name and line number of the first GIVEN line.
 - If a directive is ambiguous, report the ambiguity rather than guessing.
-- Tests are translated to Speclj specs in `generated-acceptance-specs/` and run with `clj -M:spec`.
-- Never modify generated specs in `generated-acceptance-specs/`; only delete and regenerate them from the `.txt` source.
-- Generated specs should be committed after regeneration.
+- Never modify generated specs in `generated-acceptance-specs/`; only delete and regenerate them from the `.txt` source via the pipeline.
+- Generated specs and `.edn` files should be committed after regeneration.
 - If an acceptance test cannot be translated to a spec, report which test and why to the user. Still generate the spec as a failing test documenting the desired behavior.
 - Mock the random number generator (`with-redefs [rand ...]`) for tests with random/non-deterministic conditions.
 
@@ -39,13 +56,17 @@ clj -M:run
 
 # Run all tests with Speclj
 clj -M:spec
- 
+
 # Run specific test file or directory
 clj -M:spec spec/empire/movement_spec.clj
 clj -M:spec spec/empire/units/
 
 # Run tests with coverage report (outputs to target/coverage/)
 clj -M:cov
+
+# Acceptance test pipeline
+clj -M:parse-tests      # Parse .txt → .edn (acceptanceTests/)
+clj -M:generate-specs    # Generate .edn → .clj (generated-acceptance-specs/)
 ```
 
 ## Architecture

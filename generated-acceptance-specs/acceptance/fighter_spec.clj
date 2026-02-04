@@ -26,8 +26,7 @@
     (cond
       (and @atoms/waiting-for-input
            (let [u (get-test-unit atoms/game-map unit-label)]
-             (and u (= :awake (:mode (:unit u)))
-                  (= (:pos u) (first @atoms/cells-needing-attention)))))
+             (and u (= (:pos u) (first @atoms/cells-needing-attention)))))
       :ok
 
       (zero? n) :timeout

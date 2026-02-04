@@ -32,8 +32,8 @@
   "Removes one awake unit from a container."
   [entity count-key awake-key]
   (-> entity
-      (update count-key dec)
-      (update awake-key dec)))
+      (update count-key (fnil dec 0))
+      (update awake-key (fnil dec 0))))
 
 (defn wake-all
   "Wakes all units in a container."

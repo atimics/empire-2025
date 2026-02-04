@@ -179,8 +179,7 @@
                   "    (cond\n"
                   "      (and @atoms/waiting-for-input\n"
                   "           (let [u (get-test-unit atoms/game-map unit-label)]\n"
-                  "             (and u (= :awake (:mode (:unit u)))\n"
-                  "                  (= (:pos u) (first @atoms/cells-needing-attention)))))\n"
+                  "             (and u (= (:pos u) (first @atoms/cells-needing-attention)))))\n"
                   "      :ok\n"
                   "\n"
                   "      (zero? n) :timeout\n"
@@ -256,15 +255,26 @@
                  "      (item-processing/process-player-items-batch))"))
      (str/join "\n" @lines))))
 
+(defn- infer-container-counts
+  "When awake-fighters or awake-armies are set but the corresponding
+   count key is missing, infer the count from the awake value."
+  [props]
+  (cond-> props
+    (and (contains? props :awake-fighters) (not (contains? props :fighter-count)))
+    (assoc :fighter-count (:awake-fighters props))
+    (and (contains? props :awake-armies) (not (contains? props :army-count)))
+    (assoc :army-count (:awake-armies props))))
+
 (defn- generate-container-state-given [{:keys [target props]}]
-  (if (contains? city-chars target)
-    ;; City container — props go on the cell
-    (let [prop-map (str/join " " (mapcat (fn [[k v]] [(str ":" (name k)) (pr-str v)]) props))]
-      (str "    (let [" (str/lower-case target) "-pos (:pos (get-test-city atoms/game-map \"" target "\"))]\n"
-           "      (swap! atoms/game-map update-in " (str/lower-case target) "-pos merge {" prop-map "}))"))
-    ;; Unit container — props go on :contents
-    (let [kvs (mapv (fn [[k v]] (str ":" (name k) " " (pr-str v))) props)]
-      (str "    (set-test-unit atoms/game-map \"" target "\" " (str/join " " kvs) ")"))))
+  (let [props (infer-container-counts props)]
+    (if (contains? city-chars target)
+      ;; City container — props go on the cell
+      (let [prop-map (str/join " " (mapcat (fn [[k v]] [(str ":" (name k)) (pr-str v)]) props))]
+        (str "    (let [" (str/lower-case target) "-pos (:pos (get-test-city atoms/game-map \"" target "\"))]\n"
+             "      (swap! atoms/game-map update-in " (str/lower-case target) "-pos merge {" prop-map "}))"))
+      ;; Unit container — props go on :contents
+      (let [kvs (mapv (fn [[k v]] (str ":" (name k) " " (pr-str v))) props)]
+        (str "    (set-test-unit atoms/game-map \"" target "\" " (str/join " " kvs) ")")))))
 
 (defn- generate-production-given [{:keys [city item remaining-rounds]}]
   (let [pos-expr (target-pos-expr city)]

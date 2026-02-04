@@ -13,6 +13,41 @@ THEN C has two awake fighters.
 THEN C has mode sentry.
 
 ;===============================================================
+; Sleep fighters on carrier.
+;===============================================================
+GIVEN game map
+  C~
+GIVEN C is sentry with two awake fighters.
+
+WHEN C is waiting for input and the player presses s.
+
+THEN C has no awake fighters and two asleep fighters.
+THEN C has mode awake.
+
+;===============================================================
+; Carrier with awake fighters needs attention.
+;===============================================================
+GIVEN game map
+  C~
+C is sentry with one fighter and one awake fighter.
+
+WHEN a new round starts and C is waiting for input.
+
+THEN the attention message contains "carrier".
+
+;===============================================================
+; Launch fighter from carrier.
+;===============================================================
+GIVEN game map
+  C=~
+GIVEN C is sentry with one awake fighter.
+
+WHEN C is waiting for input and the player presses d.
+
+THEN after one step there is an F at =.
+THEN C has no fighters.
+
+;===============================================================
 ; Carrier attention message shows fighter count.
 ;===============================================================
 GIVEN game map
@@ -33,3 +68,25 @@ C has hits 5 and no fighters.
 WHEN C is waiting for input.
 
 THEN the attention message contains "Damaged".
+
+;===============================================================
+; Carrier speed is 2 per round.
+;===============================================================
+GIVEN game map
+  C~~=~
+GIVEN C is waiting for input.
+
+WHEN the player presses D.
+
+THEN at next round C will be at =.
+
+;===============================================================
+; Carrier cannot move onto land.
+;===============================================================
+GIVEN game map
+  C#
+GIVEN C is waiting for input.
+
+WHEN the player presses d.
+
+THEN at the next step the attention message contains :ships-cant-drive-on-land.

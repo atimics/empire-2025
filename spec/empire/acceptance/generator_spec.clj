@@ -117,6 +117,18 @@
       (should-contain "set-test-unit" result)
       (should-contain ":fighter-count 0" result)))
 
+  (it "generates container-state given for unit with awake-fighters but no fighter-count"
+    (let [result (gen/generate-given {:type :container-state :target "C" :props {:awake-fighters 1}})]
+      (should-contain "set-test-unit" result)
+      (should-contain ":awake-fighters 1" result)
+      (should-contain ":fighter-count 1" result)))
+
+  (it "generates container-state given for unit with awake-armies but no army-count"
+    (let [result (gen/generate-given {:type :container-state :target "T" :props {:awake-armies 2}})]
+      (should-contain "set-test-unit" result)
+      (should-contain ":awake-armies 2" result)
+      (should-contain ":army-count 2" result)))
+
   (it "generates production given"
     (let [result (gen/generate-given {:type :production :city "O" :item :army :remaining-rounds 10})]
       (should-contain "atoms/production" result)
@@ -447,4 +459,8 @@
       (should-contain "cells-needing-attention" result)
       (should-contain ":timeout" result)
       (should-contain ":x" result)
-      (should-contain ":space" result))))
+      (should-contain ":space" result)))
+
+  (it "advance-until-unit-waiting does not require awake mode"
+    (let [result (gen/generate-helper-fns #{:advance-until-waiting-helper})]
+      (should-not-contain ":awake" result))))

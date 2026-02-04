@@ -54,7 +54,17 @@
   (it "decrements both count and awake count"
     (let [result (uc/remove-awake-unit {:fighter-count 3 :awake-fighters 2} :fighter-count :awake-fighters)]
       (should= 2 (:fighter-count result))
-      (should= 1 (:awake-fighters result)))))
+      (should= 1 (:awake-fighters result))))
+
+  (it "handles nil count-key gracefully"
+    (let [result (uc/remove-awake-unit {:awake-fighters 1} :fighter-count :awake-fighters)]
+      (should= -1 (:fighter-count result))
+      (should= 0 (:awake-fighters result))))
+
+  (it "handles nil awake-key gracefully"
+    (let [result (uc/remove-awake-unit {:fighter-count 1} :fighter-count :awake-fighters)]
+      (should= 0 (:fighter-count result))
+      (should= -1 (:awake-fighters result)))))
 
 (describe "wake-all"
   (it "sets awake count equal to total count"

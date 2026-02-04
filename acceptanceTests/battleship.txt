@@ -21,3 +21,84 @@ GIVEN B is waiting for input.
 WHEN the player presses s.
 
 THEN B has mode sentry.
+
+;===============================================================
+; Battleship attacks enemy submarine and wins.
+;===============================================================
+GIVEN game map
+  Bs
+GIVEN B is waiting for input.
+
+WHEN the player presses d and wins the battle.
+
+THEN at the next round B occupies the s cell and there is no s.
+
+;===============================================================
+; Battleship attacks enemy submarine and loses.
+;===============================================================
+GIVEN game map
+  Bs
+GIVEN B is waiting for input.
+
+WHEN the player presses d and loses the battle.
+
+THEN at the next round s remains unmoved.
+and there is no B on the map.
+and the turn message contains "Battleship destroyed".
+
+;===============================================================
+; Battleship blocked by land.
+;===============================================================
+GIVEN game map
+  B#
+GIVEN B is waiting for input.
+
+WHEN the player presses d.
+
+THEN at the next step the attention message contains :ships-cant-drive-on-land.
+
+;===============================================================
+; Battleship blocked by friendly ship.
+;===============================================================
+GIVEN game map
+  BS~
+GIVEN B is waiting for input.
+
+WHEN the player presses d.
+
+THEN at the next step the attention message contains :somethings-in-the-way.
+
+;===============================================================
+; Damaged battleship attention message.
+;===============================================================
+GIVEN game map
+  B~
+B has hits 5.
+
+WHEN B is waiting for input.
+
+THEN the attention message contains "Damaged".
+
+;===============================================================
+; Damaged battleship has reduced speed.
+;===============================================================
+GIVEN game map
+  B~=~
+B has hits 5.
+GIVEN B is waiting for input.
+
+WHEN the player presses D.
+
+THEN at next round B will be at =.
+
+;===============================================================
+; Sentry battleship wakes when enemy is adjacent.
+;===============================================================
+GIVEN game map
+  Bs~
+B is sentry.
+
+WHEN a new round starts and B is waiting for input.
+
+THEN B is awake.
+THEN the attention message contains :enemy-spotted.

@@ -206,9 +206,11 @@
             pairs (str/split rest-str #"\s+and\s+")
             props (into {}
                         (for [pair pairs
-                              :let [[_ k v] (re-find #"(\S+)\s+(\S+)" (str/trim pair))]
+                              :let [[_ k v] (re-find #"(\S+)\s+(.*\S)" (str/trim pair))]
                               :when k]
-                          [(keyword k) (parse-number v)]))]
+                          [(keyword k) (or (parse-number v)
+                                          (parse-coords v)
+                                          (keyword v))]))]
         {:directive :cell-props
          :ir {:type :cell-props :coords [(Integer/parseInt x) (Integer/parseInt y)] :props props}})
 
@@ -657,9 +659,14 @@
       (let [[_ x y] (re-find #"destination\s+is\s+\[(\d+)\s+(\d+)\]" no-prefix)]
         {:type :destination :expected [(Integer/parseInt x) (Integer/parseInt y)]})
 
+      ;; Production at city is item with N rounds remaining
+      (re-find #"production\s+at\s+(\w+)\s+is\s+([\w-]+)\s+with\s+(\d+)\s+rounds?\s+remaining" no-prefix)
+      (let [[_ city item n] (re-find #"production\s+at\s+(\w+)\s+is\s+([\w-]+)\s+with\s+(\d+)\s+rounds?\s+remaining" no-prefix)]
+        {:type :production-with-rounds :city city :expected (keyword item) :remaining-rounds (Integer/parseInt n)})
+
       ;; Production at city is item
-      (re-find #"production\s+at\s+(\w+)\s+is\s+(\w+)" no-prefix)
-      (let [[_ city item] (re-find #"production\s+at\s+(\w+)\s+is\s+(\w+)" no-prefix)]
+      (re-find #"production\s+at\s+(\w+)\s+is\s+([\w-]+)" no-prefix)
+      (let [[_ city item] (re-find #"production\s+at\s+(\w+)\s+is\s+([\w-]+)" no-prefix)]
         {:type :production :city city :expected (keyword item)})
 
       ;; No production at city
@@ -673,12 +680,13 @@
         {:type :no-unit-at :coords [(Integer/parseInt x) (Integer/parseInt y)]})
 
       ;; Unit has property (generic)
-      (re-find #"^(\w+)\s+has\s+(\w[\w-]*)\s+(\S+)$" no-prefix)
-      (let [[_ unit prop val] (re-find #"^(\w+)\s+has\s+(\w[\w-]*)\s+(\S+)$" no-prefix)]
+      (re-find #"^(\w+)\s+has\s+(\w[\w-]*)\s+(.+)$" no-prefix)
+      (let [[_ unit prop val] (re-find #"^(\w+)\s+has\s+(\w[\w-]*)\s+(.+)$" no-prefix)
+            val (str/trim val)]
         (when (city-or-unit-char? unit)
           {:type :unit-prop :unit unit
            :property (keyword prop)
-           :expected (or (parse-number val) (keyword val))}))
+           :expected (or (parse-number val) (parse-coords val) (keyword val))}))
 
       ;; Unit is mode
       (re-find #"^(\w+)\s+(?:has\s+mode|is)\s+(\w+)$" no-prefix)

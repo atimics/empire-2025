@@ -170,6 +170,24 @@
         (should= [{:type :cell-props :coords [0 0] :props {:awake-fighters 1 :fighter-count 1}}]
                  (:givens result))))
 
+    (it "parses cell props with coordinate value"
+      (let [lines ["GIVEN cell [0 0] has marching-orders [4 0]."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :cell-props :coords [0 0] :props {:marching-orders [4 0]}}]
+                 (:givens result))))
+
+    (it "parses cell props with keyword value"
+      (let [lines ["GIVEN cell [0 0] has marching-orders lookaround."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :cell-props :coords [0 0] :props {:marching-orders :lookaround}}]
+                 (:givens result))))
+
+    (it "parses cell props with flight-path coordinate"
+      (let [lines ["GIVEN cell [0 0] has flight-path [4 0]."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :cell-props :coords [0 0] :props {:flight-path [4 0]}}]
+                 (:givens result))))
+
     (it "parses player-items single"
       (let [lines ["GIVEN player-items F."]
             result (parser/parse-given lines {})]
@@ -642,6 +660,30 @@
       (let [lines ["THEN player-map cell [1 2] is nil."]
             result (parser/parse-then lines {})]
         (should= [{:type :player-map-cell-nil :coords [1 2]}]
+                 (:thens result))))
+
+    (it "parses production with rounds remaining"
+      (let [lines ["THEN production at O is army with 5 rounds remaining."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :production-with-rounds :city "O" :expected :army :remaining-rounds 5}]
+                 (:thens result))))
+
+    (it "parses production with 1 round remaining"
+      (let [lines ["THEN production at O is fighter with 1 round remaining."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :production-with-rounds :city "O" :expected :fighter :remaining-rounds 1}]
+                 (:thens result))))
+
+    (it "parses production-with-rounds with hyphenated item name"
+      (let [lines ["THEN production at O is patrol-boat with 15 rounds remaining."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :production-with-rounds :city "O" :expected :patrol-boat :remaining-rounds 15}]
+                 (:thens result))))
+
+    (it "parses unit has target with coordinate value"
+      (let [lines ["THEN A has target [4 0]."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-prop :unit "A" :property :target :expected [4 0]}]
                  (:thens result)))))
 
   (describe "parse-file integration"

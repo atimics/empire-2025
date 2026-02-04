@@ -8,19 +8,6 @@
             [empire.ui.input :as input]
             [quil.core :as q]))
 
-(defn- advance-until-next-round []
-  (let [start-round @atoms/round-number]
-    (loop [n 100]
-      (cond
-        (not= start-round @atoms/round-number)
-        (do (game-loop/advance-game) :ok)
-
-        (zero? n) :timeout
-
-        :else
-        (do (game-loop/advance-game)
-            (recur (dec n)))))))
-
 (describe "army.txt"
 
   (it "army.txt:7 - Army put to sentry mode"
@@ -106,6 +93,6 @@
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
     (input/handle-key :d)
-    (should= :ok (advance-until-next-round))
+    (game-loop/advance-game)
     (should-not-be-nil (:cant-move-into-city config/messages))
     (should-contain (:cant-move-into-city config/messages) @atoms/attention-message)))

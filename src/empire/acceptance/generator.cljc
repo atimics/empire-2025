@@ -51,7 +51,7 @@
         ;; :game-loop
         (when (some #{:start-new-round :advance-game :advance-game-batch} types)
           (swap! needs conj :game-loop))
-        (when (some #{:unit-at-next-round :unit-after-moves :unit-after-steps} types)
+        (when (some #{:unit-at-next-round :unit-after-moves :unit-after-steps :message-for-unit} types)
           (swap! needs conj :game-loop))
         ;; battle whens with :ship combat-type need advance-game
         (when (some #(= :battle (:type %)) whens)
@@ -89,6 +89,9 @@
         ;; :make-initial-test-map
         (when (some #(= :waiting-for-input (:type %)) givens)
           (swap! needs conj :make-initial-test-map))
+        ;; :advance-until-waiting-helper
+        (when (some #(= :advance-until-waiting (:type %)) whens)
+          (swap! needs conj :advance-until-waiting-helper :quil :game-loop))
         ;; :quil
         (when (some #(and (= :key-press (:type %)) (= :key-down (:input-fn %))) whens)
           (swap! needs conj :quil))
@@ -98,7 +101,8 @@
         (when (or (some #{:unit-at-next-round :unit-eventually-at :unit-after-steps} types)
                   (some :at-next-round thens))
           (swap! needs conj :advance-helper))
-        (when (some :at-next-round thens)
+        (when (or (some :at-next-round thens)
+                  (some :at-next-step thens))
           (swap! needs conj :game-loop))))
     @needs))
 
@@ -144,20 +148,47 @@
 (defn generate-helper-fns
   "Generate helper function definitions if needed."
   [needs]
-  (if (contains? needs :advance-helper)
-    (str "\n\n(defn- advance-until-next-round []\n"
-         "  (let [start-round @atoms/round-number]\n"
-         "    (loop [n 100]\n"
-         "      (cond\n"
-         "        (not= start-round @atoms/round-number)\n"
-         "        (do (game-loop/advance-game) :ok)\n"
-         "\n"
-         "        (zero? n) :timeout\n"
-         "\n"
-         "        :else\n"
-         "        (do (game-loop/advance-game)\n"
-         "            (recur (dec n)))))))")
-    ""))
+  (let [parts (atom [])]
+    (when (contains? needs :advance-helper)
+      (swap! parts conj
+             (str "(defn- advance-until-next-round []\n"
+                  "  (let [start-round @atoms/round-number]\n"
+                  "    (loop [n 100]\n"
+                  "      (cond\n"
+                  "        (not= start-round @atoms/round-number)\n"
+                  "        (do (game-loop/advance-game) :ok)\n"
+                  "\n"
+                  "        (zero? n) :timeout\n"
+                  "\n"
+                  "        :else\n"
+                  "        (do (game-loop/advance-game)\n"
+                  "            (recur (dec n)))))))")))
+    (when (contains? needs :advance-until-waiting-helper)
+      (swap! parts conj
+             (str "(defn- advance-until-unit-waiting [unit-label]\n"
+                  "  (loop [n 100]\n"
+                  "    (cond\n"
+                  "      (and @atoms/waiting-for-input\n"
+                  "           (let [u (get-test-unit atoms/game-map unit-label)]\n"
+                  "             (and u (= :awake (:mode (:unit u))))))\n"
+                  "      :ok\n"
+                  "\n"
+                  "      (zero? n) :timeout\n"
+                  "\n"
+                  "      @atoms/waiting-for-input\n"
+                  "      (do (with-redefs [q/mouse-x (constantly 0)\n"
+                  "                        q/mouse-y (constantly 0)]\n"
+                  "            (reset! atoms/last-key nil)\n"
+                  "            (input/key-down :space))\n"
+                  "          (game-loop/advance-game)\n"
+                  "          (recur (dec n)))\n"
+                  "\n"
+                  "      :else\n"
+                  "      (do (game-loop/advance-game)\n"
+                  "          (recur (dec n))))))")))
+    (if (seq @parts)
+      (str "\n\n" (str/join "\n\n" @parts))
+      "")))
 
 ;; --- GIVEN generation ---
 
@@ -288,6 +319,9 @@
 (defn- generate-process-player-items-when [_]
   "    (item-processing/process-player-items-batch)")
 
+(defn- generate-advance-until-waiting-when [{:keys [unit]}]
+  (str "    (should= :ok (advance-until-unit-waiting \"" unit "\"))"))
+
 (defn generate-when
   "Generate code string for a single WHEN IR node."
   [when-ir]
@@ -299,6 +333,7 @@
     :advance-game (generate-advance-game-when when-ir)
     :advance-game-batch (generate-advance-game-when when-ir)
     :process-player-items (generate-process-player-items-when when-ir)
+    :advance-until-waiting (generate-advance-until-waiting-when when-ir)
     :unrecognized (str "    (pending \"Unrecognized: " (:text when-ir) "\")")
     (str "    ;; Unknown when type: " (:type when-ir))))
 
@@ -321,9 +356,13 @@
     (str "    (let [{:keys [pos]} (get-test-unit atoms/game-map \"" unit "\")]\n"
          "      (should= " (pr-str coords) " pos))")))
 
-(defn- generate-unit-at-then [{:keys [unit coords]}]
-  (str "    (let [{:keys [pos]} (get-test-unit atoms/game-map \"" unit "\")]\n"
-       "      (should= " (pr-str coords) " pos))"))
+(defn- generate-unit-at-then [{:keys [unit coords target]}]
+  (if target
+    (let [target-expr (target-pos-expr target)]
+      (str "    (let [{:keys [pos]} (get-test-unit atoms/game-map \"" unit "\")]\n"
+           "      (should= " target-expr " pos))"))
+    (str "    (let [{:keys [pos]} (get-test-unit atoms/game-map \"" unit "\")]\n"
+         "      (should= " (pr-str coords) " pos))")))
 
 (defn- generate-unit-at-next-round-then [{:keys [unit target]}]
   (let [target-expr (target-pos-expr target)]
@@ -392,14 +431,29 @@
   (str "    (should= :awake (:mode (:unit (get-test-unit atoms/game-map \"" unit "\"))))\n"
        "    (should @atoms/waiting-for-input)"))
 
-(defn- generate-message-contains-then [{:keys [area config-key text at-next-round]}]
+(defn- generate-message-contains-then [{:keys [area config-key text at-next-round at-next-step]}]
   (let [atom-str (area->atom area)
-        advance (if at-next-round "    (should= :ok (advance-until-next-round))\n" "")]
+        advance (cond
+                  at-next-round "    (should= :ok (advance-until-next-round))\n"
+                  at-next-step  "    (game-loop/advance-game)\n"
+                  :else         "")]
     (if config-key
       (str advance
            "    (should-not-be-nil (:" (name config-key) " config/messages))\n"
            "    (should-contain (:" (name config-key) " config/messages) @" atom-str ")")
       (str advance "    (should-contain \"" text "\" @" atom-str ")"))))
+
+(defn- generate-message-for-unit-then [{:keys [area unit config-key]}]
+  (let [atom-str (area->atom area)]
+    (str "    (should= :ok\n"
+         "      (loop [n 100]\n"
+         "        (let [u (get-test-unit atoms/game-map \"" unit "\")]\n"
+         "          (cond\n"
+         "            (and u (= :awake (:mode (:unit u))) @atoms/waiting-for-input) :ok\n"
+         "            (zero? n) :timeout\n"
+         "            :else (do (game-loop/advance-game) (recur (dec n)))))))\n"
+         "    (should-not-be-nil (:" (name config-key) " config/messages))\n"
+         "    (should-contain (:" (name config-key) " config/messages) @" atom-str ")")))
 
 (defn- generate-message-is-then [{:keys [area config-key format]}]
   (let [atom-str (area->atom area)]
@@ -472,6 +526,7 @@
     :unit-unmoved (generate-unit-unmoved-then then-ir givens)
     :unit-waiting-for-input (generate-unit-waiting-for-input-then then-ir)
     :message-contains (generate-message-contains-then then-ir)
+    :message-for-unit (generate-message-for-unit-then then-ir)
     :message-is (generate-message-is-then then-ir)
     :no-message (generate-no-message-then then-ir)
     :cell-prop (generate-cell-prop-then then-ir)

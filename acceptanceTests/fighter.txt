@@ -8,11 +8,10 @@ GIVEN game map
 F has fuel 32.
 GIVEN F is waiting for input.
 
-WHEN the player presses D.
+WHEN the player presses D and the game advances until F is waiting for input.
 
-THEN after two moves F will be at =.
+THEN F is at =.
 THEN F has fuel 30.
-THEN F is waiting for input.
 THEN the attention message contains :hit-edge.
 
 ;===============================================================
@@ -25,7 +24,7 @@ GIVEN F is waiting for input.
 
 WHEN the player presses d.
 
-THEN at the next round O has one fighter in its airport and there is no fighter on the map.
+THEN at the next step O has one fighter in its airport and there is no fighter on the map.
 
 ;===============================================================
 ; Fighter bingo wakes when fuel low and city nearby.
@@ -34,10 +33,10 @@ GIVEN game map
   OF
 F is sentry with fuel 9.
 
-WHEN a new round starts.
+WHEN a new round starts and F is waiting for input.
 
 THEN F has mode awake.
-and the attention message contains :fighter-bingo.
+and the attention message for F contains :fighter-bingo.
 
 ;===============================================================
 ; Fighter out of fuel wakes.

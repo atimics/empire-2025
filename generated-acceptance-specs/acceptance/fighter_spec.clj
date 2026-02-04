@@ -21,6 +21,28 @@
         (do (game-loop/advance-game)
             (recur (dec n)))))))
 
+(defn- advance-until-unit-waiting [unit-label]
+  (loop [n 100]
+    (cond
+      (and @atoms/waiting-for-input
+           (let [u (get-test-unit atoms/game-map unit-label)]
+             (and u (= :awake (:mode (:unit u))))))
+      :ok
+
+      (zero? n) :timeout
+
+      @atoms/waiting-for-input
+      (do (with-redefs [q/mouse-x (constantly 0)
+                        q/mouse-y (constantly 0)]
+            (reset! atoms/last-key nil)
+            (input/key-down :space))
+          (game-loop/advance-game)
+          (recur (dec n)))
+
+      :else
+      (do (game-loop/advance-game)
+          (recur (dec n))))))
+
 (describe "fighter.txt"
 
   (it "fighter.txt:6 - Fighter consumes fuel when moving over non-city terrain"
@@ -38,17 +60,14 @@
                   q/mouse-y (constantly 0)]
       (reset! atoms/last-key nil)
       (input/key-down :D))
-    (dotimes [_ 2] (game-loop/advance-game))
-    (let [{:keys [pos]} (get-test-unit atoms/game-map "F")
-          target-pos (:pos (get-test-cell atoms/game-map "="))]
-      (should= target-pos pos))
+    (should= :ok (advance-until-unit-waiting "F"))
+    (let [{:keys [pos]} (get-test-unit atoms/game-map "F")]
+      (should= (:pos (get-test-cell atoms/game-map "=")) pos))
     (should= 30 (:fuel (:unit (get-test-unit atoms/game-map "F"))))
-    (should= :awake (:mode (:unit (get-test-unit atoms/game-map "F"))))
-    (should @atoms/waiting-for-input)
     (should-not-be-nil (:hit-edge config/messages))
     (should-contain (:hit-edge config/messages) @atoms/attention-message))
 
-  (it "fighter.txt:21 - Fighter refuels at player city"
+  (it "fighter.txt:20 - Fighter refuels at player city"
     (reset-all-atoms!)
     (reset! atoms/game-map (build-test-map ["FO"]))
     (set-test-unit atoms/game-map "F" :fuel 10)
@@ -65,17 +84,25 @@
       (should= 1 (:fighter-count cell)))
     (should-be-nil (get-test-unit atoms/game-map "F")))
 
-  (it "fighter.txt:33 - Fighter bingo wakes when fuel low and city nearby"
+  (it "fighter.txt:32 - Fighter bingo wakes when fuel low and city nearby"
     (reset-all-atoms!)
     (reset! atoms/game-map (build-test-map ["OF"]))
     (set-test-unit atoms/game-map "F" :mode :sentry :fuel 9)
     (game-loop/start-new-round)
     (game-loop/advance-game)
+    (should= :ok (advance-until-unit-waiting "F"))
     (should= :awake (:mode (:unit (get-test-unit atoms/game-map "F"))))
+    (should= :ok
+      (loop [n 100]
+        (let [u (get-test-unit atoms/game-map "F")]
+          (cond
+            (and u (= :awake (:mode (:unit u))) @atoms/waiting-for-input) :ok
+            (zero? n) :timeout
+            :else (do (game-loop/advance-game) (recur (dec n)))))))
     (should-not-be-nil (:fighter-bingo config/messages))
     (should-contain (:fighter-bingo config/messages) @atoms/attention-message))
 
-  (it "fighter.txt:45 - Fighter out of fuel wakes"
+  (it "fighter.txt:44 - Fighter out of fuel wakes"
     (reset-all-atoms!)
     (reset! atoms/game-map (build-test-map ["#F"]))
     (set-test-unit atoms/game-map "F" :mode :sentry :fuel 2)
@@ -86,7 +113,7 @@
     (should-not-be-nil (:fighter-out-of-fuel config/messages))
     (should-contain (:fighter-out-of-fuel config/messages) @atoms/attention-message))
 
-  (it "fighter.txt:57 - Fighter crashes when fuel reaches zero"
+  (it "fighter.txt:56 - Fighter crashes when fuel reaches zero"
     (reset-all-atoms!)
     (reset! atoms/game-map (build-test-map ["#F"]))
     (set-test-unit atoms/game-map "F" :mode :sentry :fuel 1)
@@ -96,7 +123,7 @@
     (should-not-be-nil (:fighter-crashed config/messages))
     (should-contain (:fighter-crashed config/messages) @atoms/error-message))
 
-  (it "fighter.txt:69 - Fighter lands on carrier"
+  (it "fighter.txt:68 - Fighter lands on carrier"
     (reset-all-atoms!)
     (reset! atoms/game-map (build-test-map ["FC"]))
     (set-test-unit atoms/game-map "C" :fighter-count 0)
@@ -111,7 +138,7 @@
     (should= 1 (:fighter-count (:unit (get-test-unit atoms/game-map "C"))))
     (should-be-nil (get-test-unit atoms/game-map "F")))
 
-  (it "fighter.txt:82 - Fighter launched from airport"
+  (it "fighter.txt:81 - Fighter launched from airport"
     (reset-all-atoms!)
     (reset! atoms/game-map (build-test-map ["O%"]))
     (let [o-pos (:pos (get-test-city atoms/game-map "O"))]
@@ -132,7 +159,7 @@
           cell (get-in @atoms/game-map o-pos)]
       (should= 0 (:fighter-count cell))))
 
-  (it "fighter.txt:95 - Fighter attention shows fuel"
+  (it "fighter.txt:94 - Fighter attention shows fuel"
     (reset-all-atoms!)
     (reset! atoms/game-map (build-test-map ["F#"]))
     (set-test-unit atoms/game-map "F" :fuel 20)
@@ -145,7 +172,7 @@
       (item-processing/process-player-items-batch))
     (should-contain "fuel:20" @atoms/attention-message))
 
-  (it "fighter.txt:105 - Fighter speed is 8 per round"
+  (it "fighter.txt:104 - Fighter speed is 8 per round"
     (reset-all-atoms!)
     (reset! atoms/game-map (build-test-map ["F~~~~~~~~=~"]))
     (set-test-unit atoms/game-map "F" :mode :awake)

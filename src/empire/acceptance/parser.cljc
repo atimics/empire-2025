@@ -318,10 +318,19 @@
                                  :outcome outcome-kw
                                  :combat-type (determine-combat-type context)}))
 
+            ;; Key press + advance until unit waiting
+            (re-find #"player\s+presses\s+(\w+)\s+and\s+(?:the\s+game\s+advances\s+until\s+)?(\w+)\s+is\s+waiting\s+for\s+input" no-when)
+            (let [[_ k unit] (re-find #"player\s+presses\s+(\w+)\s+and\s+(?:the\s+game\s+advances\s+until\s+)?(\w+)\s+is\s+waiting\s+for\s+input" no-when)
+                  key-info (determine-key-type k context)]
+              (swap! whens conj (merge {:type :key-press} key-info))
+              (swap! whens conj {:type :advance-until-waiting :unit unit}))
+
             ;; Key press (simple)
             (re-find #"player\s+presses\s+(\w+)" no-when)
             (let [[_ k] (re-find #"player\s+presses\s+(\w+)" no-when)
                   key-info (determine-key-type k context)]
+              (when (re-find #"presses\s+\w+\s+and\s+" no-when)
+                (println (str "WARNING: unconsumed trailing text in WHEN: " clean)))
               (swap! whens conj (merge {:type :key-press} key-info)))
 
             ;; Player types multiple keys
@@ -338,10 +347,19 @@
               (swap! whens conj {:type :mouse-click
                                  :coords [(Integer/parseInt x) (Integer/parseInt y)]}))
 
+            ;; New round + advance until unit waiting
+            (re-find #"new\s+round\s+starts\s+and\s+(\w+)\s+is\s+waiting\s+for\s+input" no-when)
+            (let [[_ unit] (re-find #"new\s+round\s+starts\s+and\s+(\w+)\s+is\s+waiting\s+for\s+input" no-when)]
+              (swap! whens conj {:type :start-new-round})
+              (swap! whens conj {:type :advance-until-waiting :unit unit}))
+
             ;; New round / next round
             (or (re-find #"new\s+round\s+starts" no-when)
                 (re-find #"next\s+round\s+begins" no-when))
-            (swap! whens conj {:type :start-new-round})
+            (do
+              (when (re-find #"starts\s+and\s+" no-when)
+                (println (str "WARNING: unconsumed trailing text in WHEN: " clean)))
+              (swap! whens conj {:type :start-new-round}))
 
             ;; Game advances one batch
             (re-find #"game\s+advances\s+one\s+batch" no-when)
@@ -380,18 +398,23 @@
         no-prefix (-> stripped
                       (str/replace #"^(?:THEN|and)\s+" "")
                       str/trim)
-        ;; Also strip "at the next round/step" / "at next round/step" prefix
-        no-timing (-> no-prefix
-                      (str/replace #"^[Aa]t\s+(?:the\s+)?next\s+(?:round|step)\s+" "")
-                      str/trim)
-        has-next-round? (not= no-prefix no-timing)
-        tag-next-round (fn [result]
-                         (if has-next-round?
-                           (if (map? result)
-                             (assoc result :at-next-round true)
-                             (update result 0 assoc :at-next-round true))
-                           result))]
-    (tag-next-round
+        ;; Strip "at the next round/step/move" prefix, tracking which keyword was used
+        timing-match (re-find #"^[Aa]t\s+(?:the\s+)?next\s+(round|step|move)\s+" no-prefix)
+        timing-word (when timing-match (nth timing-match 1))
+        no-timing (if timing-match
+                    (str/trim (str/replace-first no-prefix (first timing-match) ""))
+                    no-prefix)
+        timing-key (case timing-word
+                     "round" :at-next-round
+                     ("step" "move") :at-next-step
+                     nil)
+        tag-timing (fn [result]
+                     (if timing-key
+                       (if (map? result)
+                         (assoc result timing-key true)
+                         (update result 0 assoc timing-key true))
+                       result))]
+    (tag-timing
     (cond
       ;; After N moves unit will be at target
       (re-find #"^after\s+(\w+)\s+moves?\s+(\w+)\s+will\s+be\s+at\s+(\S+)" no-prefix)
@@ -452,6 +475,11 @@
       (let [[_ unit x y] (re-find #"^(\w+)\s+is\s+at\s+\[(\d+)\s+(\d+)\]" no-prefix)]
         {:type :unit-at :unit unit :coords [(Integer/parseInt x) (Integer/parseInt y)]})
 
+      ;; Unit at named target (e.g. "F is at =")
+      (re-find #"^(\w+)\s+is\s+at\s+(\S+)$" no-prefix)
+      (let [[_ unit target] (re-find #"^(\w+)\s+is\s+at\s+(\S+)$" no-prefix)]
+        {:type :unit-at :unit unit :target target})
+
       ;; Container - city airport has fighter(s)
       (re-find #"^(\w+)\s+has\s+one\s+fighter\s+in\s+its\s+airport" no-timing)
       (let [[_ target] (re-find #"^(\w+)\s+has\s+one\s+fighter\s+in\s+its\s+airport" no-timing)]
@@ -492,6 +520,11 @@
       (re-find #"there\s+is\s+no\s+(attention|turn|error)\s+message" no-prefix)
       (let [[_ area] (re-find #"there\s+is\s+no\s+(attention|turn|error)\s+message" no-prefix)]
         {:type :no-message :area (keyword area)})
+
+      ;; Message for unit contains config key (e.g. "attention message for F contains :fighter-bingo")
+      (re-find #"(?:the\s+)?(attention|turn|error)\s+message\s+for\s+(\w+)\s+contains\s+:(\S+)" no-prefix)
+      (let [[_ area unit key-str] (re-find #"(?:the\s+)?(attention|turn|error)\s+message\s+for\s+(\w+)\s+contains\s+:(\S+)" no-prefix)]
+        {:type :message-for-unit :area (keyword area) :unit unit :config-key (keyword (strip-trailing-period key-str))})
 
       ;; Message contains literal string
       (re-find #"(?:the\s+)?(attention|turn|error)\s+message\s+contains\s+\"([^\"]+)\"" no-prefix)

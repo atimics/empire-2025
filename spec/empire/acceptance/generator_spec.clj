@@ -45,7 +45,19 @@
 
   (it "detects :get-test-city when thens have container-prop with :city lookup"
     (let [tests [{:givens [] :whens [] :thens [{:type :container-prop :target "O" :property :fighter-count :expected 1 :lookup :city}]}]]
-      (should-contain :get-test-city (gen/determine-needs tests)))))
+      (should-contain :get-test-city (gen/determine-needs tests))))
+
+  (it "detects :game-loop but not :advance-helper when thens have :at-next-step"
+    (let [tests [{:givens [] :whens [] :thens [{:type :message-contains :area :attention :config-key :foo :at-next-step true}]}]]
+      (should-contain :game-loop (gen/determine-needs tests))
+      (should-not-contain :advance-helper (gen/determine-needs tests))))
+
+  (it "detects :advance-until-waiting-helper when whens have :advance-until-waiting"
+    (let [tests [{:givens [] :whens [{:type :advance-until-waiting :unit "F"}] :thens []}]
+          needs (gen/determine-needs tests)]
+      (should-contain :advance-until-waiting-helper needs)
+      (should-contain :quil needs)
+      (should-contain :game-loop needs))))
 
 ;; --- generate-given tests ---
 
@@ -145,7 +157,12 @@
 
   (it "generates advance-game when"
     (let [result (gen/generate-when {:type :advance-game})]
-      (should-contain "advance-game" result))))
+      (should-contain "advance-game" result)))
+
+  (it "generates advance-until-waiting when"
+    (let [result (gen/generate-when {:type :advance-until-waiting :unit "F"})]
+      (should-contain "advance-until-unit-waiting" result)
+      (should-contain "\"F\"" result))))
 
 ;; --- generate-then tests ---
 
@@ -161,6 +178,11 @@
     (let [result (gen/generate-then {:type :unit-absent :unit "s"} [])]
       (should-contain "should-be-nil" result)
       (should-contain "\"s\"" result)))
+
+  (it "generates unit-at then with named target"
+    (let [result (gen/generate-then {:type :unit-at :unit "F" :target "="} [])]
+      (should-contain "get-test-cell" result)
+      (should-contain "should=" result)))
 
   (it "generates unit-present then with coords"
     (let [result (gen/generate-then {:type :unit-present :unit "A" :coords [0 0]} [])]
@@ -225,6 +247,23 @@
       (should-contain "should-not-be-nil" result)
       (should-contain "should-contain" result)
       (should-contain ":cant-move-into-city" result)))
+
+  (it "generates message-contains with :at-next-step using advance-game"
+    (let [result (gen/generate-then {:type :message-contains :area :attention :config-key :cant-move-into-city :at-next-step true} [])]
+      (should-contain "game-loop/advance-game" result)
+      (should-not-contain "advance-until-next-round" result)
+      (should-contain "should-not-be-nil" result)
+      (should-contain "should-contain" result)
+      (should-contain ":cant-move-into-city" result)))
+
+  (it "generates message-for-unit then with advance loop"
+    (let [result (gen/generate-then {:type :message-for-unit :area :attention :unit "F" :config-key :fighter-bingo} [])]
+      (should-contain "loop [n 100]" result)
+      (should-contain "get-test-unit" result)
+      (should-contain ":awake" result)
+      (should-contain "should-not-be-nil" result)
+      (should-contain ":fighter-bingo" result)
+      (should-contain "atoms/attention-message" result)))
 
   (it "generates message-is with config-key then"
     (let [result (gen/generate-then {:type :message-is :area :turn :config-key :hit-edge} [])]
@@ -337,4 +376,10 @@
           result (gen/generate-spec edn-data)]
       (should-contain "loop [n 100]" result)
       (should-contain ":timeout" result)
-      (should-contain ":ok" result))))
+      (should-contain ":ok" result)))
+
+  (it "generates advance-until-unit-waiting helper when needed"
+    (let [result (gen/generate-helper-fns #{:advance-until-waiting-helper})]
+      (should-contain "defn- advance-until-unit-waiting" result)
+      (should-contain "input/key-down :space" result)
+      (should-contain ":timeout" result))))

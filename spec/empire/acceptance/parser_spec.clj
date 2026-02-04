@@ -270,13 +270,46 @@
       (let [lines ["WHEN player items are processed."]
             result (parser/parse-when lines {})]
         (should= [{:type :process-player-items}]
-                 (:whens result)))))
+                 (:whens result))))
+
+    (it "parses key press and advance until unit waiting"
+      (let [lines ["WHEN the player presses D and the game advances until F is waiting for input."]
+            ctx {:has-waiting-for-input true}
+            result (parser/parse-when lines ctx)]
+        (should= [{:type :key-press :key :D :input-fn :key-down}
+                   {:type :advance-until-waiting :unit "F"}]
+                 (:whens result))))
+
+    (it "parses new round starts and advance until unit waiting"
+      (let [lines ["WHEN a new round starts and F is waiting for input."]
+            result (parser/parse-when lines {})]
+        (should= [{:type :start-new-round}
+                   {:type :advance-until-waiting :unit "F"}]
+                 (:whens result))))
+
+    (it "warns on unconsumed trailing text after simple key press"
+      (let [lines ["WHEN the player presses D and something unexpected."]
+            ctx {:has-waiting-for-input true}
+            output (with-out-str (parser/parse-when lines ctx))]
+        (should-contain "WARNING" output))))
 
   (describe "parse-then"
     (it "parses unit at position"
       (let [lines ["THEN A is at [0 2]."]
             result (parser/parse-then lines {})]
         (should= [{:type :unit-at :unit "A" :coords [0 2]}]
+                 (:thens result))))
+
+    (it "parses unit at named target"
+      (let [lines ["THEN F is at =."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-at :unit "F" :target "="}]
+                 (:thens result))))
+
+    (it "parses unit at named target %"
+      (let [lines ["THEN A is at %."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-at :unit "A" :target "%"}]
                  (:thens result))))
 
     (it "parses unit mode property"
@@ -502,10 +535,34 @@
         (should= [{:type :message-contains :area :attention :config-key :fighter-bingo}]
                  (:thens result))))
 
+    (it "parses 'attention message for F contains' as message-for-unit"
+      (let [lines ["and the attention message for F contains :fighter-bingo."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :message-for-unit :area :attention :unit "F" :config-key :fighter-bingo}]
+                 (:thens result))))
+
+    (it "parses 'error message for A contains' as message-for-unit"
+      (let [lines ["THEN the error message for A contains :some-key."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :message-for-unit :area :error :unit "A" :config-key :some-key}]
+                 (:thens result))))
+
     (it "parses 'at the next round the attention message contains' with :at-next-round flag"
       (let [lines ["THEN at the next round the attention message contains :cant-move-into-city."]
             result (parser/parse-then lines {})]
         (should= [{:type :message-contains :area :attention :config-key :cant-move-into-city :at-next-round true}]
+                 (:thens result))))
+
+    (it "parses 'at the next step' with :at-next-step flag (not :at-next-round)"
+      (let [lines ["THEN at the next step the attention message contains :cant-move-into-city."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :message-contains :area :attention :config-key :cant-move-into-city :at-next-step true}]
+                 (:thens result))))
+
+    (it "parses 'at next move' with :at-next-step flag"
+      (let [lines ["THEN at next move A will be at =."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-at-next-round :unit "A" :target "=" :at-next-step true}]
                  (:thens result)))))
 
   (describe "parse-file integration"

@@ -1,0 +1,35 @@
+; Carrier-specific behavior tests.
+
+;===============================================================
+; Wake fighters on carrier.
+;===============================================================
+GIVEN game map
+  C~
+GIVEN C is sentry with two fighters and no awake fighters.
+
+WHEN C is waiting for input and the player presses u.
+
+THEN C has two awake fighters.
+THEN C has mode sentry.
+
+;===============================================================
+; Carrier attention message shows fighter count.
+;===============================================================
+GIVEN game map
+  C~
+GIVEN C has three fighters.
+WHEN C is waiting for input.
+
+THEN the attention message contains "carrier".
+THEN the attention message contains "3 fighters".
+
+;===============================================================
+; Damaged carrier attention message.
+;===============================================================
+GIVEN game map
+  C~
+C has hits 5 and no fighters.
+
+WHEN C is waiting for input.
+
+THEN the attention message contains "Damaged".

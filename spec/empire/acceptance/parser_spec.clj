@@ -100,6 +100,27 @@
         (should= [{:type :unit-props :unit "A" :props {:mode :explore}}]
                  (:givens result))))
 
+    (it "parses unit props with container props"
+      (let [lines ["C is sentry with two fighters and no awake fighters."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "C" :props {:mode :sentry}}
+                  {:type :container-state :target "C" :props {:fighter-count 2 :awake-fighters 0}}]
+                 (:givens result))))
+
+    (it "parses unit props with numeric container props"
+      (let [lines ["C is sentry with fighter-count 2 and awake-fighters 1."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "C" :props {:mode :sentry}}
+                  {:type :container-state :target "C" :props {:fighter-count 2 :awake-fighters 1}}]
+                 (:givens result))))
+
+    (it "parses unit props with hits and no fighters"
+      (let [lines ["C has hits 5 and no fighters."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "C" :props {:hits 5}}
+                  {:type :container-state :target "C" :props {:fighter-count 0}}]
+                 (:givens result))))
+
     (it "parses waiting-for-input"
       (let [lines ["GIVEN A is waiting for input."]
             result (parser/parse-given lines {})]
@@ -171,6 +192,12 @@
       (let [lines ["C has no fighters."]
             result (parser/parse-given lines {})]
         (should= [{:type :container-state :target "C" :props {:fighter-count 0}}]
+                 (:givens result))))
+
+    (it "parses container state - natural language count"
+      (let [lines ["GIVEN C has three fighters."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :container-state :target "C" :props {:fighter-count 3}}]
                  (:givens result))))
 
     (it "parses waiting-for-input for city"
@@ -287,6 +314,14 @@
                    {:type :advance-until-waiting :unit "F"}]
                  (:whens result))))
 
+    (it "parses waiting for input and key press"
+      (let [lines ["WHEN C is waiting for input and the player presses u."]
+            ctx {}
+            result (parser/parse-when lines ctx)]
+        (should= [{:type :waiting-for-input :unit "C" :set-mode true}
+                   {:type :key-press :key :u :input-fn :key-down}]
+                 (:whens result))))
+
     (it "parses standalone waiting for input"
       (let [lines ["WHEN F is waiting for input."]
             ctx {}
@@ -298,7 +333,7 @@
       (let [lines ["WHEN F is waiting for input."]
             ctx {:units-with-mode #{"F"}}
             result (parser/parse-when lines ctx)]
-        (should= [{:type :waiting-for-input :unit "F" :set-mode false}]
+        (should= [{:type :waiting-for-input :unit "F" :set-mode true}]
                  (:whens result))))
 
     (it "warns on unconsumed trailing text after simple key press"
@@ -541,6 +576,12 @@
       (let [lines ["THEN At the next round C has one fighter aboard"]
             result (parser/parse-then lines {})]
         (should= [{:type :container-prop :target "C" :property :fighter-count :expected 1 :lookup :unit :at-next-round true}]
+                 (:thens result))))
+
+    (it "parses 'C has two awake fighters'"
+      (let [lines ["THEN C has two awake fighters."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :container-prop :target "C" :property :awake-fighters :expected 2 :lookup :unit}]
                  (:thens result))))
 
     (it "parses message contains :fighter-bingo"

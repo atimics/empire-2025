@@ -98,7 +98,8 @@
         (when (some #(= :waiting-for-input (:type %)) (concat givens whens))
           (swap! needs conj :make-initial-test-map))
         ;; :advance-until-waiting-helper
-        (when (some #(= :advance-until-waiting (:type %)) whens)
+        (when (or (some #(= :advance-until-waiting (:type %)) whens)
+                  (some #(= :unit-waiting-for-input (:type %)) thens))
           (swap! needs conj :advance-until-waiting-helper :quil :game-loop))
         ;; :quil
         (when (some #(and (= :key-press (:type %)) (= :key-down (:input-fn %))) whens)
@@ -257,11 +258,11 @@
 
 (defn- generate-container-state-given [{:keys [target props]}]
   (if (contains? city-chars target)
-    ;; City container
+    ;; City container — props go on the cell
     (let [prop-map (str/join " " (mapcat (fn [[k v]] [(str ":" (name k)) (pr-str v)]) props))]
       (str "    (let [" (str/lower-case target) "-pos (:pos (get-test-city atoms/game-map \"" target "\"))]\n"
            "      (swap! atoms/game-map update-in " (str/lower-case target) "-pos merge {" prop-map "}))"))
-    ;; Unit container
+    ;; Unit container — props go on :contents
     (let [kvs (mapv (fn [[k v]] (str ":" (name k) " " (pr-str v))) props)]
       (str "    (set-test-unit atoms/game-map \"" target "\" " (str/join " " kvs) ")"))))
 
@@ -465,8 +466,7 @@
          "      (should= " (pr-str orig-pos) " pos))")))
 
 (defn- generate-unit-waiting-for-input-then [{:keys [unit]}]
-  (str "    (should= :awake (:mode (:unit (get-test-unit atoms/game-map \"" unit "\"))))\n"
-       "    (should @atoms/waiting-for-input)"))
+  (str "    (should= :ok (advance-until-unit-waiting \"" unit "\"))"))
 
 (defn- generate-message-contains-then [{:keys [area config-key text at-next-round at-next-step]}]
   (let [atom-str (area->atom area)
@@ -526,9 +526,10 @@
            "    (let [" (str/lower-case target) "-pos (:pos (get-test-city atoms/game-map \"" target "\"))\n"
            "          cell (get-in @atoms/game-map " (str/lower-case target) "-pos)]\n"
            "      (should= " (pr-str expected) " (:" (name property) " cell)))")
-      ;; :unit lookup
+      ;; :unit lookup — container props are in :contents
       (str advance
            "    (should= " (pr-str expected) " (:" (name property) " (:unit (get-test-unit atoms/game-map \"" target "\"))))"))))
+
 
 (defn- generate-round-then [{:keys [expected]}]
   (str "    (should= " expected " @atoms/round-number)"))

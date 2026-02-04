@@ -113,8 +113,7 @@
     (set-test-unit atoms/game-map "F" :mode :sentry :fuel 2)
     (game-loop/start-new-round)
     (game-loop/advance-game)
-    (should= :awake (:mode (:unit (get-test-unit atoms/game-map "F"))))
-    (should @atoms/waiting-for-input)
+    (should= :ok (advance-until-unit-waiting "F"))
     (should-not-be-nil (:fighter-out-of-fuel config/messages))
     (should-contain (:fighter-out-of-fuel config/messages) @atoms/attention-message))
 

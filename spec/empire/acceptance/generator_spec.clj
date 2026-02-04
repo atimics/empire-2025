@@ -62,6 +62,13 @@
           needs (gen/determine-needs tests)]
       (should-contain :advance-until-waiting-helper needs)
       (should-contain :quil needs)
+      (should-contain :game-loop needs)))
+
+  (it "detects :advance-until-waiting-helper when thens have :unit-waiting-for-input"
+    (let [tests [{:givens [] :whens [] :thens [{:type :unit-waiting-for-input :unit "C"}]}]
+          needs (gen/determine-needs tests)]
+      (should-contain :advance-until-waiting-helper needs)
+      (should-contain :quil needs)
       (should-contain :game-loop needs))))
 
 ;; --- generate-given tests ---
@@ -248,8 +255,8 @@
 
   (it "generates unit-waiting-for-input then"
     (let [result (gen/generate-then {:type :unit-waiting-for-input :unit "F"} [])]
-      (should-contain ":awake" result)
-      (should-contain "waiting-for-input" result)))
+      (should-contain "advance-until-unit-waiting" result)
+      (should-contain "\"F\"" result)))
 
   (it "generates message-contains with config-key then including existence check"
     (let [result (gen/generate-then {:type :message-contains :area :attention :config-key :army-found-city} [])]
@@ -313,6 +320,18 @@
     (let [result (gen/generate-then {:type :waiting-for-input :expected false} [])]
       (should-contain "should-not @atoms/waiting-for-input" result)))
 
+  (it "generates unit-waiting-for-input then with advance"
+    (let [result (gen/generate-then {:type :unit-waiting-for-input :unit "C"} [])]
+      (should-contain "advance-until-unit-waiting" result)
+      (should-contain "\"C\"" result)
+      (should-contain "should=" result)))
+
+  (it "generates container-state given for unit with container props"
+    (let [result (gen/generate-given {:type :container-state :target "C" :props {:fighter-count 2 :awake-fighters 0}})]
+      (should-contain "set-test-unit" result)
+      (should-contain ":fighter-count 2" result)
+      (should-contain ":awake-fighters 0" result)))
+
   (it "generates container-prop city lookup then"
     (let [result (gen/generate-then {:type :container-prop :target "O" :property :fighter-count :expected 1 :lookup :city} [])]
       (should-contain "get-test-city" result)
@@ -322,6 +341,12 @@
     (let [result (gen/generate-then {:type :container-prop :target "C" :property :fighter-count :expected 1 :lookup :unit} [])]
       (should-contain "get-test-unit" result)
       (should-contain ":fighter-count" result)))
+
+  (it "generates container-prop unit lookup for unit-level prop"
+    (let [result (gen/generate-then {:type :container-prop :target "C" :property :awake-fighters :expected 2 :lookup :unit} [])]
+      (should-contain "get-test-unit" result)
+      (should-contain ":awake-fighters" result)
+      (should-contain ":unit" result)))
 
   (it "generates container-prop city lookup with at-next-step"
     (let [result (gen/generate-then {:type :container-prop :target "O" :property :fighter-count :expected 1 :lookup :city :at-next-step true} [])]

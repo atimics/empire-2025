@@ -70,6 +70,14 @@
 (defn- city-or-unit-char? [s]
   (or (unit-char? s) (contains? city-chars s)))
 
+(def ^:private word->number
+  {"no" 0 "one" 1 "two" 2 "three" 3 "four" 4 "five" 5
+   "six" 6 "seven" 7 "eight" 8 "nine" 9 "ten" 10})
+
+(defn- parse-count [s]
+  (or (get word->number (str/lower-case s))
+      (parse-number s)))
+
 ;; --- GIVEN parsing ---
 
 (defn- parse-unit-props-line [line]
@@ -78,6 +86,7 @@
     (when-let [[_ unit rest-str] (re-matches #"(\w+)\s+(.*)" clean)]
       (when (city-or-unit-char? unit)
         (let [props (atom {})
+              container-props (atom {})
               text rest-str]
           ;; Parse "is awake", "is explore", "is sentry", "is in mode X"
           (when-let [[_ mode] (re-find #"(?:is|has mode|mode)\s+(\w+)" text)]
@@ -94,8 +103,26 @@
           ;; Parse "hits N"
           (when-let [[_ n] (re-find #"hits\s+(\d+)" text)]
             (swap! props assoc :hits (Integer/parseInt n)))
-          (when (seq @props)
-            {:type :unit-props :unit unit :props @props}))))))
+          ;; Parse container props: "fighter-count N", "awake-fighters N"
+          (when-let [[_ n] (re-find #"fighter-count\s+(\d+)" text)]
+            (swap! container-props assoc :fighter-count (Integer/parseInt n)))
+          (when-let [[_ n] (re-find #"awake-fighters\s+(\d+)" text)]
+            (swap! container-props assoc :awake-fighters (Integer/parseInt n)))
+          ;; Parse natural language: "two fighters", "no awake fighters"
+          (when-let [[_ n] (re-find #"(\w+)\s+fighters?\b(?!\s+in)" text)]
+            (when-let [count (parse-count n)]
+              (swap! container-props assoc :fighter-count count)))
+          (when (re-find #"no\s+awake\s+fighters?" text)
+            (swap! container-props assoc :awake-fighters 0))
+          (when-let [[_ n] (re-find #"(\w+)\s+awake\s+fighters?" text)]
+            (when (not= n "no")
+              (when-let [count (parse-count n)]
+                (swap! container-props assoc :awake-fighters count))))
+          (let [result {:type :unit-props :unit unit :props @props}]
+            (when (or (seq @props) (seq @container-props))
+              (if (seq @container-props)
+                (assoc result :container-props @container-props)
+                result))))))))
 
 (defn- parse-container-state-line [line]
   (let [clean (strip-trailing-period (str/trim line))
@@ -110,6 +137,12 @@
       (re-find #"(\w+)\s+has\s+no\s+fighters" clean)
       (let [[_ target] (re-find #"(\w+)\s+has\s+no\s+fighters" clean)]
         {:type :container-state :target target :props {:fighter-count 0}})
+
+      ;; "C has three fighters" (natural language count)
+      (re-find #"(\w+)\s+has\s+(\w+)\s+fighters?" clean)
+      (let [[_ target n] (re-find #"(\w+)\s+has\s+(\w+)\s+fighters?" clean)]
+        (when-let [count (parse-count n)]
+          {:type :container-state :target target :props {:fighter-count count}}))
 
       :else nil)))
 
@@ -249,7 +282,10 @@
               (let [ir (:ir parsed)]
                 (when (:mode (:props ir))
                   (swap! context update :units-with-mode conj (:unit ir)))
-                (swap! givens conj ir)
+                (when (seq (:props ir))
+                  (swap! givens conj (dissoc ir :container-props)))
+                (when-let [cp (:container-props ir)]
+                  (swap! givens conj {:type :container-state :target (:unit ir) :props cp}))
                 (swap! i inc))
 
               :container-state
@@ -308,6 +344,13 @@
               (swap! whens conj {:type :mouse-at-key
                                  :coords [(Integer/parseInt x) (Integer/parseInt y)]
                                  :key (keyword k)}))
+
+            ;; Waiting for input + key press
+            (re-find #"(\w+)\s+is\s+waiting\s+for\s+input\s+and\s+the\s+player\s+presses\s+(\w+)" no-when)
+            (let [[_ unit k] (re-find #"(\w+)\s+is\s+waiting\s+for\s+input\s+and\s+the\s+player\s+presses\s+(\w+)" no-when)
+                  key-info (determine-key-type k context)]
+              (swap! whens conj {:type :waiting-for-input :unit unit :set-mode true})
+              (swap! whens conj (merge {:type :key-press} key-info)))
 
             ;; Key press with battle
             (re-find #"player\s+presses\s+(\w+)\s+and\s+(wins|loses)\s+the\s+battle" no-when)
@@ -379,23 +422,14 @@
 
             ;; Standalone waiting for input
             (re-find #"(\w+)\s+is\s+waiting\s+for\s+input" no-when)
-            (let [[_ unit] (re-find #"(\w+)\s+is\s+waiting\s+for\s+input" no-when)
-                  mode-already-set (contains? (:units-with-mode context) unit)]
-              (swap! whens conj {:type :waiting-for-input :unit unit :set-mode (not mode-already-set)}))
+            (let [[_ unit] (re-find #"(\w+)\s+is\s+waiting\s+for\s+input" no-when)]
+              (swap! whens conj {:type :waiting-for-input :unit unit :set-mode true}))
 
             :else
             (swap! whens conj {:type :unrecognized :text clean})))))
     {:whens @whens}))
 
 ;; --- THEN parsing ---
-
-(def ^:private word->number
-  {"one" 1 "two" 2 "three" 3 "four" 4 "five" 5
-   "six" 6 "seven" 7 "eight" 8 "nine" 9 "ten" 10})
-
-(defn- parse-count [s]
-  (or (get word->number (str/lower-case s))
-      (parse-number s)))
 
 (defn- parse-single-then-clause [clause]
   (let [clean (str/trim clause)
@@ -501,6 +535,12 @@
       (let [[_ target] (re-find #"^(\w+)\s+has\s+no\s+fighters" no-timing)]
         (let [lookup (if (contains? city-chars target) :city :unit)]
           {:type :container-prop :target target :property :fighter-count :expected 0 :lookup lookup}))
+
+      ;; Container - N awake fighters (natural language)
+      (re-find #"^(\w+)\s+has\s+(\w+)\s+awake\s+fighters?" no-timing)
+      (let [[_ target n] (re-find #"^(\w+)\s+has\s+(\w+)\s+awake\s+fighters?" no-timing)
+            lookup (if (contains? city-chars target) :city :unit)]
+        {:type :container-prop :target target :property :awake-fighters :expected (parse-count n) :lookup lookup})
 
       ;; Unit absent - "there is no X on the map"
       (re-find #"there\s+is\s+no\s+(\w+)\s+on\s+the\s+map" no-prefix)

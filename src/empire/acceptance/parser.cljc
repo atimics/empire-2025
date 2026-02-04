@@ -196,6 +196,12 @@
       {:directive :waiting-for-input-bare
        :ir {:type :waiting-for-input-state}}
 
+      ;; Unit target - "A's target is +"
+      (re-find #"(\w+)'s\s+target\s+is\s+(\S+)" no-given)
+      (let [[_ unit target] (re-find #"(\w+)'s\s+target\s+is\s+(\S+)" no-given)]
+        {:directive :unit-target
+         :ir {:type :unit-target :unit unit :target target}})
+
       ;; Container state
       (parse-container-state-line line)
       (let [ir (parse-container-state-line line)]
@@ -250,7 +256,7 @@
                   (swap! i inc))
 
               (:production :no-production :round :destination :cell-props
-               :player-items :waiting-for-input-bare)
+               :player-items :waiting-for-input-bare :unit-target)
               (do (swap! givens conj (:ir parsed))
                   (swap! i inc))
 
@@ -358,6 +364,14 @@
 
 ;; --- THEN parsing ---
 
+(def ^:private word->number
+  {"one" 1 "two" 2 "three" 3 "four" 4 "five" 5
+   "six" 6 "seven" 7 "eight" 8 "nine" 9 "ten" 10})
+
+(defn- parse-count [s]
+  (or (get word->number (str/lower-case s))
+      (parse-number s)))
+
 (defn- parse-single-then-clause [clause]
   (let [clean (str/trim clause)
         stripped (strip-trailing-period clean)
@@ -370,6 +384,22 @@
                       (str/replace #"^[Aa]t\s+(?:the\s+)?next\s+round\s+" "")
                       str/trim)]
     (cond
+      ;; After N moves unit will be at target
+      (re-find #"^after\s+(\w+)\s+moves?\s+(\w+)\s+will\s+be\s+at\s+(\S+)" no-prefix)
+      (let [[_ n unit target] (re-find #"^after\s+(\w+)\s+moves?\s+(\w+)\s+will\s+be\s+at\s+(\S+)" no-prefix)]
+        {:type :unit-after-moves :unit unit :moves (parse-count n) :target target})
+
+      ;; After N steps there is a unit at [x y]
+      (re-find #"^after\s+(\w+)\s+steps?\s+there\s+is\s+an?\s+(\w+)\s+at\s+\[(\d+)\s+(\d+)\]" no-prefix)
+      (let [[_ n unit x y] (re-find #"^after\s+(\w+)\s+steps?\s+there\s+is\s+an?\s+(\w+)\s+at\s+\[(\d+)\s+(\d+)\]" no-prefix)]
+        {:type :unit-after-steps :unit unit :steps (parse-count n)
+         :coords [(Integer/parseInt x) (Integer/parseInt y)]})
+
+      ;; After N steps there is a unit at target
+      (re-find #"^after\s+(\w+)\s+steps?\s+there\s+is\s+an?\s+(\w+)\s+at\s+(\S+)" no-prefix)
+      (let [[_ n unit target] (re-find #"^after\s+(\w+)\s+steps?\s+there\s+is\s+an?\s+(\w+)\s+at\s+(\S+)" no-prefix)]
+        {:type :unit-after-steps :unit unit :steps (parse-count n) :target target})
+
       ;; Unit waiting for input
       (re-find #"^(\w+)\s+is\s+waiting\s+for\s+input$" no-prefix)
       (let [[_ unit] (re-find #"^(\w+)\s+is\s+waiting\s+for\s+input$" no-prefix)]

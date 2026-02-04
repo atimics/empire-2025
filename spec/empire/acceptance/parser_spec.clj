@@ -176,6 +176,18 @@
       (let [lines ["GIVEN O is waiting for input."]
             result (parser/parse-given lines {})]
         (should= [{:type :waiting-for-input :unit "O" :set-mode true}]
+                 (:givens result))))
+
+    (it "parses unit target"
+      (let [lines ["A's target is +"]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-target :unit "A" :target "+"}]
+                 (:givens result))))
+
+    (it "parses unit target with label char"
+      (let [lines ["D's target is ="]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-target :unit "D" :target "="}]
                  (:givens result)))))
 
   (describe "parse-when"
@@ -416,6 +428,30 @@
         (should= [{:type :unit-eventually-at :unit "A" :target "%"}]
                  (:thens result))))
 
+    (it "parses after N moves unit will be at target"
+      (let [lines ["THEN after two moves F will be at =."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-after-moves :unit "F" :moves 2 :target "="}]
+                 (:thens result))))
+
+    (it "parses after N moves with numeric count"
+      (let [lines ["THEN after 3 moves D will be at =."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-after-moves :unit "D" :moves 3 :target "="}]
+                 (:thens result))))
+
+    (it "parses after one step there is a unit at target"
+      (let [lines ["THEN after one step there is an F at %."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-after-steps :unit "F" :steps 1 :target "%"}]
+                 (:thens result))))
+
+    (it "parses after N steps there is a unit at coords"
+      (let [lines ["THEN after 2 steps there is an A at [1 0]."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-after-steps :unit "A" :steps 2 :coords [1 0]}]
+                 (:thens result))))
+
     (it "parses and-continuation"
       (let [lines ["THEN F wakes up and asks for input,"
                    "and the out-of-fuel message is displayed."]
@@ -486,4 +522,15 @@
     (it "parses backtick-commands.txt correctly"
       (let [result (parser/parse-file "acceptanceTests/backtick-commands.txt")]
         (should= "backtick-commands.txt" (:source result))
-        (should= 13 (count (:tests result)))))))
+        (should= 13 (count (:tests result)))))
+
+    (it "produces no unrecognized directives across all files"
+      (let [files ["acceptanceTests/army.txt" "acceptanceTests/fighter.txt"
+                    "acceptanceTests/destroyer.txt" "acceptanceTests/backtick-commands.txt"]
+            unrecognized (for [f files
+                               :let [result (parser/parse-file f)]
+                               t (:tests result)
+                               ir (concat (:givens t) (:whens t) (:thens t))
+                               :when (= :unrecognized (:type ir))]
+                           {:file f :line (:line t) :text (:text ir)})]
+        (should= [] (vec unrecognized))))))

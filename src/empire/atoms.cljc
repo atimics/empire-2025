@@ -51,9 +51,9 @@
   "An atom indicating if we're waiting for user input on current item."
   (atom false))
 
-;; Message to display to the player
-(def message
-  "An atom containing the current message to display."
+;; Attention message to display to the player
+(def attention-message
+  "An atom containing the attention message to display."
   (atom ""))
 
 (def turn-message

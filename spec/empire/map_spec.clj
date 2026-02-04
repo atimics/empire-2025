@@ -37,10 +37,10 @@
     (game-loop/item-processed)
     (should= false @atoms/waiting-for-input))
 
-  (it "clears message"
-    (reset! atoms/message "Some message")
+  (it "preserves attention-message"
+    (reset! atoms/attention-message "Some message")
     (game-loop/item-processed)
-    (should= "" @atoms/message))
+    (should= "Some message" @atoms/attention-message))
 
   (it "clears cells-needing-attention"
     (reset! atoms/cells-needing-attention [[0 0] [1 1]])
@@ -169,10 +169,10 @@
       (should= [1 0] result)
       (should= :awake (:mode (:contents (get-in @atoms/game-map [1 0]))))))
 
-  (it "returns nil when unit wakes up with no steps remaining"
+  (it "returns position when unit wakes up after using last step"
     (reset! atoms/game-map (build-test-map ["A#"]))
     (set-test-unit atoms/game-map "A" :mode :moving :target [1 0] :steps-remaining 1)
-    (should= nil (game-loop/move-current-unit [0 0])))
+    (should= [1 0] (game-loop/move-current-unit [0 0])))
 
   (it "limits unit to its rate per round even with new orders"
     (reset! atoms/game-map (build-test-map ["A##"]))

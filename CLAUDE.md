@@ -26,9 +26,10 @@ Tests flow through a three-stage automated pipeline:
 .txt → Parser → .edn → Generator → .clj → Speclj runner
 ```
 
-1. **Parse:** `clj -M:parse-tests` — reads `.txt` files from `acceptanceTests/`, produces `.edn` intermediate representations in the same directory. Source: `src/empire/acceptance/parser.cljc`.
-2. **Generate:** `clj -M:generate-specs` — reads `.edn` files, produces Speclj spec files in `generated-acceptance-specs/acceptance/`. Source: `src/empire/acceptance/generator.cljc`.
+1. **Parse:** `clj -M:parse-tests` — reads `.txt` files from `acceptanceTests/`, produces `.edn` intermediate representations in `acceptanceTests/edn/`. Source: `src/empire/acceptance/parser.cljc`.
+2. **Generate:** `clj -M:generate-specs` — reads `.edn` files from `acceptanceTests/edn/`, produces Speclj spec files in `generated-acceptance-specs/acceptance/`. Source: `src/empire/acceptance/generator.cljc`.
 3. **Run:** `clj -M:spec generated-acceptance-specs/` — executes the generated specs.
+4. **Clear:** Delete all generated files: `rm -rf acceptanceTests/edn/*.edn generated-acceptance-specs/acceptance/*.clj`
 
 Shorthand to run the full pipeline:
 ```bash
@@ -65,8 +66,11 @@ clj -M:spec spec/empire/units/
 clj -M:cov
 
 # Acceptance test pipeline
-clj -M:parse-tests      # Parse .txt → .edn (acceptanceTests/)
+clj -M:parse-tests      # Parse .txt → .edn (acceptanceTests/edn/)
 clj -M:generate-specs    # Generate .edn → .clj (generated-acceptance-specs/)
+
+# Clear acceptance tests (delete all generated edn and spec files)
+rm -rf acceptanceTests/edn/*.edn generated-acceptance-specs/acceptance/*.clj
 ```
 
 ## Architecture

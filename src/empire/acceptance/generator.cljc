@@ -23,7 +23,7 @@
 
 (defn- area->atom [area]
   (case area
-    :attention "atoms/message"
+    :attention "atoms/attention-message"
     :turn "atoms/turn-message"
     :error "atoms/error-message"))
 
@@ -94,9 +94,12 @@
           (swap! needs conj :quil))
         (when (some #(= :backtick (:type %)) whens)
           (swap! needs conj :quil))
-        ;; :advance-helper — unit-at-next-round, unit-eventually-at, or unit-after-steps
-        (when (some #{:unit-at-next-round :unit-eventually-at :unit-after-steps} types)
-          (swap! needs conj :advance-helper))))
+        ;; :advance-helper — unit-at-next-round, unit-eventually-at, unit-after-steps, or :at-next-round flag
+        (when (or (some #{:unit-at-next-round :unit-eventually-at :unit-after-steps} types)
+                  (some :at-next-round thens))
+          (swap! needs conj :advance-helper))
+        (when (some :at-next-round thens)
+          (swap! needs conj :game-loop))))
     @needs))
 
 ;; --- NS form generation ---
@@ -382,11 +385,12 @@
   (str "    (should= :awake (:mode (:unit (get-test-unit atoms/game-map \"" unit "\"))))\n"
        "    (should @atoms/waiting-for-input)"))
 
-(defn- generate-message-contains-then [{:keys [area config-key text]}]
-  (let [atom-str (area->atom area)]
+(defn- generate-message-contains-then [{:keys [area config-key text at-next-round]}]
+  (let [atom-str (area->atom area)
+        advance (if at-next-round "    (advance-until-next-round)\n" "")]
     (if config-key
-      (str "    (should-contain (:" (name config-key) " config/messages) @" atom-str ")")
-      (str "    (should-contain \"" text "\" @" atom-str ")"))))
+      (str advance "    (should-contain (:" (name config-key) " config/messages) @" atom-str ")")
+      (str advance "    (should-contain \"" text "\" @" atom-str ")"))))
 
 (defn- generate-message-is-then [{:keys [area config-key format]}]
   (let [atom-str (area->atom area)]
@@ -516,7 +520,7 @@
 ;; --- CLI entry point ---
 
 (defn -main [& args]
-  (let [edn-dir (or (first args) "acceptanceTests")
+  (let [edn-dir (or (first args) "acceptanceTests/edn")
         out-dir (or (second args) "generated-acceptance-specs/acceptance")
         edn-files (->> (io/file edn-dir)
                        .listFiles

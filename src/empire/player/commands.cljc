@@ -53,7 +53,7 @@
 (defn- launch-fighter-and-update [launch-fn coords target]
   (let [fighter-pos (launch-fn coords target)]
     (reset! atoms/waiting-for-input false)
-    (reset! atoms/message "")
+    (reset! atoms/attention-message "")
     (reset! atoms/cells-needing-attention [])
     (swap! atoms/player-items #(cons fighter-pos (rest %)))
     true))
@@ -205,7 +205,7 @@
 
       ;; Transport or patrol-boat not near coast - show reason
       rejection-reason
-      (do (reset! atoms/message (rejection-reason config/messages))
+      (do (reset! atoms/attention-message (rejection-reason config/messages))
           true)
 
       :else nil)))
@@ -227,7 +227,7 @@
       is-airport-fighter?
       (let [fighter-pos (container-ops/launch-fighter-from-airport attn-coords clicked-coords)]
         (reset! atoms/waiting-for-input false)
-        (reset! atoms/message "")
+        (reset! atoms/attention-message "")
         (reset! atoms/cells-needing-attention [])
         (swap! atoms/player-items #(cons fighter-pos (rest %))))
 

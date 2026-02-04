@@ -413,13 +413,13 @@
     (it "parses unit-at-next-round"
       (let [lines ["THEN at next round F will be at =."]
             result (parser/parse-then lines {})]
-        (should= [{:type :unit-at-next-round :unit "F" :target "="}]
+        (should= [{:type :unit-at-next-round :unit "F" :target "=" :at-next-round true}]
                  (:thens result))))
 
     (it "parses unit-at-next-round D"
       (let [lines ["THEN at next round D will be at =."]
             result (parser/parse-then lines {})]
-        (should= [{:type :unit-at-next-round :unit "D" :target "="}]
+        (should= [{:type :unit-at-next-round :unit "D" :target "=" :at-next-round true}]
                  (:thens result))))
 
     (it "parses eventually at"
@@ -480,7 +480,7 @@
     (it "parses 's remains unmoved'"
       (let [lines ["THEN at the next round s remains unmoved."]
             result (parser/parse-then lines {})]
-        (should= [{:type :unit-unmoved :unit "s"}]
+        (should= [{:type :unit-unmoved :unit "s" :at-next-round true}]
                  (:thens result))))
 
     (it "parses 'O has no fighters'"
@@ -492,13 +492,19 @@
     (it "parses 'C has one fighter aboard'"
       (let [lines ["THEN At the next round C has one fighter aboard"]
             result (parser/parse-then lines {})]
-        (should= [{:type :container-prop :target "C" :property :fighter-count :expected 1 :lookup :unit}]
+        (should= [{:type :container-prop :target "C" :property :fighter-count :expected 1 :lookup :unit :at-next-round true}]
                  (:thens result))))
 
     (it "parses message contains :fighter-bingo"
       (let [lines ["and the attention message contains :fighter-bingo."]
             result (parser/parse-then lines {})]
         (should= [{:type :message-contains :area :attention :config-key :fighter-bingo}]
+                 (:thens result))))
+
+    (it "parses 'at the next round the attention message contains' with :at-next-round flag"
+      (let [lines ["THEN at the next round the attention message contains :cant-move-into-city."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :message-contains :area :attention :config-key :cant-move-into-city :at-next-round true}]
                  (:thens result)))))
 
   (describe "parse-file integration"

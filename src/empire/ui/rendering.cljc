@@ -133,8 +133,8 @@
 (defn- draw-attention
   "Draws the attention message (row 1) left-justified in the Game Info region."
   [left-x text-y]
-  (when (seq @atoms/message)
-    (q/text @atoms/message (+ left-x config/msg-left-padding) (+ text-y config/msg-line-1-y))))
+  (when (seq @atoms/attention-message)
+    (q/text @atoms/attention-message (+ left-x config/msg-left-padding) (+ text-y config/msg-line-1-y))))
 
 (defn- draw-turn
   "Draws the turn message (row 2) left-justified in the Game Info region.

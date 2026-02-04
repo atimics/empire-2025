@@ -379,10 +379,18 @@
         no-prefix (-> stripped
                       (str/replace #"^(?:THEN|and)\s+" "")
                       str/trim)
-        ;; Also strip "at the next round" / "at next round" prefix
+        ;; Also strip "at the next round/step" / "at next round/step" prefix
         no-timing (-> no-prefix
-                      (str/replace #"^[Aa]t\s+(?:the\s+)?next\s+round\s+" "")
-                      str/trim)]
+                      (str/replace #"^[Aa]t\s+(?:the\s+)?next\s+(?:round|step)\s+" "")
+                      str/trim)
+        has-next-round? (not= no-prefix no-timing)
+        tag-next-round (fn [result]
+                         (if has-next-round?
+                           (if (map? result)
+                             (assoc result :at-next-round true)
+                             (update result 0 assoc :at-next-round true))
+                           result))]
+    (tag-next-round
     (cond
       ;; After N moves unit will be at target
       (re-find #"^after\s+(\w+)\s+moves?\s+(\w+)\s+will\s+be\s+at\s+(\S+)" no-prefix)
@@ -590,7 +598,7 @@
         {:type :unit-prop-absent :unit unit :property (keyword prop)})
 
       :else
-      {:type :unrecognized :text clean})))
+      {:type :unrecognized :text clean}))))
 
 (defn- split-then-continuations [lines]
   (let [result (atom [])
@@ -785,13 +793,16 @@
 
 (defn -main [& args]
   (let [dir (or (first args) "acceptanceTests")
+        edn-dir (str dir "/edn")
         files (->> (io/file dir)
                    .listFiles
                    (filter #(str/ends-with? (.getName %) ".txt"))
                    (sort-by #(.getName %)))]
+    (io/make-parents (io/file edn-dir "dummy"))
     (doseq [f files]
       (let [txt-path (.getPath f)
-            edn-path (str/replace txt-path #"\.txt$" ".edn")]
+            base-name (str/replace (.getName f) #"\.txt$" ".edn")
+            edn-path (str edn-dir "/" base-name)]
         (println (str "Parsing " txt-path " -> " edn-path))
         (let [result (parse-file txt-path)]
           (write-edn edn-path result)

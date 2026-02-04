@@ -38,7 +38,7 @@
     (should= 30 (:fuel (:unit (get-test-unit atoms/game-map "F"))))
     (should= :awake (:mode (:unit (get-test-unit atoms/game-map "F"))))
     (should @atoms/waiting-for-input)
-    (should-contain (:hit-edge config/messages) @atoms/message))
+    (should-contain (:hit-edge config/messages) @atoms/attention-message))
 
   (it "fighter.txt:21 - Fighter refuels at player city"
     (reset-all-atoms!)
@@ -64,7 +64,7 @@
     (game-loop/start-new-round)
     (game-loop/advance-game)
     (should= :awake (:mode (:unit (get-test-unit atoms/game-map "F"))))
-    (should-contain (:fighter-bingo config/messages) @atoms/message))
+    (should-contain (:fighter-bingo config/messages) @atoms/attention-message))
 
   (it "fighter.txt:45 - Fighter out of fuel wakes"
     (reset-all-atoms!)
@@ -74,7 +74,7 @@
     (game-loop/advance-game)
     (should= :awake (:mode (:unit (get-test-unit atoms/game-map "F"))))
     (should @atoms/waiting-for-input)
-    (should-contain (:fighter-out-of-fuel config/messages) @atoms/message))
+    (should-contain (:fighter-out-of-fuel config/messages) @atoms/attention-message))
 
   (it "fighter.txt:57 - Fighter crashes when fuel reaches zero"
     (reset-all-atoms!)
@@ -132,7 +132,7 @@
       (reset! atoms/player-map (make-initial-test-map rows cols nil))
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
-    (should-contain "fuel:20" @atoms/message))
+    (should-contain "fuel:20" @atoms/attention-message))
 
   (it "fighter.txt:105 - Fighter speed is 8 per round"
     (reset-all-atoms!)

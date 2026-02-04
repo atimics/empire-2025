@@ -12,10 +12,10 @@
     (game-loop/item-processed)
     (should= false @atoms/waiting-for-input))
 
-  (it "clears message"
-    (reset! atoms/message "test message")
+  (it "preserves attention-message"
+    (reset! atoms/attention-message "test message")
     (game-loop/item-processed)
-    (should= "" @atoms/message))
+    (should= "test message" @atoms/attention-message))
 
   (it "clears cells-needing-attention"
     (reset! atoms/cells-needing-attention [[1 2] [3 4]])
@@ -229,7 +229,7 @@
     (reset! atoms/round-number 0)
     (reset! atoms/player-items [])
     (reset! atoms/waiting-for-input true)
-    (reset! atoms/message "old message")
+    (reset! atoms/attention-message "old message")
     (reset! atoms/cells-needing-attention [[0 0]]))
 
   (it "increments round number"
@@ -246,7 +246,7 @@
 
   (it "clears message"
     (game-loop/start-new-round)
-    (should= "" @atoms/message))
+    (should= "" @atoms/attention-message))
 
   (it "clears cells-needing-attention"
     (game-loop/start-new-round)
@@ -279,7 +279,7 @@
     (reset! atoms/production {})
     (reset! atoms/player-items [[0 0]])
     (reset! atoms/waiting-for-input false)
-    (reset! atoms/message "")
+    (reset! atoms/attention-message "")
     (game-loop/advance-game)
     (should= true @atoms/waiting-for-input))
 

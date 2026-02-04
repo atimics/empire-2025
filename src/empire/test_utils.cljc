@@ -168,7 +168,7 @@
   (reset! atoms/cells-needing-attention [])
   (reset! atoms/player-items [])
   (reset! atoms/waiting-for-input false)
-  (reset! atoms/message "")
+  (reset! atoms/attention-message "")
   (reset! atoms/turn-message "")
   (reset! atoms/turn-message-until 0)
   (reset! atoms/hover-message "")

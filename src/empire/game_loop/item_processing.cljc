@@ -18,7 +18,8 @@
   ([coords max-sidesteps]
    (let [cell (get-in @atoms/game-map coords)
          unit (:contents cell)]
-     (when (= (:mode unit) :moving)
+     (when (and (= (:mode unit) :moving)
+                (pos? (:steps-remaining unit 1)))
        (let [target (:target unit)
              {:keys [result pos]} (movement/move-unit coords target cell atoms/game-map)]
          (case result
@@ -41,7 +42,8 @@
              (when moved-unit
                (let [new-steps (dec (:steps-remaining moved-unit 1))]
                  (swap! atoms/game-map assoc-in (conj pos :contents :steps-remaining) new-steps)
-                 (when (> new-steps 0)
+                 (when (or (> new-steps 0)
+                           (= :awake (:mode moved-unit)))
                    pos))))
 
            ;; Combat - attacker is at pos if won, nil if lost
@@ -53,8 +55,8 @@
                (swap! atoms/game-map assoc-in (conj pos :contents :steps-remaining) 0)
                nil))  ;; Combat ends the move
 
-           ;; Woke up - done moving
-           :woke nil
+           ;; Woke up - return pos so unit gets re-queued for attention
+           :woke pos
 
            ;; Docked for repair - done moving
            :docked nil))))))

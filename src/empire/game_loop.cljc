@@ -44,7 +44,6 @@
   "Called when user input has been processed for current item."
   []
   (reset! atoms/waiting-for-input false)
-  (reset! atoms/message "")
   (reset! atoms/cells-needing-attention []))
 
 ;; Delegate round-setup functions for backward compatibility
@@ -81,7 +80,7 @@
   (reset! atoms/player-items (vec (build-player-items)))
   (reset! atoms/computer-items (vec (build-computer-items)))
   (reset! atoms/waiting-for-input false)
-  (reset! atoms/message "")
+  (reset! atoms/attention-message "")
   (reset! atoms/cells-needing-attention [])
   (reset! atoms/production-status (ru/format-production-status @atoms/game-map @atoms/player-map)))
 

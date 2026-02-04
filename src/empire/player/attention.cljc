@@ -130,7 +130,7 @@
   (let [cell (get-in @atoms/game-map coords)
         unit (:contents cell)
         active-unit (movement/get-active-unit cell)]
-    (reset! atoms/message
+    (reset! atoms/attention-message
             (cond
               (movement/is-fighter-from-airport? active-unit)
               (str "Fighter" (:unit-needs-attention config/messages) " - " (:fighter-landed-and-refueled config/messages) (fuel-string active-unit))

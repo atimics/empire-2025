@@ -319,6 +319,50 @@
         (should= {:type :land} (get-in @atoms/game-map [4 4]))
         (should= {:type :land :contents {:type :army :owner :player :hits 1 :steps-remaining 0 :mode :awake :reason :army-found-city}} (get-in @atoms/game-map [5 4]))
         (should= {:type :city :city-status :computer} (get-in @atoms/game-map [6 4])))
+
+      (it "returns position when unit wakes near enemy city"
+        (reset! atoms/game-map (build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----A#X--"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [6 4] :steps-remaining 1)
+        (reset! atoms/player-map (build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (should= [5 4] (game-loop/move-current-unit [4 4])))
+
+      (it "returns position when unit wakes due to blocking"
+        (reset! atoms/game-map (build-test-map ["---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "----A~---"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"
+                                                 "---------"]))
+        (set-test-unit atoms/game-map "A" :mode :moving :target [5 4] :steps-remaining 1)
+        (reset! atoms/player-map (build-test-map ["---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"
+                                                   "---------"]))
+        (should= [4 4] (game-loop/move-current-unit [4 4])))
       )
 
     (context "visibility updates"

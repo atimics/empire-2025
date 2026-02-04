@@ -8,6 +8,12 @@
             [empire.ui.input :as input]
             [quil.core :as q]))
 
+(defn- advance-until-next-round []
+  (let [start-round @atoms/round-number]
+    (while (= start-round @atoms/round-number)
+      (game-loop/advance-game)))
+  (game-loop/advance-game))
+
 (describe "army.txt"
 
   (it "army.txt:7 - Army put to sentry mode"
@@ -49,7 +55,7 @@
     (game-loop/start-new-round)
     (game-loop/advance-game)
     (should= :awake (:mode (:unit (get-test-unit atoms/game-map "A"))))
-    (should-contain (:army-found-city config/messages) @atoms/message))
+    (should-contain (:army-found-enemy-city config/messages) @atoms/attention-message))
 
   (it "army.txt:41 - Army conquers free city"
     (reset-all-atoms!)
@@ -92,4 +98,5 @@
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
     (input/handle-key :d)
-    (should-contain (:cant-move-into-city config/messages) @atoms/message)))
+    (advance-until-next-round)
+    (should-contain (:cant-move-into-city config/messages) @atoms/attention-message)))

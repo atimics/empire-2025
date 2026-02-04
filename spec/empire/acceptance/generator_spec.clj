@@ -7,7 +7,7 @@
 ;; --- Helper to load EDN test data ---
 
 (defn- load-edn [filename]
-  (edn/read-string (slurp (str "acceptanceTests/" filename))))
+  (edn/read-string (slurp (str "acceptanceTests/edn/" filename))))
 
 (defn- normalize-whitespace [s]
   (-> s
@@ -206,17 +206,23 @@
       (should-contain "should-contain" result)
       (should-contain ":army-found-city" result)
       (should-contain "config/messages" result)
-      (should-contain "atoms/message" result)))
+      (should-contain "atoms/attention-message" result)))
 
   (it "generates message-contains with text then"
     (let [result (gen/generate-then {:type :message-contains :area :attention :text "fuel:20"} [])]
       (should-contain "should-contain" result)
       (should-contain "\"fuel:20\"" result)
-      (should-contain "atoms/message" result)))
+      (should-contain "atoms/attention-message" result)))
 
   (it "generates message-contains with turn area"
     (let [result (gen/generate-then {:type :message-contains :area :turn :text "Destroyer destroyed"} [])]
       (should-contain "atoms/turn-message" result)))
+
+  (it "generates message-contains with :at-next-round"
+    (let [result (gen/generate-then {:type :message-contains :area :attention :config-key :cant-move-into-city :at-next-round true} [])]
+      (should-contain "advance-until-next-round" result)
+      (should-contain "should-contain" result)
+      (should-contain ":cant-move-into-city" result)))
 
   (it "generates message-is with config-key then"
     (let [result (gen/generate-then {:type :message-is :area :turn :config-key :hit-edge} [])]

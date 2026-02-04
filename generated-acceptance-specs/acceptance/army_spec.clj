@@ -10,9 +10,16 @@
 
 (defn- advance-until-next-round []
   (let [start-round @atoms/round-number]
-    (while (= start-round @atoms/round-number)
-      (game-loop/advance-game)))
-  (game-loop/advance-game))
+    (loop [n 100]
+      (cond
+        (not= start-round @atoms/round-number)
+        (do (game-loop/advance-game) :ok)
+
+        (zero? n) :timeout
+
+        :else
+        (do (game-loop/advance-game)
+            (recur (dec n)))))))
 
 (describe "army.txt"
 
@@ -55,7 +62,8 @@
     (game-loop/start-new-round)
     (game-loop/advance-game)
     (should= :awake (:mode (:unit (get-test-unit atoms/game-map "A"))))
-    (should-contain (:army-found-enemy-city config/messages) @atoms/attention-message))
+    (should-not-be-nil (:army-found-city config/messages))
+    (should-contain (:army-found-city config/messages) @atoms/attention-message))
 
   (it "army.txt:41 - Army conquers free city"
     (reset-all-atoms!)
@@ -98,5 +106,6 @@
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
     (input/handle-key :d)
-    (advance-until-next-round)
+    (should= :ok (advance-until-next-round))
+    (should-not-be-nil (:cant-move-into-city config/messages))
     (should-contain (:cant-move-into-city config/messages) @atoms/attention-message)))

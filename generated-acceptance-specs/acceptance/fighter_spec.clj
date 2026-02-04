@@ -10,9 +10,16 @@
 
 (defn- advance-until-next-round []
   (let [start-round @atoms/round-number]
-    (while (= start-round @atoms/round-number)
-      (game-loop/advance-game)))
-  (game-loop/advance-game))
+    (loop [n 100]
+      (cond
+        (not= start-round @atoms/round-number)
+        (do (game-loop/advance-game) :ok)
+
+        (zero? n) :timeout
+
+        :else
+        (do (game-loop/advance-game)
+            (recur (dec n)))))))
 
 (describe "fighter.txt"
 
@@ -38,6 +45,7 @@
     (should= 30 (:fuel (:unit (get-test-unit atoms/game-map "F"))))
     (should= :awake (:mode (:unit (get-test-unit atoms/game-map "F"))))
     (should @atoms/waiting-for-input)
+    (should-not-be-nil (:hit-edge config/messages))
     (should-contain (:hit-edge config/messages) @atoms/attention-message))
 
   (it "fighter.txt:21 - Fighter refuels at player city"
@@ -64,6 +72,7 @@
     (game-loop/start-new-round)
     (game-loop/advance-game)
     (should= :awake (:mode (:unit (get-test-unit atoms/game-map "F"))))
+    (should-not-be-nil (:fighter-bingo config/messages))
     (should-contain (:fighter-bingo config/messages) @atoms/attention-message))
 
   (it "fighter.txt:45 - Fighter out of fuel wakes"
@@ -74,6 +83,7 @@
     (game-loop/advance-game)
     (should= :awake (:mode (:unit (get-test-unit atoms/game-map "F"))))
     (should @atoms/waiting-for-input)
+    (should-not-be-nil (:fighter-out-of-fuel config/messages))
     (should-contain (:fighter-out-of-fuel config/messages) @atoms/attention-message))
 
   (it "fighter.txt:57 - Fighter crashes when fuel reaches zero"
@@ -83,6 +93,7 @@
     (game-loop/start-new-round)
     (game-loop/advance-game)
     (should-be-nil (get-test-unit atoms/game-map "F"))
+    (should-not-be-nil (:fighter-crashed config/messages))
     (should-contain (:fighter-crashed config/messages) @atoms/error-message))
 
   (it "fighter.txt:69 - Fighter lands on carrier"
@@ -112,7 +123,7 @@
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
     (input/handle-key :d)
-    (advance-until-next-round)
+    (should= :ok (advance-until-next-round))
     (let [target-pos (:pos (get-test-cell atoms/game-map "%"))
           f-result (get-test-unit atoms/game-map "F")]
       (should-not-be-nil f-result)
@@ -148,7 +159,7 @@
                   q/mouse-y (constantly 0)]
       (reset! atoms/last-key nil)
       (input/key-down :D))
-    (advance-until-next-round)
+    (should= :ok (advance-until-next-round))
     (let [{:keys [pos]} (get-test-unit atoms/game-map "F")
           target-pos (:pos (get-test-cell atoms/game-map "="))]
       (should= target-pos pos))))

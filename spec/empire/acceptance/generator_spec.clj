@@ -167,9 +167,9 @@
       (should-contain "should=" result)
       (should-contain "[0 0]" result)))
 
-  (it "generates unit-at-next-round then"
+  (it "generates unit-at-next-round then with timeout check"
     (let [result (gen/generate-then {:type :unit-at-next-round :unit "D" :target "="} [])]
-      (should-contain "advance-until-next-round" result)
+      (should-contain "should= :ok (advance-until-next-round)" result)
       (should-contain "get-test-cell" result)))
 
   (it "generates unit-after-moves then"
@@ -178,9 +178,9 @@
       (should-contain "_ 2" result)
       (should-contain "get-test-cell" result)))
 
-  (it "generates unit-after-steps then"
+  (it "generates unit-after-steps then with timeout check"
     (let [result (gen/generate-then {:type :unit-after-steps :unit "F" :steps 1 :target "%"} [])]
-      (should-contain "advance-until-next-round" result)
+      (should-contain "should= :ok (advance-until-next-round)" result)
       (should-contain "should-not-be-nil" result)
       (should-contain "get-test-cell" result)))
 
@@ -201,8 +201,9 @@
       (should-contain ":awake" result)
       (should-contain "waiting-for-input" result)))
 
-  (it "generates message-contains with config-key then"
+  (it "generates message-contains with config-key then including existence check"
     (let [result (gen/generate-then {:type :message-contains :area :attention :config-key :army-found-city} [])]
+      (should-contain "should-not-be-nil" result)
       (should-contain "should-contain" result)
       (should-contain ":army-found-city" result)
       (should-contain "config/messages" result)
@@ -218,9 +219,10 @@
     (let [result (gen/generate-then {:type :message-contains :area :turn :text "Destroyer destroyed"} [])]
       (should-contain "atoms/turn-message" result)))
 
-  (it "generates message-contains with :at-next-round"
+  (it "generates message-contains with :at-next-round and timeout check"
     (let [result (gen/generate-then {:type :message-contains :area :attention :config-key :cant-move-into-city :at-next-round true} [])]
-      (should-contain "advance-until-next-round" result)
+      (should-contain "should= :ok (advance-until-next-round)" result)
+      (should-contain "should-not-be-nil" result)
       (should-contain "should-contain" result)
       (should-contain ":cant-move-into-city" result)))
 
@@ -328,4 +330,11 @@
   (it "generates fighter spec with advance-until-next-round helper"
     (let [edn-data (load-edn "fighter.edn")
           result (gen/generate-spec edn-data)]
-      (should-contain "defn- advance-until-next-round" result))))
+      (should-contain "defn- advance-until-next-round" result)))
+
+  (it "generates advance-until-next-round with loop and timeout"
+    (let [edn-data (load-edn "fighter.edn")
+          result (gen/generate-spec edn-data)]
+      (should-contain "loop [n 100]" result)
+      (should-contain ":timeout" result)
+      (should-contain ":ok" result))))

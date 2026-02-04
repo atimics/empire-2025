@@ -845,12 +845,26 @@ Every spec that uses "at next round" assertions must include this helper:
 ```clojure
 (defn- advance-until-next-round []
   (let [start-round @atoms/round-number]
-    (while (= start-round @atoms/round-number)
-      (game-loop/advance-game)))
-  (game-loop/advance-game))
+    (loop [n 100]
+      (cond
+        (not= start-round @atoms/round-number)
+        (do (game-loop/advance-game) :ok)
+
+        (zero? n) :timeout
+
+        :else
+        (do (game-loop/advance-game)
+            (recur (dec n)))))))
 ```
 
-The loop drains the current round (processes all movement, explore, etc.), then detects when `start-new-round` increments the round number and exits. The final `advance-game` processes the first batch of the new round, giving newly-awake units attention.
+The loop drains the current round (processes all movement, explore, etc.) up to a maximum of 100 iterations. When `start-new-round` increments the round number, it exits the loop, calls one final `advance-game` (to process the first batch of the new round), and returns `:ok`. If the round never advances after 100 iterations, it returns `:timeout`.
+
+Generated specs assert the return value:
+```clojure
+(should= :ok (advance-until-next-round))
+```
+
+This prevents tests from hanging indefinitely when game state prevents round advancement (e.g., missing config keys causing nil messages, broken movement logic).
 
 Use this when:
 - Any THEN says "at next round" or "at the next round" (position, state, or message assertions)
@@ -859,6 +873,23 @@ Use this when:
 - Any WHEN that starts automated movement followed by THENs about the outcome
 
 **Do NOT use** `(dotimes [_ 3] (game-loop/advance-game))` or any other fixed advance count. Player cities without production, extra units on the map, and other state can change how many advances are needed to cross a round boundary.
+
+### Config Key Validation
+
+Defense-in-depth for config key references in acceptance tests:
+
+1. **Parser warning (parse time):** When `clj -M:parse-tests` runs, the parser checks every `:config-key` referenced in THEN clauses against `config/messages`. If a key doesn't exist, it prints:
+   ```
+   WARNING: army.txt:29 - config key :army-found-enemy-city not found in config/messages
+   ```
+   The EDN is still emitted as-is — this is a warning, not an error.
+
+2. **Generator existence check (test time):** For every THEN that references a `:config-key`, the generator emits:
+   ```clojure
+   (should-not-be-nil (:army-found-city config/messages))
+   (should-contain (:army-found-city config/messages) @atoms/attention-message)
+   ```
+   The `should-not-be-nil` assertion fails immediately with a clear message if the key doesn't exist, rather than passing `nil` to `should-contain` which would produce a confusing error.
 
 ### Additional THEN Patterns
 

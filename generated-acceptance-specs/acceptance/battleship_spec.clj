@@ -1,6 +1,6 @@
 (ns acceptance.battleship-spec
   (:require [speclj.core :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell reset-all-atoms! make-initial-test-map]]
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell reset-all-atoms! message-matches? make-initial-test-map]]
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.game-loop :as game-loop]
@@ -116,7 +116,8 @@
     (let [{:keys [pos]} (get-test-unit atoms/game-map "s")]
       (should= [1 0] pos))
     (should-be-nil (get-test-unit atoms/game-map "B"))
-    (should-contain "Battleship destroyed" @atoms/turn-message))
+    (should-not-be-nil (:combat-result config/messages))
+    (should (message-matches? (:combat-result config/messages) @atoms/turn-message)))
 
   (it "battleship.txt:52 - Battleship blocked by land"
     (reset-all-atoms!)
@@ -131,7 +132,7 @@
     (input/handle-key :d)
     (game-loop/advance-game)
     (should-not-be-nil (:ships-cant-drive-on-land config/messages))
-    (should-contain (:ships-cant-drive-on-land config/messages) @atoms/attention-message))
+    (should (message-matches? (:ships-cant-drive-on-land config/messages) @atoms/attention-message)))
 
   (it "battleship.txt:63 - Battleship blocked by friendly ship"
     (reset-all-atoms!)
@@ -146,7 +147,7 @@
     (input/handle-key :d)
     (game-loop/advance-game)
     (should-not-be-nil (:somethings-in-the-way config/messages))
-    (should-contain (:somethings-in-the-way config/messages) @atoms/attention-message))
+    (should (message-matches? (:somethings-in-the-way config/messages) @atoms/attention-message)))
 
   (it "battleship.txt:74 - Damaged battleship attention message"
     (reset-all-atoms!)
@@ -159,7 +160,8 @@
       (reset! atoms/player-map (make-initial-test-map rows cols nil))
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
-    (should-contain "Damaged" @atoms/attention-message))
+    (should-not-be-nil (:damaged-unit-attention config/messages))
+    (should (message-matches? (:damaged-unit-attention config/messages) @atoms/attention-message)))
 
   (it "battleship.txt:85 - Damaged battleship has reduced speed"
     (reset-all-atoms!)
@@ -190,4 +192,4 @@
     (should= :ok (advance-until-unit-waiting "B"))
     (should= :awake (:mode (:unit (get-test-unit atoms/game-map "B"))))
     (should-not-be-nil (:enemy-spotted config/messages))
-    (should-contain (:enemy-spotted config/messages) @atoms/attention-message)))
+    (should (message-matches? (:enemy-spotted config/messages) @atoms/attention-message))))

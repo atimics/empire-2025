@@ -1,6 +1,6 @@
 (ns acceptance.fighter-spec
   (:require [speclj.core :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell get-test-city reset-all-atoms! make-initial-test-map]]
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell get-test-city reset-all-atoms! message-matches? make-initial-test-map]]
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.game-loop :as game-loop]
@@ -68,7 +68,7 @@
       (should= (:pos (get-test-cell atoms/game-map "=")) pos))
     (should= 30 (:fuel (:unit (get-test-unit atoms/game-map "F"))))
     (should-not-be-nil (:hit-edge config/messages))
-    (should-contain (:hit-edge config/messages) @atoms/attention-message))
+    (should (message-matches? (:hit-edge config/messages) @atoms/attention-message)))
 
   (it "fighter.txt:20 - Fighter refuels at player city"
     (reset-all-atoms!)
@@ -104,7 +104,7 @@
             (zero? n) :timeout
             :else (do (game-loop/advance-game) (recur (dec n)))))))
     (should-not-be-nil (:fighter-bingo config/messages))
-    (should-contain (:fighter-bingo config/messages) @atoms/attention-message))
+    (should (message-matches? (:fighter-bingo config/messages) @atoms/attention-message)))
 
   (it "fighter.txt:44 - Fighter out of fuel wakes"
     (reset-all-atoms!)
@@ -114,7 +114,7 @@
     (game-loop/advance-game)
     (should= :ok (advance-until-unit-waiting "F"))
     (should-not-be-nil (:fighter-out-of-fuel config/messages))
-    (should-contain (:fighter-out-of-fuel config/messages) @atoms/attention-message))
+    (should (message-matches? (:fighter-out-of-fuel config/messages) @atoms/attention-message)))
 
   (it "fighter.txt:56 - Fighter crashes when fuel reaches zero"
     (reset-all-atoms!)
@@ -124,7 +124,7 @@
     (game-loop/advance-game)
     (should-be-nil (get-test-unit atoms/game-map "F"))
     (should-not-be-nil (:fighter-crashed config/messages))
-    (should-contain (:fighter-crashed config/messages) @atoms/error-message))
+    (should (message-matches? (:fighter-crashed config/messages) @atoms/error-message)))
 
   (it "fighter.txt:68 - Fighter lands on carrier"
     (reset-all-atoms!)

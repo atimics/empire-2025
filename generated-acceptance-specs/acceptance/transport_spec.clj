@@ -1,6 +1,6 @@
 (ns acceptance.transport-spec
   (:require [speclj.core :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell get-test-city reset-all-atoms! make-initial-test-map]]
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell get-test-city reset-all-atoms! message-matches? make-initial-test-map]]
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.game-loop :as game-loop]
@@ -155,7 +155,7 @@
     (input/handle-key :d)
     (game-loop/advance-game)
     (should-not-be-nil (:ships-cant-drive-on-land config/messages))
-    (should-contain (:ships-cant-drive-on-land config/messages) @atoms/attention-message))
+    (should (message-matches? (:ships-cant-drive-on-land config/messages) @atoms/attention-message)))
 
   (it "transport.txt:103 - Transport blocked by friendly ship"
     (reset-all-atoms!)
@@ -170,7 +170,7 @@
     (input/handle-key :d)
     (game-loop/advance-game)
     (should-not-be-nil (:somethings-in-the-way config/messages))
-    (should-contain (:somethings-in-the-way config/messages) @atoms/attention-message))
+    (should (message-matches? (:somethings-in-the-way config/messages) @atoms/attention-message)))
 
   (it "transport.txt:114 - Transport sentry mode"
     (reset-all-atoms!)

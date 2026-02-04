@@ -1,6 +1,6 @@
 (ns acceptance.army-spec
   (:require [speclj.core :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-city reset-all-atoms! make-initial-test-map]]
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-city reset-all-atoms! message-matches? make-initial-test-map]]
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.game-loop :as game-loop]
@@ -50,7 +50,7 @@
     (game-loop/advance-game)
     (should= :awake (:mode (:unit (get-test-unit atoms/game-map "A"))))
     (should-not-be-nil (:army-found-city config/messages))
-    (should-contain (:army-found-city config/messages) @atoms/attention-message))
+    (should (message-matches? (:army-found-city config/messages) @atoms/attention-message)))
 
   (it "army.txt:41 - Army conquers free city"
     (reset-all-atoms!)
@@ -95,4 +95,4 @@
     (input/handle-key :d)
     (game-loop/advance-game)
     (should-not-be-nil (:cant-move-into-city config/messages))
-    (should-contain (:cant-move-into-city config/messages) @atoms/attention-message)))
+    (should (message-matches? (:cant-move-into-city config/messages) @atoms/attention-message))))

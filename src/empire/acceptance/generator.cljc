@@ -139,6 +139,8 @@
     (when (contains? needs :get-test-city)
       (swap! refers conj "get-test-city"))
     (swap! refers conj "reset-all-atoms!")
+    (when (contains? needs :config)
+      (swap! refers conj "message-matches?"))
     (when (contains? needs :make-initial-test-map)
       (swap! refers conj "make-initial-test-map"))
 
@@ -527,7 +529,7 @@
     (if config-key
       (str advance
            "    (should-not-be-nil (:" (name config-key) " config/messages))\n"
-           "    (should-contain (:" (name config-key) " config/messages) @" atom-str ")")
+           "    (should (message-matches? (:" (name config-key) " config/messages) @" atom-str "))")
       (str advance "    (should-contain \"" text "\" @" atom-str ")"))))
 
 (defn- generate-message-for-unit-then [{:keys [area unit config-key]}]
@@ -540,7 +542,7 @@
          "            (zero? n) :timeout\n"
          "            :else (do (game-loop/advance-game) (recur (dec n)))))))\n"
          "    (should-not-be-nil (:" (name config-key) " config/messages))\n"
-         "    (should-contain (:" (name config-key) " config/messages) @" atom-str ")")))
+         "    (should (message-matches? (:" (name config-key) " config/messages) @" atom-str "))")))
 
 (defn- generate-message-is-then [{:keys [area config-key format]}]
   (let [atom-str (area->atom area)]

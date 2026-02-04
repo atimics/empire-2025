@@ -1,7 +1,8 @@
 (ns acceptance.player-production-spec
   (:require [speclj.core :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-city reset-all-atoms! make-initial-test-map]]
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-city reset-all-atoms! message-matches? make-initial-test-map]]
             [empire.atoms :as atoms]
+            [empire.config :as config]
             [empire.game-loop :as game-loop]
             [empire.game-loop.item-processing :as item-processing]
             [empire.ui.input :as input]
@@ -72,7 +73,8 @@
       (input/key-down :t))
     (let [prod (get @atoms/production (:pos (get-test-city atoms/game-map "O")))]
       (should (or (nil? prod) (= :none prod))))
-    (should-contain "coastal" @atoms/error-message))
+    (should-not-be-nil (:coastal-city-required config/messages))
+    (should (message-matches? (:coastal-city-required config/messages) @atoms/error-message)))
 
   (it "player-production.txt:53 - Press x cancels production"
     (reset-all-atoms!)

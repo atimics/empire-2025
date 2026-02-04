@@ -1,6 +1,6 @@
 (ns acceptance.submarine-spec
   (:require [speclj.core :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell reset-all-atoms! make-initial-test-map]]
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell reset-all-atoms! message-matches? make-initial-test-map]]
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.game-loop :as game-loop]
@@ -66,7 +66,7 @@
     (input/handle-key :d)
     (game-loop/advance-game)
     (should-not-be-nil (:ships-cant-drive-on-land config/messages))
-    (should-contain (:ships-cant-drive-on-land config/messages) @atoms/attention-message))
+    (should (message-matches? (:ships-cant-drive-on-land config/messages) @atoms/attention-message)))
 
   (it "submarine.txt:25 - Submarine attacks destroyer and wins"
     (reset-all-atoms!)
@@ -136,7 +136,8 @@
     (let [{:keys [pos]} (get-test-unit atoms/game-map "d")]
       (should= [1 0] pos))
     (should-be-nil (get-test-unit atoms/game-map "S"))
-    (should-contain "Submarine destroyed" @atoms/turn-message))
+    (should-not-be-nil (:combat-result config/messages))
+    (should (message-matches? (:combat-result config/messages) @atoms/turn-message)))
 
   (it "submarine.txt:71 - Submarine blocked by friendly ship"
     (reset-all-atoms!)
@@ -151,7 +152,7 @@
     (input/handle-key :d)
     (game-loop/advance-game)
     (should-not-be-nil (:somethings-in-the-way config/messages))
-    (should-contain (:somethings-in-the-way config/messages) @atoms/attention-message))
+    (should (message-matches? (:somethings-in-the-way config/messages) @atoms/attention-message)))
 
   (it "submarine.txt:82 - Sentry submarine wakes when enemy is adjacent"
     (reset-all-atoms!)
@@ -162,4 +163,4 @@
     (should= :ok (advance-until-unit-waiting "S"))
     (should= :awake (:mode (:unit (get-test-unit atoms/game-map "S"))))
     (should-not-be-nil (:enemy-spotted config/messages))
-    (should-contain (:enemy-spotted config/messages) @atoms/attention-message)))
+    (should (message-matches? (:enemy-spotted config/messages) @atoms/attention-message))))

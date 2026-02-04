@@ -370,3 +370,34 @@
   (it "returns nil when index exceeds count"
     (let [gm (atom (build-test-map ["=~~"]))]
       (should= nil (get-test-cell gm "=2")))))
+
+(describe "message-matches?"
+  (it "matches plain string as substring"
+    (should (message-matches? "hello" "say hello world")))
+
+  (it "rejects plain string not present"
+    (should-not (message-matches? "goodbye" "say hello world")))
+
+  (it "matches template with %s placeholder"
+    (should (message-matches? "Must be coastal city to produce %s." "Must be coastal city to produce Destroyer.")))
+
+  (it "rejects template with %s when text doesn't match"
+    (should-not (message-matches? "Must be coastal city to produce %s." "You can build anything here.")))
+
+  (it "matches template with %d placeholder"
+    (should (message-matches? "Dest: %d,%d" "Dest: 10,20")))
+
+  (it "rejects template with %d when no digits present"
+    (should-not (message-matches? "Dest: %d,%d" "Dest: abc,def")))
+
+  (it "matches template with mixed %s and %d"
+    (should (message-matches? "%s docked for repair." "Destroyer docked for repair.")))
+
+  (it "matches template with multiple %s placeholders"
+    (should (message-matches? "Damaged %s needs attention%s%s%s" "Damaged Battleship needs attention - hits:5")))
+
+  (it "matches format template embedded in longer message"
+    (should (message-matches? "%s. %s destroyed." "c-3,S-1. Submarine destroyed.")))
+
+  (it "escapes regex special characters in template"
+    (should (message-matches? "What? Really." "What? Really."))))

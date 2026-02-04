@@ -271,4 +271,4 @@ GIVEN F is waiting for input.
 
 WHEN the player presses d.
 
-THEN at the next step the error message contains "Fighter destroyed".
+THEN at the next step the error message contains :fighter-destroyed-by-city.

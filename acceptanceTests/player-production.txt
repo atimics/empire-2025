@@ -45,7 +45,7 @@ GIVEN O is waiting for input.
 WHEN the player presses t.
 
 THEN there is no production at O.
-THEN the error message contains "coastal".
+THEN the error message contains :coastal-city-required.
 
 ;===============================================================
 ; Press x cancels production.

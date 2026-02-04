@@ -1,5 +1,6 @@
 (ns empire.test-utils
-  (:require [empire.atoms :as atoms]
+  (:require [clojure.string :as str]
+            [empire.atoms :as atoms]
             [empire.movement.pathfinding :as pathfinding]
             [empire.units.dispatcher :as dispatcher]))
 
@@ -195,3 +196,16 @@
   (reset! atoms/sea-lane-network {:nodes {} :segments {} :pos->node {} :pos->seg {}
                                    :next-node-id 1 :next-segment-id 1})
   (pathfinding/clear-path-cache))
+
+(defn message-matches?
+  "Checks if a message template matches an actual message string.
+   If the template contains format placeholders (%s, %d), converts
+   to a regex pattern. Otherwise does a plain substring check."
+  [template actual]
+  (if (or (str/includes? template "%s") (str/includes? template "%d"))
+    (let [escaped (str/replace template #"[.*+?^${}()|\\@\[\]]" "\\\\$0")
+          pattern (-> escaped
+                      (str/replace "%s" ".*")
+                      (str/replace "%d" "\\d+"))]
+      (some? (re-find (re-pattern pattern) actual)))
+    (str/includes? actual template)))

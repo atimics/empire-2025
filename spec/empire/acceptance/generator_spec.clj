@@ -311,10 +311,10 @@
       (should-contain "advance-until-unit-waiting" result)
       (should-contain "\"F\"" result)))
 
-  (it "generates message-contains with config-key then including existence check"
+  (it "generates message-contains with config-key then using message-matches?"
     (let [result (gen/generate-then {:type :message-contains :area :attention :config-key :army-found-city} [])]
       (should-contain "should-not-be-nil" result)
-      (should-contain "should-contain" result)
+      (should-contain "message-matches?" result)
       (should-contain ":army-found-city" result)
       (should-contain "config/messages" result)
       (should-contain "atoms/attention-message" result)))
@@ -333,7 +333,7 @@
     (let [result (gen/generate-then {:type :message-contains :area :attention :config-key :cant-move-into-city :at-next-round true} [])]
       (should-contain "should= :ok (advance-until-next-round)" result)
       (should-contain "should-not-be-nil" result)
-      (should-contain "should-contain" result)
+      (should-contain "message-matches?" result)
       (should-contain ":cant-move-into-city" result)))
 
   (it "generates message-contains with :at-next-step using advance-game"
@@ -341,15 +341,16 @@
       (should-contain "game-loop/advance-game" result)
       (should-not-contain "advance-until-next-round" result)
       (should-contain "should-not-be-nil" result)
-      (should-contain "should-contain" result)
+      (should-contain "message-matches?" result)
       (should-contain ":cant-move-into-city" result)))
 
-  (it "generates message-for-unit then with advance loop"
+  (it "generates message-for-unit then with advance loop and message-matches?"
     (let [result (gen/generate-then {:type :message-for-unit :area :attention :unit "F" :config-key :fighter-bingo} [])]
       (should-contain "loop [n 100]" result)
       (should-contain "get-test-unit" result)
       (should-contain ":awake" result)
       (should-contain "should-not-be-nil" result)
+      (should-contain "message-matches?" result)
       (should-contain ":fighter-bingo" result)
       (should-contain "atoms/attention-message" result)))
 

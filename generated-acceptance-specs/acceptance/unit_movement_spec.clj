@@ -1,6 +1,6 @@
 (ns acceptance.unit-movement-spec
   (:require [speclj.core :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell reset-all-atoms! make-initial-test-map]]
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell reset-all-atoms! message-matches? make-initial-test-map]]
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.game-loop :as game-loop]
@@ -396,7 +396,7 @@
     (input/handle-key :d)
     (game-loop/advance-game)
     (should-not-be-nil (:cant-move-into-water config/messages))
-    (should-contain (:cant-move-into-water config/messages) @atoms/attention-message))
+    (should (message-matches? (:cant-move-into-water config/messages) @atoms/attention-message)))
 
   (it "unit-movement.txt:244 - Army conquers computer city when conquest succeeds"
     (reset-all-atoms!)
@@ -440,4 +440,5 @@
       (item-processing/process-player-items-batch))
     (input/handle-key :d)
     (game-loop/advance-game)
-    (should-contain "Fighter destroyed" @atoms/error-message)))
+    (should-not-be-nil (:fighter-destroyed-by-city config/messages))
+    (should (message-matches? (:fighter-destroyed-by-city config/messages) @atoms/error-message))))

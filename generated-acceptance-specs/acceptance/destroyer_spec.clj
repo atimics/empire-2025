@@ -1,7 +1,8 @@
 (ns acceptance.destroyer-spec
   (:require [speclj.core :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell reset-all-atoms! make-initial-test-map]]
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell reset-all-atoms! message-matches? make-initial-test-map]]
             [empire.atoms :as atoms]
+            [empire.config :as config]
             [empire.game-loop :as game-loop]
             [empire.game-loop.item-processing :as item-processing]
             [empire.ui.input :as input]
@@ -74,7 +75,8 @@
     (let [{:keys [pos]} (get-test-unit atoms/game-map "s")]
       (should= [1 0] pos))
     (should-be-nil (get-test-unit atoms/game-map "D"))
-    (should-contain "Destroyer destroyed" @atoms/turn-message))
+    (should-not-be-nil (:combat-result config/messages))
+    (should (message-matches? (:combat-result config/messages) @atoms/turn-message)))
 
   (it "destroyer.txt:41 - Destroyer put to sentry mode"
     (reset-all-atoms!)

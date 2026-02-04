@@ -1,6 +1,6 @@
 (ns acceptance.carrier-spec
   (:require [speclj.core :refer :all]
-            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell reset-all-atoms! make-initial-test-map]]
+            [empire.test-utils :refer [build-test-map set-test-unit get-test-unit get-test-cell reset-all-atoms! message-matches? make-initial-test-map]]
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.game-loop :as game-loop]
@@ -145,7 +145,8 @@
       (reset! atoms/player-map (make-initial-test-map rows cols nil))
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
-    (should-contain "Damaged" @atoms/attention-message))
+    (should-not-be-nil (:damaged-unit-attention config/messages))
+    (should (message-matches? (:damaged-unit-attention config/messages) @atoms/attention-message)))
 
   (it "carrier.txt:75 - Carrier speed is 2 per round"
     (reset-all-atoms!)
@@ -179,4 +180,4 @@
     (input/handle-key :d)
     (game-loop/advance-game)
     (should-not-be-nil (:ships-cant-drive-on-land config/messages))
-    (should-contain (:ships-cant-drive-on-land config/messages) @atoms/attention-message)))
+    (should (message-matches? (:ships-cant-drive-on-land config/messages) @atoms/attention-message))))

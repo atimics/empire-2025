@@ -69,7 +69,19 @@
           needs (gen/determine-needs tests)]
       (should-contain :advance-until-waiting-helper needs)
       (should-contain :quil needs)
-      (should-contain :game-loop needs))))
+      (should-contain :game-loop needs)))
+
+  (it "detects :get-test-city when givens have :production with city target"
+    (let [tests [{:givens [{:type :production :city "O" :item :army}] :whens [] :thens []}]]
+      (should-contain :get-test-city (gen/determine-needs tests))))
+
+  (it "detects :game-loop when whens have :visibility-update"
+    (let [tests [{:givens [] :whens [{:type :visibility-update}] :thens []}]]
+      (should-contain :game-loop (gen/determine-needs tests))))
+
+  (it "detects :quil when whens have :mouse-at-key"
+    (let [tests [{:givens [] :whens [{:type :mouse-at-key :coords [0 0] :key :period}] :thens []}]]
+      (should-contain :quil (gen/determine-needs tests)))))
 
 ;; --- generate-given tests ---
 
@@ -79,6 +91,12 @@
     (let [result (gen/generate-given {:type :map :target :game-map :rows ["A#"]})]
       (should-contain "build-test-map" result)
       (should-contain "\"A#\"" result)))
+
+  (it "generates player-map given targeting atoms/player-map"
+    (let [result (gen/generate-given {:type :map :target :player-map :rows ["..." ".."]})]
+      (should-contain "atoms/player-map" result)
+      (should-contain "build-test-map" result)
+      (should-not-contain "atoms/game-map" result)))
 
   (it "generates unit-props given"
     (let [result (gen/generate-given {:type :unit-props :unit "F" :props {:fuel 32}})]
@@ -203,7 +221,27 @@
       (should-contain "set-test-unit" result)
       (should-contain ":mode :awake" result)
       (should-contain "make-initial-test-map" result)
-      (should-contain "process-player-items-batch" result))))
+      (should-contain "process-player-items-batch" result)))
+
+  (it "generates mouse-at-key when with period key"
+    (let [result (gen/generate-when {:type :mouse-at-key :coords [0 1] :key :period})]
+      (should-contain "q/mouse-x" result)
+      (should-contain "q/mouse-y" result)
+      (should-contain "input/key-down" result)
+      (should-contain (str "(keyword \".\")") result)))
+
+  (it "generates mouse-at-key when with u key"
+    (let [result (gen/generate-when {:type :mouse-at-key :coords [0 0] :key :u})]
+      (should-contain "q/mouse-x" result)
+      (should-contain "input/key-down :u" result)))
+
+  (it "generates mouse-at-key when with l key"
+    (let [result (gen/generate-when {:type :mouse-at-key :coords [0 0] :key :l})]
+      (should-contain "input/key-down :l" result)))
+
+  (it "generates visibility-update when"
+    (let [result (gen/generate-when {:type :visibility-update})]
+      (should-contain "update-player-map" result))))
 
 ;; --- generate-then tests ---
 
@@ -233,6 +271,12 @@
   (it "generates unit-at-next-round then with timeout check"
     (let [result (gen/generate-then {:type :unit-at-next-round :unit "D" :target "="} [])]
       (should-contain "should= :ok (advance-until-next-round)" result)
+      (should-contain "get-test-cell" result)))
+
+  (it "generates unit-at-next-step then with single advance"
+    (let [result (gen/generate-then {:type :unit-at-next-round :unit "A" :target "%" :at-next-step true} [])]
+      (should-contain "game-loop/advance-game" result)
+      (should-not-contain "advance-until-next-round" result)
       (should-contain "get-test-cell" result)))
 
   (it "generates unit-after-moves then"
@@ -368,7 +412,19 @@
   (it "generates container-prop city lookup with at-next-round"
     (let [result (gen/generate-then {:type :container-prop :target "O" :property :fighter-count :expected 1 :lookup :city :at-next-round true} [])]
       (should-contain "advance-until-next-round" result)
-      (should-contain ":fighter-count" result))))
+      (should-contain ":fighter-count" result)))
+
+  (it "generates player-map-cell-not-nil then"
+    (let [result (gen/generate-then {:type :player-map-cell-not-nil :coords [1 2]} [])]
+      (should-contain "should-not-be-nil" result)
+      (should-contain "atoms/player-map" result)
+      (should-contain "[1 2]" result)))
+
+  (it "generates player-map-cell-nil then"
+    (let [result (gen/generate-then {:type :player-map-cell-nil :coords [1 2]} [])]
+      (should-contain "should-be-nil" result)
+      (should-contain "atoms/player-map" result)
+      (should-contain "[1 2]" result))))
 
 ;; --- Integration: generate-spec on actual EDN data ---
 

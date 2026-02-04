@@ -1,0 +1,35 @@
+; Hover key commands — commands that act on the cell under the mouse cursor.
+
+;===============================================================
+; Set destination at mouse position.
+;===============================================================
+GIVEN game map
+  A#
+  ##
+GIVEN A is waiting for input.
+
+WHEN the mouse is at cell [0 1] and the player presses period.
+
+THEN destination is [0 1].
+
+;===============================================================
+; Wake sentry unit at mouse.
+;===============================================================
+GIVEN game map
+  A#
+A is sentry.
+
+WHEN the mouse is at cell [0 0] and the player presses u.
+
+THEN A has mode awake.
+
+;===============================================================
+; Set lookaround on city at mouse.
+;===============================================================
+GIVEN game map
+  O#
+GIVEN production at O is army.
+
+WHEN the mouse is at cell [0 0] and the player presses l.
+
+THEN cell [0 0] has marching-orders lookaround.

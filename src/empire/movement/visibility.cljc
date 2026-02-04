@@ -1,5 +1,6 @@
 (ns empire.movement.visibility
-  (:require [empire.atoms :as atoms]))
+  (:require [empire.atoms :as atoms]
+            [empire.units.dispatcher :as dispatcher]))
 
 (defn- is-players?
   "Returns true if the cell is owned by the player."
@@ -14,17 +15,24 @@
       (= (:owner (:contents cell)) :computer)))
 
 (defn- reveal-surrounding-cells!
-  "Reveals the 3x3 area around cell [i,j] in the transient result map.
+  "Reveals cells within radius around cell [i,j] in the transient result map.
    Clamps to map boundaries."
-  [result game-map i j height width]
-  (let [coords (for [row (range (max 0 (dec i)) (min height (+ i 2)))
-                     col (range (max 0 (dec j)) (min width (+ j 2)))]
+  [result game-map i j height width radius]
+  (let [coords (for [row (range (max 0 (- i radius)) (min height (+ i radius 1)))
+                     col (range (max 0 (- j radius)) (min width (+ j radius 1)))]
                  [row col])]
     (reduce (fn [r [row col]]
               (let [cell ((game-map row) col)]
                 (assoc! r row (assoc! (r row) col cell))))
             result
             coords)))
+
+(defn- cell-visibility-radius
+  "Returns the visibility radius for a cell based on its contents."
+  [cell]
+  (if-let [unit-type (:type (:contents cell))]
+    (dispatcher/visibility-radius unit-type)
+    1))
 
 (defn- process-map-cells
   "Iterates over all cells, revealing surroundings for owned cells.
@@ -34,9 +42,11 @@
                      j (range width)]
                  [i j])]
     (reduce (fn [res [i j]]
-              (if (ownership-predicate ((game-map i) j))
-                (reveal-surrounding-cells! res game-map i j height width)
-                res))
+              (let [cell ((game-map i) j)]
+                (if (ownership-predicate cell)
+                  (reveal-surrounding-cells! res game-map i j height width
+                                             (cell-visibility-radius cell))
+                  res)))
             result
             coords)))
 

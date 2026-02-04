@@ -119,6 +119,20 @@
     (should= {:type :sea} (get-in @atoms/computer-map [1 1]))
     (should= {:type :sea} (get-in @atoms/computer-map [3 3])))
 
+  (it "reveals 5x5 area for satellite in update-combatant-map"
+    (reset! atoms/game-map (build-test-map ["#####"
+                                             "#####"
+                                             "##V##"
+                                             "#####"
+                                             "#####"]))
+    (set-test-unit atoms/game-map "V" :target [4 4] :turns-remaining 50)
+    (reset! atoms/player-map (make-initial-test-map 5 5 nil))
+    (update-combatant-map atoms/player-map :player)
+    ;; All 25 cells should be visible (satellite radius = 2)
+    (doseq [row (range 5)
+            col (range 5)]
+      (should-not-be-nil (get-in @atoms/player-map [row col]))))
+
   (it "handles multiple units revealing overlapping areas"
     (reset! atoms/game-map (build-test-map ["~~~~~~~"
                                              "~~~~~~~"

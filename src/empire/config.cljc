@@ -23,6 +23,9 @@
 (def cell-char-x-offset 2)
 (def cell-char-y-offset 12)
 
+;; Error message display duration (milliseconds)
+(def error-message-duration 10000)
+
 ;; Message area pixel offsets (relative to text-area top)
 (def msg-left-padding 10)
 (def msg-line-1-y 10)

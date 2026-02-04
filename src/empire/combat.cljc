@@ -62,7 +62,7 @@
         (swap! atoms/game-map assoc-in city-coords (assoc city-cell :city-status :player))
         (conquer-city-contents city-coords :player)
         (visibility/update-cell-visibility city-coords :player))
-      (atoms/set-error-message (:conquest-failed config/messages) 3000))
+      (atoms/set-error-message (:conquest-failed config/messages) config/error-message-duration))
     true))
 
 (defn attempt-conquest
@@ -82,7 +82,7 @@
         shot-down-fighter (assoc fighter :mode :awake :hits 0 :steps-remaining 0 :reason :fighter-shot-down)]
     (swap! atoms/game-map assoc-in fighter-coords (dissoc fighter-cell :contents))
     (swap! atoms/game-map assoc-in city-coords (assoc city-cell :contents shot-down-fighter))
-    (atoms/set-error-message (:fighter-destroyed-by-city config/messages) 3000)
+    (atoms/set-error-message (:fighter-destroyed-by-city config/messages) config/error-message-duration)
     true))
 
 (defn hostile-unit?

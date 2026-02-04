@@ -1,7 +1,8 @@
 (ns empire.acceptance.parser
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
-            [clojure.edn :as edn]))
+            [clojure.edn :as edn]
+            [empire.config :as config]))
 
 ;; --- Helpers ---
 
@@ -786,6 +787,16 @@
     {:source source
      :tests tests}))
 
+;; --- Config key validation ---
+
+(defn validate-config-keys
+  "Print warnings for config keys referenced in thens that don't exist in config/messages."
+  [source-name tests]
+  (doseq [{:keys [line thens]} tests]
+    (doseq [{:keys [config-key]} thens]
+      (when (and config-key (not (contains? config/messages config-key)))
+        (println (str "WARNING: " source-name ":" line " - config key :" (name config-key) " not found in config/messages"))))))
+
 ;; --- CLI entry point ---
 
 (defn- write-edn [path data]
@@ -805,5 +816,6 @@
             edn-path (str edn-dir "/" base-name)]
         (println (str "Parsing " txt-path " -> " edn-path))
         (let [result (parse-file txt-path)]
+          (validate-config-keys (.getName f) (:tests result))
           (write-edn edn-path result)
           (println (str "  " (count (:tests result)) " tests parsed")))))))

@@ -1,6 +1,7 @@
 (ns empire.acceptance.parser-spec
   (:require [speclj.core :refer :all]
-            [empire.acceptance.parser :as parser]))
+            [empire.acceptance.parser :as parser]
+            [empire.config :as config]))
 
 (describe "acceptance test parser"
 
@@ -539,4 +540,21 @@
                                ir (concat (:givens t) (:whens t) (:thens t))
                                :when (= :unrecognized (:type ir))]
                            {:file f :line (:line t) :text (:text ir)})]
-        (should= [] (vec unrecognized))))))
+        (should= [] (vec unrecognized)))))
+
+  (describe "config key validation"
+    (it "warns about missing config key during parse"
+      (let [output (with-out-str
+                     (parser/validate-config-keys
+                       "test.txt"
+                       [{:line 10 :thens [{:type :message-contains :area :attention :config-key :nonexistent-key}]}]))]
+        (should-contain "WARNING" output)
+        (should-contain ":nonexistent-key" output)
+        (should-contain "test.txt:10" output)))
+
+    (it "does not warn about valid config key"
+      (let [output (with-out-str
+                     (parser/validate-config-keys
+                       "test.txt"
+                       [{:line 10 :thens [{:type :message-contains :area :attention :config-key :army-found-city}]}]))]
+        (should= "" output)))))

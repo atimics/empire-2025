@@ -33,7 +33,7 @@ A's target is +
 WHEN the next round begins
 
 THEN A is awake.
-THEN the attention message contains :army-found-enemy-city.
+THEN the attention message contains :army-found-city.
 
 ;===============================================================
 ; Army conquers free city.

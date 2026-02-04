@@ -147,9 +147,16 @@
   (if (contains? needs :advance-helper)
     (str "\n\n(defn- advance-until-next-round []\n"
          "  (let [start-round @atoms/round-number]\n"
-         "    (while (= start-round @atoms/round-number)\n"
-         "      (game-loop/advance-game)))\n"
-         "  (game-loop/advance-game))")
+         "    (loop [n 100]\n"
+         "      (cond\n"
+         "        (not= start-round @atoms/round-number)\n"
+         "        (do (game-loop/advance-game) :ok)\n"
+         "\n"
+         "        (zero? n) :timeout\n"
+         "\n"
+         "        :else\n"
+         "        (do (game-loop/advance-game)\n"
+         "            (recur (dec n)))))))")
     ""))
 
 ;; --- GIVEN generation ---
@@ -320,7 +327,7 @@
 
 (defn- generate-unit-at-next-round-then [{:keys [unit target]}]
   (let [target-expr (target-pos-expr target)]
-    (str "    (advance-until-next-round)\n"
+    (str "    (should= :ok (advance-until-next-round))\n"
          "    (let [{:keys [pos]} (get-test-unit atoms/game-map \"" unit "\")\n"
          "          target-pos " target-expr "]\n"
          "      (should= target-pos pos))")))
@@ -336,7 +343,7 @@
   (let [pos-expr (if target
                    (target-pos-expr target)
                    (pr-str coords))]
-    (str "    (advance-until-next-round)\n"
+    (str "    (should= :ok (advance-until-next-round))\n"
          "    (let [target-pos " pos-expr "\n"
          "          f-result (get-test-unit atoms/game-map \"" unit "\")]\n"
          "      (should-not-be-nil f-result)\n"
@@ -387,9 +394,11 @@
 
 (defn- generate-message-contains-then [{:keys [area config-key text at-next-round]}]
   (let [atom-str (area->atom area)
-        advance (if at-next-round "    (advance-until-next-round)\n" "")]
+        advance (if at-next-round "    (should= :ok (advance-until-next-round))\n" "")]
     (if config-key
-      (str advance "    (should-contain (:" (name config-key) " config/messages) @" atom-str ")")
+      (str advance
+           "    (should-not-be-nil (:" (name config-key) " config/messages))\n"
+           "    (should-contain (:" (name config-key) " config/messages) @" atom-str ")")
       (str advance "    (should-contain \"" text "\" @" atom-str ")"))))
 
 (defn- generate-message-is-then [{:keys [area config-key format]}]

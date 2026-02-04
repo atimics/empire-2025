@@ -9,9 +9,16 @@
 
 (defn- advance-until-next-round []
   (let [start-round @atoms/round-number]
-    (while (= start-round @atoms/round-number)
-      (game-loop/advance-game)))
-  (game-loop/advance-game))
+    (loop [n 100]
+      (cond
+        (not= start-round @atoms/round-number)
+        (do (game-loop/advance-game) :ok)
+
+        (zero? n) :timeout
+
+        :else
+        (do (game-loop/advance-game)
+            (recur (dec n)))))))
 
 (describe "destroyer.txt"
 
@@ -29,7 +36,7 @@
                   q/mouse-y (constantly 0)]
       (reset! atoms/last-key nil)
       (input/key-down :D))
-    (advance-until-next-round)
+    (should= :ok (advance-until-next-round))
     (let [{:keys [pos]} (get-test-unit atoms/game-map "D")
           target-pos (:pos (get-test-cell atoms/game-map "="))]
       (should= target-pos pos)))

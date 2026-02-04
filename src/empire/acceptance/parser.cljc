@@ -377,6 +377,12 @@
             (re-find #"production\s+updates" no-when)
             (swap! whens conj {:type :update-production})
 
+            ;; Standalone waiting for input
+            (re-find #"(\w+)\s+is\s+waiting\s+for\s+input" no-when)
+            (let [[_ unit] (re-find #"(\w+)\s+is\s+waiting\s+for\s+input" no-when)
+                  mode-already-set (contains? (:units-with-mode context) unit)]
+              (swap! whens conj {:type :waiting-for-input :unit unit :set-mode (not mode-already-set)}))
+
             :else
             (swap! whens conj {:type :unrecognized :text clean})))))
     {:whens @whens}))
@@ -800,7 +806,8 @@
         unit-types (extract-unit-types-from-givens givens)
         wfi (has-waiting-for-input? givens)
         when-ctx {:has-waiting-for-input wfi
-                  :unit-types unit-types}
+                  :unit-types unit-types
+                  :units-with-mode (or (:units-with-mode context) #{})}
         {:keys [whens]} (parse-when when-lines when-ctx)
         {:keys [thens]} (parse-then then-lines {})]
     {:line line

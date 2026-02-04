@@ -174,7 +174,23 @@
       (reset! atoms/game-map @game-map)
       (let [unit {:type :destroyer :mode :moving :owner :player :target [3 0] :hits 3}
             result (wake-after-move unit [1 0] [2 0] game-map)]
-        (should= :moving (:mode result))))))
+        (should= :moving (:mode result)))))
+
+  (it "sets hit-edge reason when extended-move unit reaches target at map edge"
+    (let [game-map (atom (build-test-map ["###"]))]
+      (reset! atoms/game-map @game-map)
+      (let [unit {:type :fighter :mode :moving :owner :player :target [2 0] :fuel 20 :extended true}
+            result (wake-after-move unit [1 0] [2 0] game-map)]
+        (should= :awake (:mode result))
+        (should= :hit-edge (:reason result)))))
+
+  (it "does not set hit-edge reason for non-extended move to map edge"
+    (let [game-map (atom (build-test-map ["###"]))]
+      (reset! atoms/game-map @game-map)
+      (let [unit {:type :fighter :mode :moving :owner :player :target [2 0] :fuel 20}
+            result (wake-after-move unit [1 0] [2 0] game-map)]
+        (should= :awake (:mode result))
+        (should-be-nil (:reason result))))))
 
 (describe "enemy-unit-visible?"
   (before (reset-all-atoms!))

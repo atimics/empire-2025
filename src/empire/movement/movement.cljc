@@ -278,17 +278,20 @@
       (let [[woken-unit woke?] (wake/wake-before-move unit next-cell)]
         (handle-movement-result from-coords next-pos target-coords cell unit woken-unit woke? next-cell current-map)))))
 
-(defn set-unit-movement [unit-coords target-coords]
-  (let [first-cell (get-in @atoms/game-map unit-coords)
-        unit (:contents first-cell)
-        ;; For satellites, extend target to the boundary
-        actual-target (if (= :satellite (:type unit))
-                        (satellite/calculate-satellite-target unit-coords target-coords)
-                        target-coords)
-        updated-contents (-> unit
-                             (assoc :mode :moving :target actual-target)
-                             (dissoc :reason))]
-    (swap! atoms/game-map assoc-in unit-coords (assoc first-cell :contents updated-contents))))
+(defn set-unit-movement
+  ([unit-coords target-coords] (set-unit-movement unit-coords target-coords false))
+  ([unit-coords target-coords extended?]
+   (let [first-cell (get-in @atoms/game-map unit-coords)
+         unit (:contents first-cell)
+         ;; For satellites, extend target to the boundary
+         actual-target (if (= :satellite (:type unit))
+                         (satellite/calculate-satellite-target unit-coords target-coords)
+                         target-coords)
+         updated-contents (-> unit
+                              (assoc :mode :moving :target actual-target)
+                              (dissoc :reason :extended)
+                              (cond-> extended? (assoc :extended true)))]
+     (swap! atoms/game-map assoc-in unit-coords (assoc first-cell :contents updated-contents)))))
 
 (defn get-active-unit
   "Returns the unit currently needing attention: awake army aboard transport, awake fighter on carrier,

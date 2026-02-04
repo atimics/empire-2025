@@ -144,6 +144,7 @@
    :fighter-over-defended-city "Fighter about to fly over defended city."
    :fighter-shot-down "Incoming anti-aircraft fire!"
    :fighter-destroyed-by-city "Fighter destroyed by city defenses."
+   :fighter-crashed "Fighter crashed."
    :failed-to-conquer "Failed to conquer city."
    :conquest-failed "Conquest Failed"
    :cant-move-into-water "Can't move into water."

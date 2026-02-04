@@ -287,6 +287,20 @@
                    {:type :advance-until-waiting :unit "F"}]
                  (:whens result))))
 
+    (it "parses standalone waiting for input"
+      (let [lines ["WHEN F is waiting for input."]
+            ctx {}
+            result (parser/parse-when lines ctx)]
+        (should= [{:type :waiting-for-input :unit "F" :set-mode true}]
+                 (:whens result))))
+
+    (it "parses standalone waiting for input with mode already set"
+      (let [lines ["WHEN F is waiting for input."]
+            ctx {:units-with-mode #{"F"}}
+            result (parser/parse-when lines ctx)]
+        (should= [{:type :waiting-for-input :unit "F" :set-mode false}]
+                 (:whens result))))
+
     (it "warns on unconsumed trailing text after simple key press"
       (let [lines ["WHEN the player presses D and something unexpected."]
             ctx {:has-waiting-for-input true}

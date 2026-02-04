@@ -81,7 +81,7 @@ and there is no F on the map.
 GIVEN game map
   O%
 GIVEN O has one fighter in its airport.
-GIVEN O is waiting for input.
+GIVEN F is waiting for input.
 
 WHEN the player presses d.
 
@@ -94,7 +94,7 @@ and O has no fighters.
 GIVEN game map
   F#
 F has fuel 20.
-GIVEN F is waiting for input.
+WHEN F is waiting for input.
 
 THEN the attention message contains "fuel:20".
 

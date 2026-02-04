@@ -147,6 +147,12 @@
     (game-loop/consume-sentry-fighter-fuel)
     (should= 0 (:hits (:contents (get-in @atoms/game-map [0 0])))))
 
+  (it "sets error message when fighter crashes"
+    (reset! atoms/game-map (build-test-map ["F"]))
+    (set-test-unit atoms/game-map "F" :mode :sentry :fuel 1)
+    (game-loop/consume-sentry-fighter-fuel)
+    (should-contain (:fighter-crashed config/messages) @atoms/error-message))
+
   (it "does not affect moving fighters"
     (reset! atoms/game-map (build-test-map ["F"]))
     (set-test-unit atoms/game-map "F" :mode :moving :fuel 20)

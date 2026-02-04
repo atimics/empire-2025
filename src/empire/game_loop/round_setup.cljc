@@ -81,7 +81,8 @@
                            (wake/friendly-city-in-range? pos new-fuel atoms/game-map))]
       (cond
         (<= new-fuel 0)
-        (swap! atoms/game-map assoc-in [i j :contents :hits] 0)
+        (do (atoms/set-error-message (:fighter-crashed config/messages) 3000)
+            (swap! atoms/game-map assoc-in [i j :contents :hits] 0))
 
         low-fuel?
         (swap! atoms/game-map update-in [i j :contents]

@@ -57,7 +57,7 @@
         (when (some #(= :battle (:type %)) whens)
           (swap! needs conj :game-loop))
         ;; :item-processing
-        (when (some #(and (= :waiting-for-input (:type %))) givens)
+        (when (some #(= :waiting-for-input (:type %)) (concat givens whens))
           (swap! needs conj :item-processing))
         (when (some #{:process-player-items} types)
           (swap! needs conj :item-processing))
@@ -86,8 +86,16 @@
         (when (some #(and (= :waiting-for-input (:type %))
                           (contains? city-chars (:unit %))) givens)
           (swap! needs conj :get-test-city))
+        ;; :get-test-city from waiting-for-input with unit not on map (airport fighter)
+        (let [map-rows (:rows (first (filter #(= :map (:type %)) givens)))
+              wfi-units (keep #(when (= :waiting-for-input (:type %)) (:unit %)) givens)
+              has-airport-unit? (some (fn [u] (and (not (contains? city-chars u))
+                                                    map-rows
+                                                    (not (some #(str/includes? % u) map-rows)))) wfi-units)]
+          (when has-airport-unit?
+            (swap! needs conj :get-test-city)))
         ;; :make-initial-test-map
-        (when (some #(= :waiting-for-input (:type %)) givens)
+        (when (some #(= :waiting-for-input (:type %)) (concat givens whens))
           (swap! needs conj :make-initial-test-map))
         ;; :advance-until-waiting-helper
         (when (some #(= :advance-until-waiting (:type %)) whens)
@@ -170,18 +178,22 @@
                   "    (cond\n"
                   "      (and @atoms/waiting-for-input\n"
                   "           (let [u (get-test-unit atoms/game-map unit-label)]\n"
-                  "             (and u (= :awake (:mode (:unit u))))))\n"
+                  "             (and u (= :awake (:mode (:unit u)))\n"
+                  "                  (= (:pos u) (first @atoms/cells-needing-attention)))))\n"
                   "      :ok\n"
                   "\n"
                   "      (zero? n) :timeout\n"
                   "\n"
                   "      @atoms/waiting-for-input\n"
-                  "      (do (with-redefs [q/mouse-x (constantly 0)\n"
-                  "                        q/mouse-y (constantly 0)]\n"
-                  "            (reset! atoms/last-key nil)\n"
-                  "            (input/key-down :space))\n"
-                  "          (game-loop/advance-game)\n"
-                  "          (recur (dec n)))\n"
+                  "      (let [coords (first @atoms/cells-needing-attention)\n"
+                  "            cell (get-in @atoms/game-map coords)\n"
+                  "            k (if (= :city (:type cell)) :x :space)]\n"
+                  "        (with-redefs [q/mouse-x (constantly 0)\n"
+                  "                      q/mouse-y (constantly 0)]\n"
+                  "          (reset! atoms/last-key nil)\n"
+                  "          (input/key-down k))\n"
+                  "        (game-loop/advance-game)\n"
+                  "        (recur (dec n)))\n"
                   "\n"
                   "      :else\n"
                   "      (do (game-loop/advance-game)\n"
@@ -202,24 +214,46 @@
                   props)]
     (str "    (set-test-unit atoms/game-map \"" unit "\" " (str/join " " kvs) ")")))
 
-(defn- generate-waiting-for-input-given [{:keys [unit set-mode]}]
-  (let [lines (atom [])
-        is-city (contains? city-chars unit)
-        pos-lookup (if is-city
-                     (str "(:pos (get-test-city atoms/game-map \"" unit "\"))")
-                     (str "(:pos (get-test-unit atoms/game-map \"" unit "\"))"))]
-    (when set-mode
-      (if is-city
-        nil ;; cities don't need mode set — they have awake-fighters
-        (swap! lines conj (str "    (set-test-unit atoms/game-map \"" unit "\" :mode :awake)"))))
-    (swap! lines conj
-           (str "    (let [cols (count @atoms/game-map)\n"
-                "          rows (count (first @atoms/game-map))\n"
-                "          pos " pos-lookup "]\n"
-                "      (reset! atoms/player-map (make-initial-test-map rows cols nil))\n"
-                "      (reset! atoms/player-items [pos])\n"
-                "      (item-processing/process-player-items-batch))"))
-    (str/join "\n" @lines)))
+(defn- find-container-city
+  "When a unit label doesn't appear in the map rows, find the city
+   that contains it by looking at container-state givens with awake-fighters."
+  [givens]
+  (let [map-rows (:rows (first (filter #(= :map (:type %)) givens)))]
+    (when map-rows
+      (->> givens
+           (filter #(and (= :container-state (:type %))
+                         (contains? city-chars (:target %))
+                         (pos? (get-in % [:props :awake-fighters] 0))))
+           first
+           :target))))
+
+(defn- generate-waiting-for-input-given
+  ([given] (generate-waiting-for-input-given given []))
+  ([{:keys [unit set-mode]} givens]
+   (let [lines (atom [])
+         is-city (contains? city-chars unit)
+         map-given (first (filter #(= :map (:type %)) givens))
+         unit-on-map? (or is-city
+                          (nil? map-given)
+                          (some #(str/includes? % unit) (:rows map-given)))
+         container-city (when (not unit-on-map?) (find-container-city givens))
+         effective-unit (or container-city unit)
+         effective-is-city (or (some? container-city) is-city)
+         pos-lookup (if effective-is-city
+                      (str "(:pos (get-test-city atoms/game-map \"" effective-unit "\"))")
+                      (str "(:pos (get-test-unit atoms/game-map \"" effective-unit "\"))"))]
+     (when (and set-mode unit-on-map? (not is-city))
+       (swap! lines conj (str "    (set-test-unit atoms/game-map \"" unit "\" :mode :awake)")))
+     (when container-city
+       (swap! lines conj (str "    (swap! atoms/production assoc " pos-lookup " :none)")))
+     (swap! lines conj
+            (str "    (let [cols (count @atoms/game-map)\n"
+                 "          rows (count (first @atoms/game-map))\n"
+                 "          pos " pos-lookup "]\n"
+                 "      (reset! atoms/player-map (make-initial-test-map rows cols nil))\n"
+                 "      (reset! atoms/player-items [pos])\n"
+                 "      (item-processing/process-player-items-batch))"))
+     (str/join "\n" @lines))))
 
 (defn- generate-container-state-given [{:keys [target props]}]
   (if (contains? city-chars target)
@@ -265,22 +299,23 @@
 
 (defn generate-given
   "Generate code string for a single GIVEN IR node."
-  [given]
-  (case (:type given)
-    :map (generate-map-given given)
-    :unit-props (generate-unit-props-given given)
-    :waiting-for-input (generate-waiting-for-input-given given)
-    :container-state (generate-container-state-given given)
-    :production (generate-production-given given)
-    :unit-target (generate-unit-target-given given)
-    :round (generate-round-given given)
-    :destination (generate-destination-given given)
-    :cell-props (generate-cell-props-given given)
-    :player-items (generate-player-items-given given)
-    :waiting-for-input-state (generate-waiting-for-input-state-given given)
-    :no-production (generate-no-production-given given)
-    :unrecognized (str "    (pending \"Unrecognized: " (:text given) "\")")
-    (str "    ;; Unknown given type: " (:type given))))
+  ([given] (generate-given given []))
+  ([given givens]
+   (case (:type given)
+     :map (generate-map-given given)
+     :unit-props (generate-unit-props-given given)
+     :waiting-for-input (generate-waiting-for-input-given given givens)
+     :container-state (generate-container-state-given given)
+     :production (generate-production-given given)
+     :unit-target (generate-unit-target-given given)
+     :round (generate-round-given given)
+     :destination (generate-destination-given given)
+     :cell-props (generate-cell-props-given given)
+     :player-items (generate-player-items-given given)
+     :waiting-for-input-state (generate-waiting-for-input-state-given given)
+     :no-production (generate-no-production-given given)
+     :unrecognized (str "    (pending \"Unrecognized: " (:text given) "\")")
+     (str "    ;; Unknown given type: " (:type given)))))
 
 ;; --- WHEN generation ---
 
@@ -324,18 +359,20 @@
 
 (defn generate-when
   "Generate code string for a single WHEN IR node."
-  [when-ir]
-  (case (:type when-ir)
-    :key-press (generate-key-press-when when-ir)
-    :battle (generate-battle-when when-ir)
-    :backtick (generate-backtick-when when-ir)
-    :start-new-round (generate-start-new-round-when when-ir)
-    :advance-game (generate-advance-game-when when-ir)
-    :advance-game-batch (generate-advance-game-when when-ir)
-    :process-player-items (generate-process-player-items-when when-ir)
-    :advance-until-waiting (generate-advance-until-waiting-when when-ir)
-    :unrecognized (str "    (pending \"Unrecognized: " (:text when-ir) "\")")
-    (str "    ;; Unknown when type: " (:type when-ir))))
+  ([when-ir] (generate-when when-ir []))
+  ([when-ir givens]
+   (case (:type when-ir)
+     :key-press (generate-key-press-when when-ir)
+     :battle (generate-battle-when when-ir)
+     :backtick (generate-backtick-when when-ir)
+     :start-new-round (generate-start-new-round-when when-ir)
+     :advance-game (generate-advance-game-when when-ir)
+     :advance-game-batch (generate-advance-game-when when-ir)
+     :process-player-items (generate-process-player-items-when when-ir)
+     :advance-until-waiting (generate-advance-until-waiting-when when-ir)
+     :waiting-for-input (generate-waiting-for-input-given when-ir givens)
+     :unrecognized (str "    (pending \"Unrecognized: " (:text when-ir) "\")")
+     (str "    ;; Unknown when type: " (:type when-ir)))))
 
 ;; --- THEN generation ---
 
@@ -382,7 +419,7 @@
   (let [pos-expr (if target
                    (target-pos-expr target)
                    (pr-str coords))]
-    (str "    (should= :ok (advance-until-next-round))\n"
+    (str "    (dotimes [_ " steps "] (game-loop/advance-game))\n"
          "    (let [target-pos " pos-expr "\n"
          "          f-result (get-test-unit atoms/game-map \"" unit "\")]\n"
          "      (should-not-be-nil f-result)\n"
@@ -479,13 +516,19 @@
     "    (should @atoms/waiting-for-input)"
     "    (should-not @atoms/waiting-for-input)"))
 
-(defn- generate-container-prop-then [{:keys [target property expected lookup]}]
-  (if (= lookup :city)
-    (str "    (let [" (str/lower-case target) "-pos (:pos (get-test-city atoms/game-map \"" target "\"))\n"
-         "          cell (get-in @atoms/game-map " (str/lower-case target) "-pos)]\n"
-         "      (should= " (pr-str expected) " (:" (name property) " cell)))")
-    ;; :unit lookup
-    (str "    (should= " (pr-str expected) " (:" (name property) " (:unit (get-test-unit atoms/game-map \"" target "\"))))")))
+(defn- generate-container-prop-then [{:keys [target property expected lookup at-next-round at-next-step]}]
+  (let [advance (cond
+                  at-next-round "    (should= :ok (advance-until-next-round))\n"
+                  at-next-step  "    (game-loop/advance-game)\n"
+                  :else         "")]
+    (if (= lookup :city)
+      (str advance
+           "    (let [" (str/lower-case target) "-pos (:pos (get-test-city atoms/game-map \"" target "\"))\n"
+           "          cell (get-in @atoms/game-map " (str/lower-case target) "-pos)]\n"
+           "      (should= " (pr-str expected) " (:" (name property) " cell)))")
+      ;; :unit lookup
+      (str advance
+           "    (should= " (pr-str expected) " (:" (name property) " (:unit (get-test-unit atoms/game-map \"" target "\"))))"))))
 
 (defn- generate-round-then [{:keys [expected]}]
   (str "    (should= " expected " @atoms/round-number)"))
@@ -553,8 +596,8 @@
                      (subs description 0 (dec (count description)))
                      description)
         it-name (str source-name ":" line " - " clean-desc)
-        given-code (str/join "\n" (map generate-given givens))
-        when-code (str/join "\n" (map generate-when whens))
+        given-code (str/join "\n" (map #(generate-given % givens) givens))
+        when-code (str/join "\n" (map #(generate-when % givens) whens))
         then-code (str/join "\n" (map #(generate-then % givens) thens))
         body-parts (remove str/blank?
                            [(str "    (reset-all-atoms!)")

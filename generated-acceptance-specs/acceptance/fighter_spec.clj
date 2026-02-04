@@ -26,18 +26,22 @@
     (cond
       (and @atoms/waiting-for-input
            (let [u (get-test-unit atoms/game-map unit-label)]
-             (and u (= :awake (:mode (:unit u))))))
+             (and u (= :awake (:mode (:unit u)))
+                  (= (:pos u) (first @atoms/cells-needing-attention)))))
       :ok
 
       (zero? n) :timeout
 
       @atoms/waiting-for-input
-      (do (with-redefs [q/mouse-x (constantly 0)
-                        q/mouse-y (constantly 0)]
-            (reset! atoms/last-key nil)
-            (input/key-down :space))
-          (game-loop/advance-game)
-          (recur (dec n)))
+      (let [coords (first @atoms/cells-needing-attention)
+            cell (get-in @atoms/game-map coords)
+            k (if (= :city (:type cell)) :x :space)]
+        (with-redefs [q/mouse-x (constantly 0)
+                      q/mouse-y (constantly 0)]
+          (reset! atoms/last-key nil)
+          (input/key-down k))
+        (game-loop/advance-game)
+        (recur (dec n)))
 
       :else
       (do (game-loop/advance-game)
@@ -79,6 +83,7 @@
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
     (input/handle-key :d)
+    (game-loop/advance-game)
     (let [o-pos (:pos (get-test-city atoms/game-map "O"))
           cell (get-in @atoms/game-map o-pos)]
       (should= 1 (:fighter-count cell)))
@@ -135,6 +140,7 @@
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
     (input/handle-key :d)
+    (should= :ok (advance-until-next-round))
     (should= 1 (:fighter-count (:unit (get-test-unit atoms/game-map "C"))))
     (should-be-nil (get-test-unit atoms/game-map "F")))
 
@@ -143,6 +149,7 @@
     (reset! atoms/game-map (build-test-map ["O%"]))
     (let [o-pos (:pos (get-test-city atoms/game-map "O"))]
       (swap! atoms/game-map update-in o-pos merge {:fighter-count 1 :awake-fighters 1}))
+    (swap! atoms/production assoc (:pos (get-test-city atoms/game-map "O")) :none)
     (let [cols (count @atoms/game-map)
           rows (count (first @atoms/game-map))
           pos (:pos (get-test-city atoms/game-map "O"))]
@@ -150,7 +157,7 @@
       (reset! atoms/player-items [pos])
       (item-processing/process-player-items-batch))
     (input/handle-key :d)
-    (should= :ok (advance-until-next-round))
+    (dotimes [_ 1] (game-loop/advance-game))
     (let [target-pos (:pos (get-test-cell atoms/game-map "%"))
           f-result (get-test-unit atoms/game-map "F")]
       (should-not-be-nil f-result)

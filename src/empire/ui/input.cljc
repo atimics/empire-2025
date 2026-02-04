@@ -149,7 +149,7 @@
         true)
 
     :else
-    (do (movement/set-unit-movement coords target)
+    (do (movement/set-unit-movement coords target extended?)
         (game-loop/item-processed)
         true)))
 

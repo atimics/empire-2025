@@ -9,12 +9,6 @@
             [empire.ui.input :as input]
             [quil.core :as q]))
 
-(defn- advance-until-next-round []
-  (let [start-round @atoms/round-number]
-    (while (= start-round @atoms/round-number)
-      (game-loop/advance-game)))
-  (game-loop/advance-game))
-
 (describe "army.txt"
 
   (it "army.txt:7 - Army put to sentry mode"
@@ -63,12 +57,9 @@
     (reset! atoms/game-map (build-test-map ["A+"]))
     ;; A is explore
     (set-test-unit atoms/game-map "A" :mode :explore)
-    (let [cols (count @atoms/game-map)
-          rows (count (first @atoms/game-map))]
-      (reset! atoms/player-map (make-initial-test-map rows cols nil)))
     ;; WHEN the next round begins
     (game-loop/start-new-round)
-    (advance-until-next-round)
+    (game-loop/advance-game)
     ;; THEN A is awake
     (should= :awake (:mode (:unit (get-test-unit atoms/game-map "A"))))
     ;; THEN the attention message contains :army-found-city
@@ -126,7 +117,5 @@
       (item-processing/process-player-items-batch))
     ;; WHEN the player presses d
     (input/handle-key :d)
-    ;; Advance until movement resolves and army gets attention
-    (advance-until-next-round)
     ;; THEN the attention message contains :cant-move-into-city
     (should-contain (:cant-move-into-city config/messages) @atoms/message)))

@@ -10,10 +10,10 @@ GIVEN F is waiting for input.
 
 WHEN the player presses D.
 
-THEN at next round F will be at =.
-THEN F has fuel 31.
+THEN after two moves F will be at =.
+THEN F has fuel 30.
 THEN F is waiting for input.
-THEN the turn message contains "hit edge of map".
+THEN the attention message contains :hit-edge.
 
 ;===============================================================
 ; Fighter refuels at player city.
@@ -61,7 +61,7 @@ F is sentry with fuel 1.
 WHEN a new round starts.
 
 THEN there is no F on the map.
-THEN the error message contains :fighter-out-of-fuel.
+THEN the error message contains :fighter-crashed.
 
 ;===============================================================
 ; Fighter lands on carrier.
@@ -86,7 +86,7 @@ GIVEN O is waiting for input.
 
 WHEN the player presses d.
 
-THEN at the next round there is an F at %.
+THEN after one step there is an F at %.
 and O has no fighters.
 
 ;===============================================================

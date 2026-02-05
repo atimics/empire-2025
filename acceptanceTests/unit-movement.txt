@@ -248,7 +248,7 @@ GIVEN A is waiting for input.
 WHEN the player presses d and wins the battle.
 
 THEN there is no A on the map.
-THEN cell [1 0] has city-status player.
+THEN cell [1 0] is a player city.
 
 ;===============================================================
 ; Army destroyed when conquest fails.
@@ -260,7 +260,7 @@ GIVEN A is waiting for input.
 WHEN the player presses d and loses the battle.
 
 THEN there is no A on the map.
-THEN cell [1 0] has city-status computer.
+THEN cell [1 0] is a computer city.
 
 ;===============================================================
 ; Fighter shot down over computer city.

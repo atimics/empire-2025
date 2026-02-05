@@ -32,4 +32,4 @@ GIVEN production at O is army.
 
 WHEN the mouse is at cell [0 0] and the player presses l.
 
-THEN cell [0 0] has marching-orders lookaround.
+THEN cell [0 0] has spawn-orders lookaround.

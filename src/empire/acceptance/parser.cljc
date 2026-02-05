@@ -78,6 +78,13 @@
   (or (get word->number (str/lower-case s))
       (parse-number s)))
 
+(def ^:private cell-prop-aliases
+  {"spawn-orders" :marching-orders
+   "flight-orders" :flight-path})
+
+(defn- resolve-cell-prop [k]
+  (or (get cell-prop-aliases k) (keyword k)))
+
 ;; --- Pattern table dispatch ---
 
 (defn- first-matching-pattern
@@ -110,6 +117,10 @@
     :extract-fn (fn [[_ n]] {:props {:fuel (Integer/parseInt n)}})}
    {:regex #"army-count\s+(\d+)"
     :extract-fn (fn [[_ n]] {:props {:army-count (Integer/parseInt n)}})}
+   {:regex #"(\w+)\s+(?:army|armies)"
+    :extract-fn (fn [[_ n]]
+                  (when-let [cnt (parse-count n)]
+                    {:props {:army-count cnt}}))}
    {:regex #"hits\s+(\d+)"
     :extract-fn (fn [[_ n]] {:props {:hits (Integer/parseInt n)}})}
    {:regex #"fighter-count\s+(\d+)"
@@ -206,7 +217,7 @@
                     (for [pair pairs
                           :let [[_ k v] (re-find #"(\S+)\s+(.*\S)" (str/trim pair))]
                           :when k]
-                      [(keyword k) (or (parse-number v)
+                      [(resolve-cell-prop k) (or (parse-number v)
                                        (parse-coords v)
                                        (keyword v))]))]
     {:directive :cell-props
@@ -238,7 +249,10 @@
     :handler given-handle-computer-map}])
 
 (def ^:private given-directive-patterns
-  [{:regex #"(\w+)\s+is\s+waiting\s+for\s+input"
+  [{:regex #"(?:the\s+)?game\s+is\s+waiting\s+for\s+input"
+    :handler (fn [_ _ctx]
+               {:directive :waiting-for-input-bare :ir {:type :waiting-for-input-state}})}
+   {:regex #"(\w+)\s+is\s+waiting\s+for\s+input"
     :handler given-handle-waiting-for-input}
    {:regex #"production\s+at\s+(\w+)\s+is\s+(\w+)\s+with\s+(\d+)\s+rounds?\s+remaining"
     :handler given-handle-production-with-rounds}
@@ -255,6 +269,10 @@
    {:regex #"player-items\s+are\s+(.*)"
     :handler given-handle-player-items-multi}
    {:regex #"player-items\s+(\w+)"
+    :handler given-handle-player-items-single}
+   {:regex #"player\s+units?\s+are\s+(.*)"
+    :handler given-handle-player-items-multi}
+   {:regex #"player\s+units?\s+(\w+)"
     :handler given-handle-player-items-single}
    {:regex #"^waiting-for-input$"
     :handler given-handle-waiting-for-input-bare}
@@ -542,7 +560,7 @@
 
 (defn- then-handle-cell-prop [[_ x y prop val]]
   {:type :cell-prop :coords [(Integer/parseInt x) (Integer/parseInt y)]
-   :property (keyword prop) :expected (keyword val)})
+   :property (resolve-cell-prop prop) :expected (keyword val)})
 
 (defn- then-handle-cell-type [[_ x y t]]
   {:type :cell-type :coords [(Integer/parseInt x) (Integer/parseInt y)]
@@ -672,13 +690,25 @@
     :handler then-handle-player-map-not-nil}
    {:regex #"player-map\s+cell\s+\[(\d+)\s+(\d+)\]\s+is\s+nil"
     :handler then-handle-player-map-nil}
+   {:regex #"(?:the\s+)?player\s+can\s+see\s+\[(\d+)\s+(\d+)\]"
+    :handler then-handle-player-map-not-nil}
+   {:regex #"(?:the\s+)?player\s+cannot\s+see\s+\[(\d+)\s+(\d+)\]"
+    :handler then-handle-player-map-nil}
    {:regex #"cell\s+\[(\d+)\s+(\d+)\]\s+has\s+(\S+)\s+(\S+)"
     :handler then-handle-cell-prop}
+   {:regex #"cell\s+\[(\d+)\s+(\d+)\]\s+is\s+a\s+(player|computer)\s+city"
+    :handler (fn [[_ x y status]]
+               {:type :cell-prop :coords [(Integer/parseInt x) (Integer/parseInt y)]
+                :property :city-status :expected (keyword status)})}
    {:regex #"cell\s+\[(\d+)\s+(\d+)\]\s+is\s+(?:a\s+)?(\w+)"
     :handler then-handle-cell-type}
    {:regex #"^waiting-for-input$"
     :handler then-handle-waiting-for-input}
    {:regex #"^not\s+waiting-for-input$"
+    :handler then-handle-not-waiting-for-input}
+   {:regex #"(?:the\s+)?game\s+is\s+waiting\s+for\s+input"
+    :handler then-handle-waiting-for-input}
+   {:regex #"(?:the\s+)?game\s+is\s+not\s+waiting\s+for\s+input"
     :handler then-handle-not-waiting-for-input}
    {:regex #"game\s+is\s+paused"
     :handler then-handle-game-paused}
@@ -716,6 +746,16 @@
     :handler then-handle-unit-present-coords}
    {:regex #"there\s+is\s+an?\s+(\w+)\s+at\s+(\S+)"
     :handler then-handle-unit-present-target}
+   {:regex #"^(\w+)\s+has\s+no\s+mission$"
+    :handler (fn [[_ unit]]
+               {:type :unit-prop-absent :unit unit :property :transport-mission})}
+   {:regex #"^(\w+)\s+has\s+(\w+)\s+(?:army|armies)$"
+    :handler (fn [[_ unit n]]
+               (when-let [cnt (parse-count n)]
+                 {:type :unit-prop :unit unit :property :army-count :expected cnt}))}
+   {:regex #"^(\w+)\s+has\s+(\d+)\s+turns?\s+remaining$"
+    :handler (fn [[_ unit n]]
+               {:type :unit-prop :unit unit :property :turns-remaining :expected (Integer/parseInt n)})}
    {:regex #"^(\w+)\s+has\s+(\w[\w-]*)\s+(.+)$"
     :handler then-handle-unit-has-prop}
    {:regex #"^(\w+)\s+(?:has\s+mode|is)\s+(\w+)$"

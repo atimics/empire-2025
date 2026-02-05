@@ -133,6 +133,24 @@
         (should= [{:type :unit-props :unit "A" :props {:mode :explore}}]
                  (:givens result))))
 
+    (it "parses unit props with natural language army count"
+      (let [lines ["T is awake with two armies."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "T" :props {:mode :awake :army-count 2}}]
+                 (:givens result))))
+
+    (it "parses unit props with one army"
+      (let [lines ["T is awake with one army."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "T" :props {:mode :awake :army-count 1}}]
+                 (:givens result))))
+
+    (it "parses unit props with three armies"
+      (let [lines ["T is awake with three armies."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "T" :props {:mode :awake :army-count 3}}]
+                 (:givens result))))
+
     (it "parses unit props with container props"
       (let [lines ["C is sentry with two fighters and no awake fighters."]
             result (parser/parse-given lines {})]
@@ -215,6 +233,24 @@
         (should= [{:type :cell-props :coords [0 0] :props {:marching-orders :lookaround}}]
                  (:givens result))))
 
+    (it "parses cell props with spawn-orders alias"
+      (let [lines ["GIVEN cell [0 0] has spawn-orders [4 0]."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :cell-props :coords [0 0] :props {:marching-orders [4 0]}}]
+                 (:givens result))))
+
+    (it "parses cell props with spawn-orders lookaround"
+      (let [lines ["GIVEN cell [0 0] has spawn-orders lookaround."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :cell-props :coords [0 0] :props {:marching-orders :lookaround}}]
+                 (:givens result))))
+
+    (it "parses cell props with flight-orders alias"
+      (let [lines ["GIVEN cell [0 0] has flight-orders [11 0]."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :cell-props :coords [0 0] :props {:flight-path [11 0]}}]
+                 (:givens result))))
+
     (it "parses cell props with flight-path coordinate"
       (let [lines ["GIVEN cell [0 0] has flight-path [4 0]."]
             result (parser/parse-given lines {})]
@@ -229,6 +265,18 @@
 
     (it "parses player-items multiple"
       (let [lines ["GIVEN player-items are A, T, O."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :player-items :items ["A" "T" "O"]}]
+                 (:givens result))))
+
+    (it "parses player units single"
+      (let [lines ["GIVEN player units V."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :player-items :items ["V"]}]
+                 (:givens result))))
+
+    (it "parses player units multiple"
+      (let [lines ["GIVEN player units are A, T, O."]
             result (parser/parse-given lines {})]
         (should= [{:type :player-items :items ["A" "T" "O"]}]
                  (:givens result))))
@@ -255,6 +303,12 @@
       (let [lines ["GIVEN O is waiting for input."]
             result (parser/parse-given lines {})]
         (should= [{:type :waiting-for-input :unit "O" :set-mode true}]
+                 (:givens result))))
+
+    (it "parses 'the game is waiting for input' in GIVEN"
+      (let [lines ["GIVEN the game is waiting for input."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :waiting-for-input-state}]
                  (:givens result))))
 
     (it "parses unit target"
@@ -538,6 +592,24 @@
         (should= [{:type :cell-prop :coords [1 0] :property :city-status :expected :player}]
                  (:thens result))))
 
+    (it "parses 'cell [1 0] is a player city'"
+      (let [lines ["THEN cell [1 0] is a player city."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :cell-prop :coords [1 0] :property :city-status :expected :player}]
+                 (:thens result))))
+
+    (it "parses 'cell [1 0] is a computer city'"
+      (let [lines ["THEN cell [1 0] is a computer city."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :cell-prop :coords [1 0] :property :city-status :expected :computer}]
+                 (:thens result))))
+
+    (it "parses THEN cell with spawn-orders alias"
+      (let [lines ["THEN cell [0 0] has spawn-orders lookaround."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :cell-prop :coords [0 0] :property :marching-orders :expected :lookaround}]
+                 (:thens result))))
+
     (it "parses cell type"
       (let [lines ["THEN cell [0 0] is a city."]
             result (parser/parse-then lines {})]
@@ -552,6 +624,18 @@
 
     (it "parses not waiting-for-input"
       (let [lines ["THEN not waiting-for-input."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :waiting-for-input :expected false}]
+                 (:thens result))))
+
+    (it "parses 'the game is waiting for input'"
+      (let [lines ["THEN the game is waiting for input."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :waiting-for-input :expected true}]
+                 (:thens result))))
+
+    (it "parses 'the game is not waiting for input'"
+      (let [lines ["THEN the game is not waiting for input."]
             result (parser/parse-then lines {})]
         (should= [{:type :waiting-for-input :expected false}]
                  (:thens result))))
@@ -695,6 +779,18 @@
         (should= [{:type :player-map-cell-nil :coords [1 2]}]
                  (:thens result))))
 
+    (it "parses 'the player can see [1 2]'"
+      (let [lines ["THEN the player can see [1 2]."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :player-map-cell-not-nil :coords [1 2]}]
+                 (:thens result))))
+
+    (it "parses 'the player cannot see [1 2]'"
+      (let [lines ["THEN the player cannot see [1 2]."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :player-map-cell-nil :coords [1 2]}]
+                 (:thens result))))
+
     (it "parses production with rounds remaining"
       (let [lines ["THEN production at O is army with 5 rounds remaining."]
             result (parser/parse-then lines {})]
@@ -717,6 +813,30 @@
       (let [lines ["THEN A has target [4 0]."]
             result (parser/parse-then lines {})]
         (should= [{:type :unit-prop :unit "A" :property :target :expected [4 0]}]
+                 (:thens result))))
+
+    (it "parses 'T has no mission'"
+      (let [lines ["THEN T has no mission."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-prop-absent :unit "T" :property :transport-mission}]
+                 (:thens result))))
+
+    (it "parses 'V has 50 turns remaining'"
+      (let [lines ["THEN V has 50 turns remaining."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-prop :unit "V" :property :turns-remaining :expected 50}]
+                 (:thens result))))
+
+    (it "parses 'T has two armies'"
+      (let [lines ["THEN T has two armies."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-prop :unit "T" :property :army-count :expected 2}]
+                 (:thens result))))
+
+    (it "parses 'T has no armies'"
+      (let [lines ["THEN T has no armies."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :unit-prop :unit "T" :property :army-count :expected 0}]
                  (:thens result)))))
 
   (describe "parse-file integration"

@@ -178,13 +178,13 @@ Multi-line GIVEN blocks describe unit state in natural language:
 GIVEN
 A2 is awake.
 F has fuel 20 and is in mode moving.
-T is in sentry mode with army-count 3.
+T is sentry with three armies.
 ```
 
 Or single-line:
 ```
 GIVEN A is awake with fuel 20.
-GIVEN unit T mode sentry army-count 3
+GIVEN T is sentry with three armies.
 ```
 
 These translate to `set-test-unit` calls:
@@ -201,8 +201,8 @@ GIVEN no production.
 GIVEN round 5.
 GIVEN destination [3 7].
 GIVEN cell [0 0] has awake-fighters 1 and fighter-count 1.
-GIVEN waiting-for-input.
-GIVEN player-items are A, T, O.
+GIVEN the game is waiting for input.
+GIVEN player units are A, T, O.
 ```
 
 ### Waiting for Input
@@ -367,7 +367,10 @@ THEN unit A at [0 2]
 THEN A is at [0 2] in mode moving.
 THEN A has fuel 19.
 THEN A has mode sentry.
-THEN T has army-count 3.
+THEN T has three armies.
+THEN T has no armies.
+THEN V has 50 turns remaining.
+THEN T has no mission.
 THEN there is no A on the map.
 THEN no unit at [1 3].
 ```
@@ -448,8 +451,11 @@ These old forms are deprecated; new tests should use the semantic names.
 
 ```
 THEN cell [0 0] is a city.
-THEN cell [0 0] has city-status player.
+THEN cell [1 0] is a player city.
+THEN cell [1 0] is a computer city.
 THEN cell [1 0] is sea.
+THEN cell [0 0] has spawn-orders lookaround.
+THEN cell [0 0] has flight-orders [11 0].
 ```
 
 ### State Assertions
@@ -457,11 +463,13 @@ THEN cell [1 0] is sea.
 ```
 THEN production at O is army.
 THEN there is no production at O.
-THEN waiting-for-input.
-THEN not waiting-for-input.
+THEN the game is waiting for input.
+THEN the game is not waiting for input.
 THEN the game is paused.
 THEN round is 5.
 THEN destination is [3 7].
+THEN the player can see [1 0].
+THEN the player cannot see [5 0].
 ```
 
 ### Position After Movement
@@ -532,11 +540,11 @@ File: `acceptanceTests/fighter-fuel-attention.txt`
 GIVEN game map
   F#
 F is awake with fuel 20.
-GIVEN player-items F.
+GIVEN player units F.
 
 WHEN player items are processed.
 
-THEN waiting-for-input.
+THEN the game is waiting for input.
 THEN message contains "fuel:20".
 THEN message contains "fighter".
 
@@ -546,11 +554,11 @@ THEN message contains "fighter".
 GIVEN game map
   O~
 GIVEN cell [0 0] has awake-fighters 1 and fighter-count 1.
-GIVEN player-items O.
+GIVEN player units O.
 
 WHEN player items are processed.
 
-THEN waiting-for-input.
+THEN the game is waiting for input.
 THEN message contains "fuel:32".
 THEN message contains "Landed and refueled".
 ```
@@ -746,14 +754,14 @@ For "O2" (second player city): `(get-test-city atoms/game-map "O2")`
 ### Player-Items Setup Pattern
 
 ```
-GIVEN player-items T.
+GIVEN player units T.
 ```
 Translates to:
 ```clojure
 (reset! atoms/player-items [(:pos (get-test-unit atoms/game-map "T"))])
 ```
 
-Multiple items: `GIVEN player-items are A, T, O.`
+Multiple items: `GIVEN player units are A, T, O.`
 ```clojure
 (reset! atoms/player-items [(:pos (get-test-unit atoms/game-map "A"))
                             (:pos (get-test-unit atoms/game-map "T"))
@@ -763,7 +771,7 @@ Multiple items: `GIVEN player-items are A, T, O.`
 ### Negative Assertions
 
 ```
-THEN T does not have transport-mission.
+THEN T has no mission.
 ```
 Translates to:
 ```clojure

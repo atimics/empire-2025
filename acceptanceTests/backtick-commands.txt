@@ -129,7 +129,7 @@ GIVEN game map
 
 WHEN the mouse is at cell [0 0] and the player presses backtick then o.
 
-THEN cell [0 0] has city-status player.
+THEN cell [0 0] is a player city.
 
 ;===============================================================
 ; Own computer city at mouse.
@@ -139,4 +139,4 @@ GIVEN game map
 
 WHEN the mouse is at cell [0 0] and the player presses backtick then o.
 
-THEN cell [0 0] has city-status player.
+THEN cell [0 0] is a player city.

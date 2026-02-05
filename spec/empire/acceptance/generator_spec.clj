@@ -152,6 +152,13 @@
       (should-contain ":awake-armies 2" result)
       (should-contain ":army-count 2" result)))
 
+  (it "generates city-prop given"
+    (let [result (gen/generate-given {:type :city-prop :city "X" :prop :country-id :value 1})]
+      (should-contain "get-test-city" result)
+      (should-contain "\"X\"" result)
+      (should-contain ":country-id" result)
+      (should-contain "1" result)))
+
   (it "generates production given"
     (let [result (gen/generate-given {:type :production :city "O" :item :army :remaining-rounds 10})]
       (should-contain "atoms/production" result)

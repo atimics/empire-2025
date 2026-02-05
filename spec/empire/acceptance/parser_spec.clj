@@ -351,6 +351,30 @@
       (let [lines ["a is awake with country-id 1."]
             result (parser/parse-given lines {})]
         (should= [{:type :unit-props :unit "a" :props {:mode :awake :country-id 1}}]
+                 (:givens result))))
+
+    (it "parses 'X belongs to country 1' for city"
+      (let [lines ["GIVEN X belongs to country 1."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :city-prop :city "X" :prop :country-id :value 1}]
+                 (:givens result))))
+
+    (it "parses 't belongs to country 1' for unit"
+      (let [lines ["t belongs to country 1."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "t" :props {:country-id 1}}]
+                 (:givens result))))
+
+    (it "parses 'p patrols for country 1' for patrol boat"
+      (let [lines ["p patrols for country 1."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "p" :props {:patrol-country-id 1}}]
+                 (:givens result))))
+
+    (it "parses 't has 6 armies' as natural language army-count"
+      (let [lines ["t has 6 armies."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "t" :props {:army-count 6}}]
                  (:givens result)))))
 
   (describe "parse-when"
@@ -499,6 +523,12 @@
       (let [lines ["WHEN production updates."]
             result (parser/parse-when lines {})]
         (should= [{:type :update-production}]
+                 (:whens result))))
+
+    (it "parses 'the computer chooses production at X'"
+      (let [lines ["WHEN the computer chooses production at X."]
+            result (parser/parse-when lines {})]
+        (should= [{:type :evaluate-production :city "X"}]
                  (:whens result)))))
 
   (describe "parse-then"

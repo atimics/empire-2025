@@ -80,6 +80,7 @@
                             (contains? city-chars (:target %))) givens)
                 (some #(and (= :production (:type %))
                             (contains? city-chars (:city %))) givens)
+                (some #(= :city-prop (:type %)) givens)
                 (some #(and (= :waiting-for-input (:type %))
                             (contains? city-chars (:unit %))) givens)
                 (some (fn [u] (and (not (contains? city-chars u))
@@ -302,6 +303,11 @@
       (str "    (let [" (str/lower-case city) "-pos " pos-expr "]\n"
            "      (swap! atoms/production assoc " (str/lower-case city) "-pos {:item :" (name item) "}))"))))
 
+(defn- generate-city-prop-given [{:keys [city prop value]}]
+  (let [pos-expr (target-pos-expr city)]
+    (str "    (let [" (str/lower-case city) "-pos " pos-expr "]\n"
+         "      (swap! atoms/game-map update-in " (str/lower-case city) "-pos assoc :" (name prop) " " value "))")))
+
 (defn- generate-unit-target-given [{:keys [unit target]}]
   (let [target-expr (target-pos-expr target)]
     (str "    (set-test-unit atoms/game-map \"" unit "\" :mode :moving :target " target-expr ")")))
@@ -340,6 +346,7 @@
      :round (generate-round-given given)
      :destination (generate-destination-given given)
      :cell-props (generate-cell-props-given given)
+     :city-prop (generate-city-prop-given given)
      :player-items (generate-player-items-given given)
      :waiting-for-input-state (generate-waiting-for-input-state-given given)
      :no-production (generate-no-production-given given)

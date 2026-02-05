@@ -10,7 +10,7 @@ GIVEN computer map
   X+
   ##
 
-WHEN production for X is evaluated.
+WHEN the computer chooses production at X.
 
 THEN production at X is army.
 
@@ -24,7 +24,7 @@ GIVEN computer map
   X#
   ##
 
-WHEN production for X is evaluated.
+WHEN the computer chooses production at X.
 
 THEN there is no production at X.
 
@@ -34,9 +34,9 @@ THEN there is no production at X.
 GIVEN game map
   X#
   ##
-GIVEN cell [0 0] has country-id 1.
+GIVEN X belongs to country 1.
 
-WHEN production for X is evaluated.
+WHEN the computer chooses production at X.
 
 THEN production at X is army.
 
@@ -46,11 +46,11 @@ THEN production at X is army.
 GIVEN game map
   X~
   t#
-GIVEN cell [0 0] has country-id 1.
-GIVEN t has country-id 1.
-GIVEN t has army-count 6.
+GIVEN X belongs to country 1.
+GIVEN t belongs to country 1.
+GIVEN t has 6 armies.
 
-WHEN production for X is evaluated.
+WHEN the computer chooses production at X.
 
 THEN production at X is transport.
 
@@ -60,11 +60,11 @@ THEN production at X is transport.
 GIVEN game map
   X#~
   ##t
-GIVEN cell [0 0] has country-id 1.
-GIVEN t has country-id 1.
-GIVEN t has army-count 6.
+GIVEN X belongs to country 1.
+GIVEN t belongs to country 1.
+GIVEN t has 6 armies.
 
-WHEN production for X is evaluated.
+WHEN the computer chooses production at X.
 
 THEN production at X is army.
 
@@ -75,13 +75,13 @@ GIVEN game map
   X~~~
   ##t#
   ##t#
-GIVEN cell [0 0] has country-id 1.
-GIVEN t1 has country-id 1.
-GIVEN t1 has army-count 5.
-GIVEN t2 has country-id 1.
-GIVEN t2 has army-count 5.
+GIVEN X belongs to country 1.
+GIVEN t1 belongs to country 1.
+GIVEN t1 has 5 armies.
+GIVEN t2 belongs to country 1.
+GIVEN t2 has 5 armies.
 
-WHEN production for X is evaluated.
+WHEN the computer chooses production at X.
 
 THEN production at X is patrol-boat.
 
@@ -93,14 +93,14 @@ GIVEN game map
   ##t#
   ##t#
   p###
-GIVEN cell [0 0] has country-id 1.
-GIVEN t1 has country-id 1.
-GIVEN t1 has army-count 5.
-GIVEN t2 has country-id 1.
-GIVEN t2 has army-count 5.
-GIVEN p has patrol-country-id 1.
+GIVEN X belongs to country 1.
+GIVEN t1 belongs to country 1.
+GIVEN t1 has 5 armies.
+GIVEN t2 belongs to country 1.
+GIVEN t2 has 5 armies.
+GIVEN p patrols for country 1.
 
-WHEN production for X is evaluated.
+WHEN the computer chooses production at X.
 
 THEN production at X is destroyer.
 
@@ -110,11 +110,11 @@ THEN production at X is destroyer.
 GIVEN game map
   X#~
   ##t
-GIVEN cell [0 0] has country-id 1.
-GIVEN t has country-id 1.
-GIVEN t has army-count 10.
+GIVEN X belongs to country 1.
+GIVEN t belongs to country 1.
+GIVEN t has 10 armies.
 
-WHEN production for X is evaluated.
+WHEN the computer chooses production at X.
 
 THEN production at X is fighter.
 
@@ -124,10 +124,10 @@ THEN production at X is fighter.
 GIVEN game map
   X#
   ##
-GIVEN cell [0 0] has country-id 1.
+GIVEN X belongs to country 1.
 GIVEN production at X is army.
 
-WHEN production for X is evaluated.
+WHEN the computer chooses production at X.
 
 THEN production at X is army.
 

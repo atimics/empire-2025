@@ -284,7 +284,19 @@
    {:regex #"^waiting-for-input$"
     :handler given-handle-waiting-for-input-bare}
    {:regex #"(\w+)'s\s+target\s+is\s+(\S+)"
-    :handler given-handle-unit-target}])
+    :handler given-handle-unit-target}
+   {:regex #"(\w+)\s+belongs\s+to\s+country\s+(\d+)"
+    :handler (fn [[_ ref n] _ctx]
+               (let [country-id (Integer/parseInt n)]
+                 (if (contains? city-chars ref)
+                   {:directive :city-prop
+                    :ir {:type :city-prop :city ref :prop :country-id :value country-id}}
+                   {:directive :unit-props
+                    :ir {:type :unit-props :unit ref :props {:country-id country-id}}})))}
+   {:regex #"(\w+)\s+patrols\s+(?:for\s+)?country\s+(\d+)"
+    :handler (fn [[_ ref n] _ctx]
+               {:directive :unit-props
+                :ir {:type :unit-props :unit ref :props {:patrol-country-id (Integer/parseInt n)}}})}])
 
 (defn- parse-given-line [line context]
   (let [clean (str/trim line)
@@ -342,7 +354,7 @@
                   (swap! i inc))
 
               (:production :no-production :round :destination :cell-props
-               :player-items :waiting-for-input-bare :unit-target)
+               :player-items :waiting-for-input-bare :unit-target :city-prop)
               (do (swap! givens conj (:ir parsed))
                   (swap! i inc))
 
@@ -479,6 +491,8 @@
    {:regex #"production\s+updates"
     :handler when-handle-production-updates}
    {:regex #"production\s+for\s+(\w+)\s+is\s+evaluated"
+    :handler when-handle-evaluate-production}
+   {:regex #"computer\s+chooses\s+production\s+at\s+(\w+)"
     :handler when-handle-evaluate-production}
    {:regex #"(\w+)\s+is\s+waiting\s+for\s+input"
     :handler when-handle-standalone-waiting}])

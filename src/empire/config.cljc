@@ -124,7 +124,6 @@
 (def max-transports-per-country 2)     ;; transports one country will build
 (def armies-before-transport 6)        ;; army count before country starts building transports
 (def max-armies-per-country 10)        ;; cap on armies per country (includes armies aboard transports)
-(def max-non-country-armies 10)        ;; cap on armies from cities not assigned to any country
 (def max-patrol-boats-per-country 1)   ;; patrol boats per country
 (def max-fighters-per-country 2)       ;; fighters per country
 

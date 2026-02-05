@@ -1,5 +1,5 @@
-(ns empire.computer.continent
-  "Continent detection using flood-fill on fog-of-war map.
+(ns empire.computer.land-objectives
+  "Land objective detection using flood-fill on fog-of-war map.
    Implements VMS Empire style continent recognition that respects unexplored territory."
   (:require [empire.atoms :as atoms]
             [empire.computer.core :as core]

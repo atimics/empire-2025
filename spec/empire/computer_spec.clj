@@ -299,9 +299,10 @@
   (it "process-computer-city sets production"
     (reset! atoms/game-map (build-test-map ["X+#"]))
     (reset! atoms/computer-map (build-test-map ["X+#"]))
+    (swap! atoms/game-map assoc-in [0 0 :country-id] 1)
     (reset! atoms/production {})
     (computer-production/process-computer-city [0 0])
-    ;; Production should be set (free city on continent provides an army objective)
+    ;; Per-country production fires (0 armies < 10)
     (should-not-be-nil (get @atoms/production [0 0]))))
 
 ;; ============================================================================

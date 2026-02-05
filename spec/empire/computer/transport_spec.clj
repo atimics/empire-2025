@@ -3,7 +3,7 @@
   (:require [speclj.core :refer :all]
             [empire.computer.transport :as transport]
             [empire.computer.production :as production]
-            [empire.computer.continent :as continent]
+            [empire.computer.land-objectives :as land-objectives]
             [empire.player.production :as player-prod]
             [empire.atoms :as atoms]
             [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
@@ -289,7 +289,7 @@
                                       "O##"])]
         (reset! atoms/game-map game-map)
         (reset! atoms/computer-map game-map)
-        (let [pickup-continent (continent/flood-fill-continent [0 0])
+        (let [pickup-continent (land-objectives/flood-fill-continent [0 0])
               target (transport/find-unload-target pickup-continent [1 3])]
           ;; Should return the city on continent B, not continent A
           (should-not-be-nil target)
@@ -307,7 +307,7 @@
                {:type :transport :owner :computer
                 :transport-mission :unloading :army-count 2
                 :pickup-continent-pos [0 0]})
-        (let [pickup-continent (continent/flood-fill-continent [0 0])]
+        (let [pickup-continent (land-objectives/flood-fill-continent [0 0])]
           (transport/unload-armies [1 1] pickup-continent)
           ;; Armies should NOT appear on origin continent (col 0)
           (let [origin-armies (count (for [r (range 3)
@@ -449,7 +449,7 @@
         (reset! atoms/game-map game-map)
         (reset! atoms/computer-map game-map)
         (reset! atoms/claimed-transport-targets #{})
-        (let [pickup-continent (continent/flood-fill-continent [0 0])
+        (let [pickup-continent (land-objectives/flood-fill-continent [0 0])
               target1 (transport/find-unload-target pickup-continent [1 2])
               target2 (transport/find-unload-target pickup-continent [1 3])]
           (should-not-be-nil target1)
@@ -467,7 +467,7 @@
         (reset! atoms/game-map game-map)
         (reset! atoms/computer-map game-map)
         (reset! atoms/claimed-transport-targets #{})
-        (let [pickup-continent (continent/flood-fill-continent [0 0])
+        (let [pickup-continent (land-objectives/flood-fill-continent [0 0])
               target1 (transport/find-unload-target pickup-continent [2 1])
               target2 (transport/find-unload-target pickup-continent [3 1])]
           (should-not-be-nil target1)
@@ -488,7 +488,7 @@
         (reset! atoms/game-map game-map)
         (reset! atoms/computer-map game-map)
         (reset! atoms/claimed-transport-targets #{})
-        (let [pickup-continent (continent/flood-fill-continent [0 0])
+        (let [pickup-continent (land-objectives/flood-fill-continent [0 0])
               target (transport/find-unload-target pickup-continent [2 1])]
           ;; Should pick the city on continent without computer presence
           (should= [0 6] target))))
@@ -507,7 +507,7 @@
         (reset! atoms/game-map game-map)
         (reset! atoms/computer-map game-map)
         (reset! atoms/claimed-transport-targets #{})
-        (let [pickup-continent (continent/flood-fill-continent [0 0])
+        (let [pickup-continent (land-objectives/flood-fill-continent [0 0])
               ;; Transport at row 1 is closer to city at row 2 than row 7
               target (transport/find-unload-target pickup-continent [1 1])]
           (should= [0 2] target)))))

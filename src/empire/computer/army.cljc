@@ -4,7 +4,7 @@
   (:require [empire.atoms :as atoms]
             [empire.combat :as combat]
             [empire.computer.core :as core]
-            [empire.computer.continent :as continent]
+            [empire.computer.land-objectives :as land-objectives]
             [empire.movement.pathfinding :as pathfinding]
             [empire.movement.visibility :as visibility]))
 
@@ -113,8 +113,8 @@
   "Find a land objective not already claimed by another army.
    VMS-style: distributes armies across different targets."
   [pos]
-  (let [cont-positions (continent/flood-fill-continent pos)
-        all-objectives (continent/find-all-objectives-on-continent cont-positions)]
+  (let [cont-positions (land-objectives/flood-fill-continent pos)
+        all-objectives (land-objectives/find-all-objectives-on-continent cont-positions)]
     (when (seq all-objectives)
       (let [claimed @atoms/claimed-objectives
             unclaimed (remove claimed all-objectives)

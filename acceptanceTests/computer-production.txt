@@ -5,7 +5,7 @@
 ; never overwritten; production is one-shot (no auto-repeat after
 ; spawning).
 ;
-; Tier 1 — Per-country priorities (cities assigned to a country-id):
+; Per-country priorities (cities assigned to a country-id):
 ;   1. Army (if the country has zero armies — bootstrap case)
 ;   2. Transport (coastal city, country has >= 6 armies but < 2 transports)
 ;   3. Army (if country has < 10 armies and no sibling city is already
@@ -15,86 +15,33 @@
 ;      without an escort destroyer)
 ;   6. Fighter (country has < 2 fighters; does NOT require coastal)
 ;
-; Tier 2 — Non-country cities (no country-id assigned):
-;   Produce an army if the continent (flood-fill from the city on the
-;   computer's fog-of-war map) contains a "land objective" — i.e. any
-;   unexplored cell, free city, or player city. If the continent is
-;   fully explored with no attackable targets, produce nothing.
-;
-; Tier 3 — Global priorities (country cities whose per-country needs
-;   are all satisfied):
+; Global priorities (country cities whose per-country needs are all
+;   satisfied):
 ;   Carrier, battleship, submarine, satellite — these are based on
 ;   global unit counts and city thresholds, not tested here.
 ;
+; Every computer city has a country-id because all cities are conquered
+; by computer armies that carry a country-id (or unload-event-id that
+; gets converted to a new country-id on conquest).
+;
 ; Notable details and potential puzzles:
 ;
-; - "6 armies" threshold: The acceptance tests use cities with exactly
-;   5 or 6 armies to test the transport trigger. The config constant
-;   armies-before-transport is 6, so >= 6 armies triggers transport
-;   production. The tests at lines 111-123 give the city 6 armies (meets
-;   threshold), while lines 139-154 give two cities 5 armies each
-;   (total 10, which meets max-armies-per-country but each country
-;   individually has only 5 — so the transport threshold is checked
-;   per-country, not globally).
+; - "6 armies" threshold: The config constant armies-before-transport
+;   is 6, so >= 6 armies triggers transport production. The transport
+;   threshold is checked per-country, not globally.
 ;
 ; - Patrol-boat vs destroyer ordering: Patrol-boat is produced before
 ;   destroyer in priority. A destroyer is only produced when there is
-;   an "unadopted" transport (one without an escort destroyer). The
-;   test at lines 156-173 first satisfies both army and transport caps,
-;   adds a patrol-boat, then checks that the next production is a
-;   destroyer — confirming the patrol-boat cap (1 per country) was
-;   already met.
+;   an "unadopted" transport (one without an escort destroyer).
 ;
 ; - Inland city fallback to fighter: When a country's army cap (10) is
 ;   met but the city is inland (not coastal), it cannot produce
-;   transport, patrol-boat, or destroyer. It skips straight to fighter
-;   (lines 175-187). This is the only non-coastal production besides
-;   army and satellite.
+;   transport, patrol-boat, or destroyer. It skips straight to fighter.
+;   This is the only non-coastal production besides army and satellite.
 ;
-; - The no-country / no-objective case (lines 85-97): A city surrounded
-;   entirely by sea (#) with no land neighbors has no continent to
-;   flood-fill — so has-land-objective? returns false. The city
-;   produces nothing. Note that the game-map and computer-map are
-;   identical here (full visibility), which means there are no
-;   unexplored cells to serve as objectives either.
-;
-; - The "computer map" in the first test (lines 74-83) is explicitly
-;   set, meaning the computer has full visibility of the free city (+).
-;   This matters because continent scanning uses the fog-of-war
-;   computer-map, not the game-map.
-;
-; - One-shot production (lines 202-214): After a unit spawns,
-;   production is cleared (no auto-repeat). The city must be
-;   re-evaluated next round. This prevents runaway production of a
-;   single unit type.
-
-;===============================================================
-; No-country city produces army when continent has free city.
-;===============================================================
-GIVEN game map
-  X+
-  ##
-GIVEN computer map
-  X+
-  ##
-
-WHEN the computer chooses production at X.
-
-THEN production at X is army.
-
-;===============================================================
-; No-country city produces nothing when no land objective.
-;===============================================================
-GIVEN game map
-  X#
-  ##
-GIVEN computer map
-  X#
-  ##
-
-WHEN the computer chooses production at X.
-
-THEN there is no production at X.
+; - One-shot production: After a unit spawns, production is cleared
+;   (no auto-repeat). The city must be re-evaluated next round. This
+;   prevents runaway production of a single unit type.
 
 ;===============================================================
 ; Country produces army when zero armies.

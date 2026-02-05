@@ -4,7 +4,7 @@
    Unloading state: move toward enemy cities on other continents"
   (:require [empire.atoms :as atoms]
             [empire.computer.core :as core]
-            [empire.computer.continent :as continent]
+            [empire.computer.land-objectives :as land-objectives]
             [empire.movement.pathfinding :as pathfinding]
             [empire.movement.visibility :as visibility]
             [empire.movement.map-utils :as map-utils]))
@@ -78,8 +78,8 @@
    Factors: distance, continent attackable cities, computer presence."
   [transport-pos target-city]
   (let [dist (core/distance transport-pos target-city)
-        target-continent (continent/flood-fill-continent target-city)
-        scan (when target-continent (continent/scan-continent target-continent))
+        target-continent (land-objectives/flood-fill-continent target-city)
+        scan (when target-continent (land-objectives/scan-continent target-continent))
         attackable (+ (:player-cities scan 0) (:free-cities scan 0))
         continent-factor (if (pos? attackable)
                            (/ 100.0 attackable)
@@ -189,7 +189,7 @@
         (let [army-pos (first remaining)]
           (if (contains? seen army-pos)
             (recur (rest remaining) seen continents)
-            (let [cont (continent/flood-fill-continent army-pos)
+            (let [cont (land-objectives/flood-fill-continent army-pos)
                   cont-armies (filter #(contains? cont %) all-armies)]
               (recur (rest remaining)
                      (into seen cont)
@@ -233,7 +233,7 @@
             (swap! atoms/game-map assoc-in (conj pos :contents :transport-mission) :loading)
             (swap! atoms/game-map update-in (conj pos :contents) dissoc :unload-target-city)
             (let [current-continent (when-let [land-pos (find-adjacent-land-pos pos)]
-                                     (continent/flood-fill-continent land-pos))
+                                     (land-objectives/flood-fill-continent land-pos))
                   next-pickup (find-next-pickup-continent-pos pos current-continent)]
               (swap! atoms/game-map assoc-in
                      (conj pos :contents :pickup-continent-pos) next-pickup)))
@@ -326,7 +326,7 @@
    Reuses stored unload-target-city for stability."
   [pos pickup-continent]
   (if-let [target-city (resolve-unload-target pos pickup-continent)]
-    (let [target-continent (continent/flood-fill-continent target-city)]
+    (let [target-continent (land-objectives/flood-fill-continent target-city)]
       (if-let [unload-pos (pathfinding/find-nearest-unload-position pos target-continent)]
         (move-toward-position pos unload-pos)
         (explore-sea pos)))
@@ -365,7 +365,7 @@
                 (record-pickup-continent-pos pos transport)
                 (let [updated-transport (get-in @atoms/game-map (conj pos :contents))
                       pickup-continent (when-let [ocp (:pickup-continent-pos updated-transport)]
-                                         (continent/flood-fill-continent ocp))]
+                                         (land-objectives/flood-fill-continent ocp))]
                   (if (adjacent-to-land? pos)
                     (when-not (unload-armies pos pickup-continent)
                       (when-let [new-pos (move-toward-unload-or-explore pos pickup-continent)]
@@ -376,7 +376,7 @@
               ;; Loading transport - go get armies (only on pickup continent if known)
               (= current-mission :loading)
               (let [pickup-continent (when-let [ocp (:pickup-continent-pos transport)]
-                                      (continent/flood-fill-continent ocp))
+                                      (land-objectives/flood-fill-continent ocp))
                     unloaded-countries (:unloaded-countries transport)]
                 (if-let [army-pos (find-nearest-army pos pickup-continent unloaded-countries)]
                   (when-let [new-pos (move-toward-position pos army-pos)]
@@ -387,7 +387,7 @@
               ;; Unloading transport - continue to target on different continent
               (= current-mission :unloading)
               (let [pickup-continent (when-let [ocp (:pickup-continent-pos transport)]
-                                       (continent/flood-fill-continent ocp))]
+                                       (land-objectives/flood-fill-continent ocp))]
                 (if (adjacent-to-land? pos)
                   (when-not (unload-armies pos pickup-continent)
                     (when-let [new-pos (move-toward-unload-or-explore pos pickup-continent)]

@@ -4,7 +4,6 @@
             [empire.config :as config]
             [empire.movement.map-utils :as map-utils]
             [empire.player.production :as production]
-            [empire.computer.continent :as continent]
             [empire.computer.ship :as ship]))
 
 ;; Preserved utilities
@@ -85,19 +84,6 @@
         (map-indexed vector row)))
     0
     (map-indexed vector @atoms/game-map)))
-
-(defn- count-non-country-armies
-  "Counts computer armies with no country-id."
-  []
-  (count (for [i (range (count @atoms/game-map))
-               j (range (count (first @atoms/game-map)))
-               :let [cell (get-in @atoms/game-map [i j])
-                     unit (:contents cell)]
-               :when (and unit
-                          (= :computer (:owner unit))
-                          (= :army (:type unit))
-                          (nil? (:country-id unit)))]
-           true)))
 
 (defn- count-country-fighters
   "Counts live fighters belonging to the given country-id."
@@ -224,26 +210,16 @@
 
 (defn decide-production
   "Decide what a computer city should produce. Returns unit type keyword.
-   Per-country priorities first, then non-country army fallback, then global."
+   Per-country priorities first, then global."
   [city-pos]
   (let [city-cell (get-in @atoms/game-map city-pos)
         country-id (:country-id city-cell)
         coastal? (city-is-coastal? city-pos)
         unit-counts (count-computer-units)]
-    (or ;; Per-country priorities (if city has a country-id)
-        (when country-id
+    (or (when country-id
           (decide-country-production city-pos country-id coastal? unit-counts))
-
-        ;; Non-country cities: army if continent has objectives and under cap
-        (when (and (not country-id)
-                   (< (count-non-country-armies) config/max-non-country-armies)
-                   (continent/has-land-objective?
-                     (continent/scan-continent
-                       (continent/flood-fill-continent city-pos))))
-          :army)
-
-        ;; Global priorities (any city with country-id whose per-country needs are met)
-        (decide-global-production coastal? unit-counts))))
+        (when country-id
+          (decide-global-production coastal? unit-counts)))))
 
 (defn process-computer-city
   "Processes a computer city - sets production if not already set."

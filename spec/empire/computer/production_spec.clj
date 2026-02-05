@@ -5,6 +5,37 @@
             [empire.atoms :as atoms]
             [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
 
+(defn- satisfy-inland-per-country
+  "Stamp city with country-id and add 10 armies + 2 fighters to satisfy per-country priorities."
+  [city-col]
+  (swap! atoms/game-map assoc-in [0 city-col :country-id] 1)
+  (doseq [j [1 3 5 7 9 11 13 15 17 19]]
+    (swap! atoms/game-map assoc-in [0 j :contents]
+           {:type :army :owner :computer :mode :awake :hits 1 :country-id 1}))
+  (doseq [j [21 23]]
+    (swap! atoms/game-map assoc-in [0 j :contents]
+           {:type :fighter :owner :computer :mode :awake :hits 1 :fuel 20 :country-id 1})))
+
+(defn- satisfy-coastal-per-country
+  "Stamp coastal city with country-id and add units to satisfy all per-country priorities."
+  [city-col]
+  (swap! atoms/game-map assoc-in [0 city-col :country-id] 1)
+  (doseq [j [1 3 5 7 9 11 13 15 17 19]]
+    (swap! atoms/game-map assoc-in [0 j :contents]
+           {:type :army :owner :computer :mode :awake :hits 1 :country-id 1}))
+  (swap! atoms/game-map assoc-in [0 20 :contents]
+         {:type :fighter :owner :computer :mode :awake :hits 1 :fuel 20 :country-id 1})
+  (swap! atoms/game-map assoc-in [0 21 :contents]
+         {:type :fighter :owner :computer :mode :awake :hits 1 :fuel 20 :country-id 1})
+  (swap! atoms/game-map assoc-in [0 24 :contents]
+         {:type :transport :owner :computer :country-id 1 :transport-id 1
+          :escort-destroyer-id 1 :army-count 0 :hits 3})
+  (swap! atoms/game-map assoc-in [0 26 :contents]
+         {:type :transport :owner :computer :country-id 1 :transport-id 2
+          :escort-destroyer-id 2 :army-count 0 :hits 3})
+  (swap! atoms/game-map assoc-in [0 28 :contents]
+         {:type :patrol-boat :owner :computer :patrol-country-id 1 :hits 1}))
+
 (describe "city-is-coastal?"
   (before (reset-all-atoms!))
 
@@ -45,11 +76,6 @@
 (describe "priority-based production"
   (before (reset-all-atoms!))
 
-  (it "non-country city produces army when continent has objectives"
-    (reset! atoms/game-map (build-test-map ["~X+"]))
-    (reset! atoms/computer-map (build-test-map ["~X+"]))
-    (should= :army (production/decide-production [1 0])))
-
   (it "country city produces fighter via per-country priority when 0 fighters exist"
     ;; Coastal city with country-id 1, 2 transports (with escorts), 10 armies, 1 patrol boat
     ;; All per-country priorities met except fighters (0 < 2). Per-country fighter priority fires.
@@ -79,21 +105,6 @@
 
 (describe "decide-production"
   (before (reset-all-atoms!))
-
-  (it "produces army when continent has objectives"
-    (reset! atoms/game-map (build-test-map ["X#+~"]))
-    (reset! atoms/computer-map (build-test-map ["X#+~"]))
-    ;; Continent has free city - should produce army
-    (should= :army (production/decide-production [0 0])))
-
-  (it "landlocked non-country city with no objectives produces nil"
-    (reset! atoms/game-map (build-test-map ["###"
-                                             "#X#"
-                                             "###"]))
-    (reset! atoms/computer-map (build-test-map ["###"
-                                                 "#X#"
-                                                 "###"]))
-    (should-be-nil (production/decide-production [1 1])))
 
   (it "coastal country city with 6+ armies produces transport"
     ;; Coastal city with country-id 1, 6 armies with country-id 1, 0 transports
@@ -173,12 +184,7 @@
     (reset! atoms/production {[1 0] {:item :army :remaining-rounds 3}})
     (should-not= :army (production/decide-production [3 0])))
 
-  (it "non-country city without objectives produces nil when all global priorities met"
-    ;; City with no country-id and no objectives on continent falls to global
-    ;; With no carrier/BB/sub/satellite needs, city stays idle (no overproduction)
-    (reset! atoms/game-map (build-test-map ["~X#"]))
-    (reset! atoms/computer-map (build-test-map ["~X#"]))
-    (should-be-nil (production/decide-production [1 0]))))
+)
 
 (describe "army overproduction fix"
   (before (reset-all-atoms!))
@@ -201,33 +207,12 @@
     (swap! atoms/game-map assoc-in [3 0 :contents :army-count] 3)
     (should= 2 (production/count-country-armies 1)))
 
-  (it "non-country army production is capped at 10"
-    ;; 10 non-country armies already on map, non-country city with objective
-    (let [cells (vec (concat [{:type :city :city-status :computer}
-                              {:type :city :city-status :free}]
-                             (for [_ (range 10)]
-                               {:type :land :contents {:type :army :owner :computer :mode :awake :hits 1}})))]
-      (reset! atoms/game-map [cells])
-      (reset! atoms/computer-map [cells])
-      ;; Non-country city at [0,0] with objective (free city at [0,1])
-      ;; Should NOT produce army because 10 non-country armies already exist
-      (should-be-nil (production/decide-production [0 0]))))
-
-  (it "non-country army production allowed when under 10"
-    ;; 9 non-country armies, non-country city with objective
-    (let [cells (vec (concat [{:type :city :city-status :computer}
-                              {:type :city :city-status :free}]
-                             (for [_ (range 9)]
-                               {:type :land :contents {:type :army :owner :computer :mode :awake :hits 1}})))]
-      (reset! atoms/game-map [cells])
-      (reset! atoms/computer-map [cells])
-      (should= :army (production/decide-production [0 0])))))
+)
 
 (describe "satellite production gate"
   (before (reset-all-atoms!))
 
   (it "produces satellite when >15 cities and none alive"
-    ;; Build a map with 16 computer cities (need >15)
     (let [city-row (vec (for [i (range 32)]
                           (if (even? i)
                             {:type :city :city-status :computer}
@@ -235,11 +220,10 @@
           game-map (vec [city-row])]
       (reset! atoms/game-map game-map)
       (reset! atoms/computer-map game-map)
-      ;; No live satellites, 16 cities
+      (satisfy-inland-per-country 0)
       (should= :satellite (production/decide-production [0 0]))))
 
   (it "does not produce satellite when one already alive"
-    ;; 16 computer cities but one live satellite on the map
     (let [city-row (vec (for [i (range 32)]
                           (if (even? i)
                             {:type :city :city-status :computer}
@@ -249,10 +233,10 @@
           game-map (vec [city-row sat-row])]
       (reset! atoms/game-map game-map)
       (reset! atoms/computer-map game-map)
-      (should-not= :satellite (production/decide-production [0 0]))))
+      (satisfy-inland-per-country 0)
+      (should-be-nil (production/decide-production [0 0]))))
 
   (it "does not produce satellite when <=15 cities"
-    ;; Only 15 computer cities
     (let [city-row (vec (for [i (range 30)]
                           (if (even? i)
                             {:type :city :city-status :computer}
@@ -260,15 +244,16 @@
           game-map (vec [city-row])]
       (reset! atoms/game-map game-map)
       (reset! atoms/computer-map game-map)
-      (should-not= :satellite (production/decide-production [0 0])))))
+      (satisfy-inland-per-country 0)
+      (should-be-nil (production/decide-production [0 0])))))
 
 (describe "process-computer-city"
   (before (reset-all-atoms!))
 
-  (it "sets production when none exists and city has an objective"
-    ;; City with a free city on its continent — produces army
+  (it "sets production when none exists and city has a country-id"
     (reset! atoms/game-map (build-test-map ["X+#"]))
     (reset! atoms/computer-map (build-test-map ["X+#"]))
+    (swap! atoms/game-map assoc-in [0 0 :country-id] 1)
     (reset! atoms/production {})
     (production/process-computer-city [0 0])
     (should-not-be-nil (get @atoms/production [0 0])))
@@ -359,8 +344,6 @@
   (before (reset-all-atoms!))
 
   (it "produces carrier when >10 cities, <2 producing, valid position exists"
-    ;; 12 computer cities at even positions 0-22, land at odd 1-21, sea from 23-59
-    ;; No country-id on test city, continent has no objectives
     (let [cells (vec (for [j (range 60)]
                        (cond
                          (and (even? j) (<= j 22)) {:type :city :city-status :computer}
@@ -368,10 +351,10 @@
                          :else {:type :sea})))]
       (reset! atoms/game-map [cells])
       (reset! atoms/computer-map [cells])
+      (satisfy-coastal-per-country 22)
       (should= :carrier (production/decide-production [0 22]))))
 
   (it "does not produce carrier when <=10 cities"
-    ;; 10 computer cities at even positions 0-18, land at odd 1-17, sea from 19-49
     (let [cells (vec (for [j (range 50)]
                        (cond
                          (and (even? j) (<= j 18)) {:type :city :city-status :computer}
@@ -379,10 +362,10 @@
                          :else {:type :sea})))]
       (reset! atoms/game-map [cells])
       (reset! atoms/computer-map [cells])
+      (satisfy-coastal-per-country 18)
       (should-not= :carrier (production/decide-production [0 18]))))
 
   (it "does not produce carrier when 2 already producing"
-    ;; 12 cities but 2 already producing carriers
     (let [cells (vec (for [j (range 60)]
                        (cond
                          (and (even? j) (<= j 22)) {:type :city :city-status :computer}
@@ -390,25 +373,24 @@
                          :else {:type :sea})))]
       (reset! atoms/game-map [cells])
       (reset! atoms/computer-map [cells])
+      (satisfy-coastal-per-country 22)
       (reset! atoms/production {[0 0] {:item :carrier :remaining-rounds 10}
                                 [0 2] {:item :carrier :remaining-rounds 10}})
       (should-not= :carrier (production/decide-production [0 22]))))
 
   (it "does not produce carrier when 8 already exist"
-    ;; 12 computer cities, 8 live carriers on the map - fleet cap reached
     (let [cells (vec (for [j (range 80)]
                        (cond
                          (and (even? j) (<= j 22)) {:type :city :city-status :computer}
                          (<= j 22) {:type :land}
-                         ;; 8 carriers at positions 30-37
                          (<= 30 j 37) {:type :sea :contents {:type :carrier :owner :computer :hits 8}}
                          :else {:type :sea})))]
       (reset! atoms/game-map [cells])
       (reset! atoms/computer-map [cells])
+      (satisfy-coastal-per-country 22)
       (should-not= :carrier (production/decide-production [0 22]))))
 
   (it "does not produce carrier when no valid position exists"
-    ;; 12 cities but sea only extends 21 cells past last city (max distance 21 < 22)
     (let [cells (vec (for [j (range 44)]
                        (cond
                          (and (even? j) (<= j 22)) {:type :city :city-status :computer}
@@ -416,13 +398,13 @@
                          :else {:type :sea})))]
       (reset! atoms/game-map [cells])
       (reset! atoms/computer-map [cells])
+      (satisfy-coastal-per-country 22)
       (should-not= :carrier (production/decide-production [0 22])))))
 
 (describe "battleship production gate"
   (before (reset-all-atoms!))
 
   (it "produces battleship when battleships < carriers"
-    ;; 12 cities, a carrier on the map, no battleships
     (let [cells (vec (for [j (range 60)]
                        (cond
                          (and (even? j) (<= j 22)) {:type :city :city-status :computer}
@@ -434,17 +416,12 @@
                          :else {:type :sea})))]
       (reset! atoms/game-map [cells])
       (reset! atoms/computer-map [cells])
-      ;; Carrier gate won't fire because a carrier already exists at valid position
-      ;; and find-carrier-position returns nil when position [0,48] is occupied
-      ;; Actually - the carrier at [0,48] is a refueling site, so the next valid
-      ;; position would need to be >= 26 from it too. Let's skip carrier gate
-      ;; by setting 2 carrier productions
+      (satisfy-coastal-per-country 22)
       (reset! atoms/production {[0 0] {:item :carrier :remaining-rounds 10}
                                 [0 2] {:item :carrier :remaining-rounds 10}})
       (should= :battleship (production/decide-production [0 22]))))
 
   (it "does not produce battleship when battleships >= carriers"
-    ;; 12 cities, 1 carrier, 1 battleship - cap reached
     (let [cells (vec (for [j (range 60)]
                        (cond
                          (and (even? j) (<= j 22)) {:type :city :city-status :computer}
@@ -454,6 +431,7 @@
                          :else {:type :sea})))]
       (reset! atoms/game-map [cells])
       (reset! atoms/computer-map [cells])
+      (satisfy-coastal-per-country 22)
       (reset! atoms/production {[0 0] {:item :carrier :remaining-rounds 10}
                                 [0 2] {:item :carrier :remaining-rounds 10}})
       (should-not= :battleship (production/decide-production [0 22])))))
@@ -462,7 +440,6 @@
   (before (reset-all-atoms!))
 
   (it "produces submarine when submarines < 2 * carriers"
-    ;; 12 cities, 1 carrier, 1 battleship (cap met), 0 submarines
     (let [cells (vec (for [j (range 60)]
                        (cond
                          (and (even? j) (<= j 22)) {:type :city :city-status :computer}
@@ -472,12 +449,12 @@
                          :else {:type :sea})))]
       (reset! atoms/game-map [cells])
       (reset! atoms/computer-map [cells])
+      (satisfy-coastal-per-country 22)
       (reset! atoms/production {[0 0] {:item :carrier :remaining-rounds 10}
                                 [0 2] {:item :carrier :remaining-rounds 10}})
       (should= :submarine (production/decide-production [0 22]))))
 
   (it "does not produce submarine when submarines >= 2 * carriers"
-    ;; 12 cities, 1 carrier, 1 BB (cap met), 2 subs - cap reached
     (let [cells (vec (for [j (range 60)]
                        (cond
                          (and (even? j) (<= j 22)) {:type :city :city-status :computer}
@@ -489,6 +466,7 @@
                          :else {:type :sea})))]
       (reset! atoms/game-map [cells])
       (reset! atoms/computer-map [cells])
+      (satisfy-coastal-per-country 22)
       (reset! atoms/production {[0 0] {:item :carrier :remaining-rounds 10}
                                 [0 2] {:item :carrier :remaining-rounds 10}})
       (should-not= :submarine (production/decide-production [0 22])))))

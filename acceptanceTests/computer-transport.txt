@@ -1,0 +1,79 @@
+; Computer Transport Loading and Exploring
+;
+; Computer transports use a mission-based state machine:
+;   - idle: newly created, no mission assigned yet
+;   - loading: seeking armies to pick up; moves toward the nearest
+;     army, or explores unexplored sea when no army is found
+;   - unloading: transport is full (6 armies); seeks enemy or free
+;     cities on different continents to drop off armies
+;
+; Loading details:
+;   - The transport scans the entire game-map for computer armies
+;     (perfect knowledge, not fog-of-war limited).
+;   - When pickup-continent-pos is set, only armies on that continent
+;     are considered.
+;   - There is no separate "exploring" state; exploring is a per-round
+;     fallback within the loading mission when no army is found.
+
+;===============================================================
+; Idle transport transitions to loading on first processing.
+;===============================================================
+GIVEN game map
+  t~~
+
+WHEN a new round starts.
+
+THEN t has transport-mission loading.
+
+;===============================================================
+; Loading transport moves toward nearest army.
+;===============================================================
+GIVEN game map
+  t~~a
+GIVEN t has transport-mission loading.
+
+WHEN a new round starts.
+
+THEN t is at [1 0].
+
+;===============================================================
+; Loading transport explores when no army on the map.
+;===============================================================
+GIVEN game map
+  t~~~
+GIVEN computer map
+  ....
+GIVEN t has transport-mission loading.
+
+WHEN a new round starts.
+
+THEN t is at [1 0].
+
+;===============================================================
+; Full transport switches to unloading.
+;===============================================================
+GIVEN game map
+  ~~~
+  ~t~
+  ~~~
+GIVEN t has transport-mission loading.
+GIVEN t has 6 armies.
+
+WHEN a new round starts.
+
+THEN t has transport-mission unloading.
+
+;===============================================================
+; Full transport moves toward free city.
+;===============================================================
+GIVEN game map
+  ~t~~~+
+GIVEN computer map
+  .....+
+GIVEN t has transport-mission loading.
+GIVEN t has 6 armies.
+
+WHEN a new round starts.
+
+THEN t has transport-mission unloading.
+THEN t is at [2 0].

@@ -593,4 +593,52 @@
                                                            :carrier-target [0 26]}}
                            :else {:type :sea})))]
         (reset! atoms/game-map [cells])
-        (should-be-nil (ship/find-carrier-position))))))
+        (should-be-nil (ship/find-carrier-position)))))
+
+(describe "compute-distant-city-pairs"
+  (before (reset-all-atoms!))
+
+  (it "returns empty set when no computer cities"
+    (reset! atoms/game-map (build-test-map ["~~~" "###"]))
+    (should (empty? (ship/compute-distant-city-pairs))))
+
+  (it "returns empty set when only one computer city"
+    (reset! atoms/game-map (build-test-map ["X~~" "###"]))
+    (should (empty? (ship/compute-distant-city-pairs))))
+
+  (it "returns empty set when cities are close (distance <= 32)"
+    ;; Two cities 10 apart (< 32)
+    (reset! atoms/game-map (build-test-map ["X~~~~~~~~~X" "###########"]))
+    (should (empty? (ship/compute-distant-city-pairs))))
+
+  (it "returns pair when cities are distant (distance > 32)"
+    ;; X at 0, X at 36 = distance 36 > 32
+    (reset! atoms/game-map (build-test-map ["X~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~X"
+                                            "#####################################"]))
+    (let [pairs (ship/compute-distant-city-pairs)]
+      (should= 1 (count pairs))
+      (should= #{[0 0] [36 0]} (first pairs))))
+
+  (it "returns multiple pairs when multiple distant city combinations exist"
+    ;; 80 characters: X at 0, X at 40, X at 79
+    ;; Distances: 0-40=40, 40-79=39, 0-79=79 - all > 32
+    (let [row (str "X" (apply str (repeat 39 \~)) "X" (apply str (repeat 38 \~)) "X")]
+      (reset! atoms/game-map (build-test-map [row (apply str (repeat 80 \#))]))
+      (let [pairs (ship/compute-distant-city-pairs)]
+        (should= 3 (count pairs)))))
+
+  (it "ignores player cities"
+    ;; O is player city, X is computer city - only one computer city
+    (reset! atoms/game-map (build-test-map ["O~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~X"
+                                            "#####################################"]))
+    (should (empty? (ship/compute-distant-city-pairs)))))
+
+(describe "update-distant-city-pairs!"
+  (before (reset-all-atoms!))
+
+  (it "updates the distant-city-pairs atom"
+    (reset! atoms/game-map (build-test-map ["X~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~X"
+                                            "#####################################"]))
+    (ship/update-distant-city-pairs!)
+    (should= 1 (count @atoms/distant-city-pairs))
+    (should= #{[0 0] [36 0]} (first @atoms/distant-city-pairs)))))

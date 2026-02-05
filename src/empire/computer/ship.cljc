@@ -273,6 +273,34 @@
 
 ;; --- Carrier positioning helpers ---
 
+(defn- find-computer-cities
+  "Returns positions of all computer cities."
+  []
+  (let [game-map @atoms/game-map]
+    (for [i (range (count game-map))
+          j (range (count (first game-map)))
+          :let [cell (get-in game-map [i j])]
+          :when (and (= :city (:type cell))
+                     (= :computer (:city-status cell)))]
+      [i j])))
+
+(defn compute-distant-city-pairs
+  "Returns set of computer city pairs where distance > fighter-fuel.
+   Each pair is a set of two positions #{[r1 c1] [r2 c2]}."
+  []
+  (let [cities (vec (find-computer-cities))]
+    (set (for [i (range (count cities))
+               j (range (inc i) (count cities))
+               :let [a (nth cities i)
+                     b (nth cities j)]
+               :when (> (core/distance a b) config/fighter-fuel)]
+           #{a b}))))
+
+(defn update-distant-city-pairs!
+  "Updates the distant-city-pairs atom from current game map."
+  []
+  (reset! atoms/distant-city-pairs (compute-distant-city-pairs)))
+
 (defn find-refueling-sites
   "Returns positions of all computer cities and holding carriers."
   []

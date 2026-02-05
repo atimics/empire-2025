@@ -185,3 +185,9 @@
   "Circular buffer of recent game actions for debugging. Capped at 100 entries.
    Each entry is {:timestamp <ms> :action <vector describing the action>}."
   (atom []))
+
+(def distant-city-pairs
+  "Set of computer city pairs where distance > fighter-fuel.
+   Each pair is a set of two positions #{[r1 c1] [r2 c2]}.
+   Updated when computer conquers or loses a city."
+  (atom #{}))

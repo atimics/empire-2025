@@ -29,7 +29,7 @@ Tests flow through a three-stage automated pipeline:
 1. **Parse:** `clj -M:parse-tests` — reads `.txt` files from `acceptanceTests/`, produces `.edn` intermediate representations in `acceptanceTests/edn/`. Source: `src/empire/acceptance/parser.cljc`.
 2. **Generate:** `clj -M:generate-specs` — reads `.edn` files from `acceptanceTests/edn/`, produces Speclj spec files in `generated-acceptance-specs/acceptance/`. Source: `src/empire/acceptance/generator.cljc`.
 3. **Run:** `clj -M:spec generated-acceptance-specs/` — executes the generated specs.
-4. **Clear:** Delete all generated files: `rm -rf acceptanceTests/edn/*.edn generated-acceptance-specs/acceptance/*.clj`
+4. **Clear:** (allow rm) Delete all generated files. Do not use globs — list each file explicitly in `rm -f` commands, e.g. `rm -f acceptanceTests/edn/army.edn acceptanceTests/edn/fighter.edn ...`
 
 Shorthand to run the full pipeline:
 ```bash
@@ -69,8 +69,8 @@ clj -M:cov
 clj -M:parse-tests      # Parse .txt → .edn (acceptanceTests/edn/)
 clj -M:generate-specs    # Generate .edn → .clj (generated-acceptance-specs/)
 
-# Clear acceptance tests (delete all generated edn and spec files)
-rm -rf acceptanceTests/edn/*.edn generated-acceptance-specs/acceptance/*.clj
+# Clear acceptance tests — list each file explicitly, no globs
+# rm -f acceptanceTests/edn/<each>.edn generated-acceptance-specs/acceptance/<each>_spec.clj
 ```
 
 ## Architecture

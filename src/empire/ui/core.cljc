@@ -3,7 +3,6 @@
             [empire.config :as config]
             [empire.game-loop :as game-loop]
             [empire.init :as init]
-            [empire.performance :as perf]
             [empire.ui.input :as input]
             [empire.ui.rendering :as rendering]
             [quil.core :as q]
@@ -47,43 +46,14 @@
   (q/frame-rate 30)
   {})
 
-(defn- update-state-monitored
-  "Update game state with detailed timing for performance monitoring."
-  [state]
-  (let [[_ t1] (perf/timed (game-loop/update-player-map))
-        [_ t2] (perf/timed (game-loop/update-computer-map))
-        [advance-details t3] (perf/timed (game-loop/advance-game-batch-monitored))
-        [_ t4] (perf/timed (rendering/update-hover-status))
-        total (+ t1 t2 t3 t4)]
-    (perf/record-frame-timing!
-     {:total-ms total
-      :update-player-map-ms t1
-      :update-computer-map-ms t2
-      :advance-game-batch-ms t3
-      :update-hover-status-ms t4
-      :advance-calls (count advance-details)
-      :advance-details advance-details})
-    state))
-
-(defn- update-state-normal
-  "Update game state normally, checking if monitoring should start."
-  [state]
-  (let [[_ elapsed] (perf/timed
-                     (do
-                       (game-loop/update-player-map)
-                       (game-loop/update-computer-map)
-                       (game-loop/advance-game-batch)
-                       (rendering/update-hover-status)))]
-    (when (perf/should-start-monitoring? elapsed)
-      (perf/start-monitoring!))
-    state))
-
 (defn update-state
-  "Update the game state. Switches to monitored mode when slow frames detected."
+  "Update the game state."
   [state]
-  (if @perf/monitoring-active
-    (update-state-monitored state)
-    (update-state-normal state)))
+  (game-loop/update-player-map)
+  (game-loop/update-computer-map)
+  (game-loop/advance-game-batch)
+  (rendering/update-hover-status)
+  state)
 
 (defn draw-state
   "Draw the current game state."

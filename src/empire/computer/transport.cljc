@@ -7,8 +7,7 @@
             [empire.computer.land-objectives :as land-objectives]
             [empire.movement.pathfinding :as pathfinding]
             [empire.movement.visibility :as visibility]
-            [empire.movement.map-utils :as map-utils]
-            [empire.performance :as perf]))
+            [empire.movement.map-utils :as map-utils]))
 
 (defn- get-passable-sea-neighbors
   "Returns passable sea neighbors for a transport."
@@ -365,10 +364,8 @@
                 (mint-unload-event-id pos transport)
                 (record-pickup-continent-pos pos transport)
                 (let [updated-transport (get-in @atoms/game-map (conj pos :contents))
-                      [pickup-continent fill-ms] (perf/timed
-                                                   (when-let [ocp (:pickup-continent-pos updated-transport)]
-                                                     (land-objectives/flood-fill-continent ocp)))]
-                  (perf/record-detail! :transport-flood-fill fill-ms)
+                      pickup-continent (when-let [ocp (:pickup-continent-pos updated-transport)]
+                                         (land-objectives/flood-fill-continent ocp))]
                   (if (adjacent-to-land? pos)
                     (when-not (unload-armies pos pickup-continent)
                       (when-let [new-pos (move-toward-unload-or-explore pos pickup-continent)]
@@ -378,10 +375,8 @@
 
               ;; Loading transport - go get armies (only on pickup continent if known)
               (= current-mission :loading)
-              (let [[pickup-continent fill-ms] (perf/timed
-                                                 (when-let [ocp (:pickup-continent-pos transport)]
-                                                   (land-objectives/flood-fill-continent ocp)))
-                    _ (perf/record-detail! :transport-flood-fill fill-ms)
+              (let [pickup-continent (when-let [ocp (:pickup-continent-pos transport)]
+                                       (land-objectives/flood-fill-continent ocp))
                     unloaded-countries (:unloaded-countries transport)]
                 (if-let [army-pos (find-nearest-army pos pickup-continent unloaded-countries)]
                   (when-let [new-pos (move-toward-position pos army-pos)]
@@ -391,10 +386,8 @@
 
               ;; Unloading transport - continue to target on different continent
               (= current-mission :unloading)
-              (let [[pickup-continent fill-ms] (perf/timed
-                                                 (when-let [ocp (:pickup-continent-pos transport)]
-                                                   (land-objectives/flood-fill-continent ocp)))
-                    _ (perf/record-detail! :transport-flood-fill fill-ms)]
+              (let [pickup-continent (when-let [ocp (:pickup-continent-pos transport)]
+                                       (land-objectives/flood-fill-continent ocp))]
                 (if (adjacent-to-land? pos)
                   (when-not (unload-armies pos pickup-continent)
                     (when-let [new-pos (move-toward-unload-or-explore pos pickup-continent)]

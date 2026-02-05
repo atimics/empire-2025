@@ -6,8 +6,7 @@
             [empire.computer.core :as core]
             [empire.computer.land-objectives :as land-objectives]
             [empire.movement.pathfinding :as pathfinding]
-            [empire.movement.visibility :as visibility]
-            [empire.performance :as perf]))
+            [empire.movement.visibility :as visibility]))
 
 ;; Coast-walk helpers
 
@@ -114,8 +113,7 @@
   "Find a land objective not already claimed by another army.
    VMS-style: distributes armies across different targets."
   [pos]
-  (let [[cont-positions fill-ms] (perf/timed (land-objectives/flood-fill-continent pos))
-        _ (perf/record-detail! :army-flood-fill fill-ms)
+  (let [cont-positions (land-objectives/flood-fill-continent pos)
         all-objectives (land-objectives/find-all-objectives-on-continent cont-positions)]
     (when (seq all-objectives)
       (let [claimed @atoms/claimed-objectives

@@ -7,8 +7,7 @@
             [empire.computer.core :as core]
             [empire.computer.threat :as threat]
             [empire.movement.pathfinding :as pathfinding]
-            [empire.movement.visibility :as visibility]
-            [empire.performance :as perf]))
+            [empire.movement.visibility :as visibility]))
 
 (defn- get-passable-sea-neighbors
   "Returns passable sea neighbors for a ship."

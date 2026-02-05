@@ -3,7 +3,6 @@
             [empire.atoms :as atoms]
             [empire.computer.land-objectives :as land-objectives]
             [empire.movement.pathfinding :as pathfinding]
-            [empire.performance :as perf]
             [empire.units.dispatcher :as dispatcher]))
 
 (defn- make-unit [unit-type owner]
@@ -223,10 +222,6 @@
   (reset! atoms/coast-walkers-produced {})
   (reset! atoms/sea-lane-network {:nodes {} :segments {} :pos->node {} :pos->seg {}
                                    :next-node-id 1 :next-segment-id 1})
-  (reset! perf/monitoring-active false)
-  (reset! perf/monitoring-frames-remaining 0)
-  (reset! perf/monitoring-data [])
-  (reset! perf/current-frame-details {})
   (pathfinding/clear-path-cache)
   (land-objectives/clear-continent-cache!))
 

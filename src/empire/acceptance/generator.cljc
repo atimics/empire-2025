@@ -8,9 +8,14 @@
 (def ^:private city-chars #{"O" "X" "+"})
 (def ^:private cell-label-chars #{"=" "%"})
 
+(defn- city-spec?
+  "Returns true if spec refers to a city (starts with O, X, or +)."
+  [spec]
+  (contains? city-chars (str (first spec))))
+
 (defn- target-pos-expr [target]
   (cond
-    (contains? city-chars target)
+    (city-spec? target)
     (str "(:pos (get-test-city atoms/game-map \"" target "\"))")
 
     (contains? cell-label-chars target)
@@ -73,17 +78,19 @@
             (some #(or (= "=" %) (= "%" %)) all-targets))}
    {:need :get-test-city
     :pred (fn [{:keys [all-targets thens givens map-rows wfi-units]}]
-            (or (some #(contains? city-chars %) all-targets)
-                (some #(contains? city-chars %) (keep :target-unit thens))
+            (or (some city-spec? all-targets)
+                (some city-spec? (keep :target-unit thens))
                 (some #(and (= :container-prop (:type %)) (= :city (:lookup %))) thens)
                 (some #(and (= :container-state (:type %))
-                            (contains? city-chars (:target %))) givens)
+                            (city-spec? (:target %))) givens)
                 (some #(and (= :production (:type %))
-                            (contains? city-chars (:city %))) givens)
+                            (city-spec? (:city %))) givens)
                 (some #(= :city-prop (:type %)) givens)
                 (some #(and (= :waiting-for-input (:type %))
-                            (contains? city-chars (:unit %))) givens)
-                (some (fn [u] (and (not (contains? city-chars u))
+                            (city-spec? (:unit %))) givens)
+                (some #(and (= :unit-props (:type %))
+                            (city-spec? (:unit %))) givens)
+                (some (fn [u] (and (not (city-spec? u))
                                    map-rows
                                    (not (some #(str/includes? % u) map-rows)))) wfi-units)))}
    {:need :make-initial-test-map
@@ -248,10 +255,18 @@
     (str "    (reset! " atom-str " (build-test-map [" row-strs "]))")))
 
 (defn- generate-unit-props-given [{:keys [unit props]}]
-  (let [kvs (mapv (fn [[k v]]
-                    (str ":" (name k) " " (pr-str v)))
-                  props)]
-    (str "    (set-test-unit atoms/game-map \"" unit "\" " (str/join " " kvs) ")")))
+  (if (city-spec? unit)
+    ;; For cities, use get-test-city and update the cell directly
+    (let [kvs (mapv (fn [[k v]]
+                      (str ":" (name k) " " (pr-str v)))
+                    props)]
+      (str "    (let [city-pos (:pos (get-test-city atoms/game-map \"" unit "\"))]\n"
+           "      (swap! atoms/game-map update-in city-pos assoc " (str/join " " kvs) "))"))
+    ;; For units, use set-test-unit
+    (let [kvs (mapv (fn [[k v]]
+                      (str ":" (name k) " " (pr-str v)))
+                    props)]
+      (str "    (set-test-unit atoms/game-map \"" unit "\" " (str/join " " kvs) ")"))))
 
 (defn- find-container-city
   "When a unit label doesn't appear in the map rows, find the city
@@ -261,7 +276,7 @@
     (when map-rows
       (->> givens
            (filter #(and (= :container-state (:type %))
-                         (contains? city-chars (:target %))
+                         (city-spec? (:target %))
                          (pos? (get-in % [:props :awake-fighters] 0))))
            first
            :target))))
@@ -270,7 +285,7 @@
   ([given] (generate-waiting-for-input-given given []))
   ([{:keys [unit set-mode]} givens]
    (let [lines (atom [])
-         is-city (contains? city-chars unit)
+         is-city (city-spec? unit)
          map-given (first (filter #(= :map (:type %)) givens))
          unit-on-map? (or is-city
                           (nil? map-given)
@@ -306,7 +321,7 @@
 
 (defn- generate-container-state-given [{:keys [target props]}]
   (let [props (infer-container-counts props)]
-    (if (contains? city-chars target)
+    (if (city-spec? target)
       ;; City container — props go on the cell
       (let [prop-map (str/join " " (mapcat (fn [[k v]] [(str ":" (name k)) (pr-str v)]) props))]
         (str "    (let [" (str/lower-case target) "-pos (:pos (get-test-city atoms/game-map \"" target "\"))]\n"

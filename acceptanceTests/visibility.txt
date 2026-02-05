@@ -23,6 +23,10 @@ THEN the player can see [3 1].
 THEN the player can see [1 2].
 THEN the player can see [2 2].
 THEN the player can see [3 2].
+THEN player map
+  .###.
+  .###.
+  .###.
 
 ;===============================================================
 ; Unexplored cells are not visible.
@@ -39,6 +43,10 @@ GIVEN player map
 THEN the player cannot see [0 0].
 THEN the player cannot see [1 1].
 THEN the player cannot see [2 2].
+THEN player map
+  ...
+  ...
+  ...
 
 ;===============================================================
 ; City reveals surroundings.
@@ -63,6 +71,10 @@ THEN the player can see [2 1].
 THEN the player can see [0 2].
 THEN the player can see [1 2].
 THEN the player can see [2 2].
+THEN player map
+  ###
+  ###
+  ###
 
 ;===============================================================
 ; Enemy units hidden in fog.
@@ -77,6 +89,8 @@ WHEN visibility updates.
 THEN the player can see [0 0].
 THEN the player can see [1 0].
 THEN the player cannot see [5 0].
+THEN player map
+  ##....
 
 ;===============================================================
 ; Satellite reveals 5x5 area.
@@ -101,3 +115,9 @@ THEN the player can see [4 4].
 THEN the player can see [0 4].
 THEN the player can see [4 0].
 THEN the player can see [2 2].
+THEN player map
+  #####
+  #####
+  #####
+  #####
+  #####

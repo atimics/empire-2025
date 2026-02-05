@@ -98,6 +98,73 @@
       (let [result (army/process-army [1 1])]
         (should-be-nil result))))
 
+  (describe "player city priority"
+    (it "chooses player city over free city on same continent"
+      ;; Army at [0 0], player city at [2 2], free city at [2 0] (closer)
+      ;; Should target player city despite free city being closer
+      (let [land {:type :land}
+            army-cell {:type :land :contents {:type :army :owner :computer}}
+            player-city {:type :city :city-status :player}
+            free-city {:type :city :city-status :free}]
+        (reset! atoms/game-map [[army-cell land land]
+                                 [land land land]
+                                 [free-city land player-city]])
+        (reset! atoms/computer-map @atoms/game-map)
+        (reset! atoms/claimed-objectives #{})
+        (army/process-army [0 0])
+        ;; Should claim player city [2 2], not free city [2 0]
+        (should (contains? @atoms/claimed-objectives [2 2]))))
+
+    (it "chooses player city over unexplored on same continent"
+      ;; Army at [0 0], player city at [2 0], unexplored at [0 2] (closer to explore path)
+      (let [land {:type :land}
+            army-cell {:type :land :contents {:type :army :owner :computer}}
+            player-city {:type :city :city-status :player}]
+        (reset! atoms/game-map [[army-cell land land]
+                                 [land land land]
+                                 [player-city land land]])
+        ;; Computer map has unexplored at [0 2]
+        (reset! atoms/computer-map [[{:type :land} {:type :land} nil]
+                                     [{:type :land} {:type :land} {:type :land}]
+                                     [{:type :city :city-status :player} {:type :land} {:type :land}]])
+        (reset! atoms/claimed-objectives #{})
+        (army/process-army [0 0])
+        ;; Should claim player city [2 0], not unexplored
+        (should (contains? @atoms/claimed-objectives [2 0]))))
+
+    (it "chooses free city over unexplored when no player cities"
+      ;; Army at [0 0], free city at [2 0], unexplored at [0 2]
+      (let [land {:type :land}
+            army-cell {:type :land :contents {:type :army :owner :computer}}
+            free-city {:type :city :city-status :free}]
+        (reset! atoms/game-map [[army-cell land land]
+                                 [land land land]
+                                 [free-city land land]])
+        ;; Computer map has unexplored at [0 2]
+        (reset! atoms/computer-map [[{:type :land} {:type :land} nil]
+                                     [{:type :land} {:type :land} {:type :land}]
+                                     [{:type :city :city-status :free} {:type :land} {:type :land}]])
+        (reset! atoms/claimed-objectives #{})
+        (army/process-army [0 0])
+        ;; Should claim free city [2 0], not unexplored
+        (should (contains? @atoms/claimed-objectives [2 0]))))
+
+    (it "explores when only unexplored cells exist"
+      ;; Army at [0 0], no cities, only unexplored territory
+      (let [land {:type :land}
+            army-cell {:type :land :contents {:type :army :owner :computer}}]
+        (reset! atoms/game-map [[army-cell land land]
+                                 [land land land]
+                                 [land land land]])
+        ;; Computer map has unexplored at [2 2]
+        (reset! atoms/computer-map [[{:type :land} {:type :land} {:type :land}]
+                                     [{:type :land} {:type :land} {:type :land}]
+                                     [{:type :land} {:type :land} nil]])
+        (reset! atoms/claimed-objectives #{})
+        (army/process-army [0 0])
+        ;; Should claim unexplored [2 2]
+        (should (contains? @atoms/claimed-objectives [2 2])))))
+
   (describe "objective distribution"
     (it "two armies on same continent target different free cities"
       ;; Map layout (5 cols):

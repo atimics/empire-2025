@@ -111,18 +111,33 @@
                           (= country-id (:patrol-country-id unit)))]
            true)))
 
-(defn country-city-producing-armies?
-  "Returns true if any other computer city in this country is already producing armies."
-  [city-pos country-id]
+(defn country-city-producing?
+  "Returns true if any other computer city in this country is already producing the given unit type."
+  [city-pos country-id unit-type]
   (some (fn [[coords prod]]
           (and (map? prod)
-               (= :army (:item prod))
+               (= unit-type (:item prod))
                (not= coords city-pos)
                (let [cell (get-in @atoms/game-map coords)]
                  (and (= :city (:type cell))
                       (= :computer (:city-status cell))
                       (= country-id (:country-id cell))))))
         @atoms/production))
+
+(defn country-city-producing-armies?
+  "Returns true if any other computer city in this country is already producing armies."
+  [city-pos country-id]
+  (country-city-producing? city-pos country-id :army))
+
+(defn- country-city-producing-transports?
+  "Returns true if any other computer city in this country is already producing transports."
+  [city-pos country-id]
+  (country-city-producing? city-pos country-id :transport))
+
+(defn- country-city-producing-destroyers?
+  "Returns true if any other computer city in this country is already producing destroyers."
+  [city-pos country-id]
+  (country-city-producing? city-pos country-id :destroyer))
 
 (defn- country-has-unadopted-transport?
   "Returns true if the country has a transport without an escort destroyer."
@@ -142,10 +157,11 @@
   "Per-country production priorities. Returns unit type or nil. CC=5."
   [city-pos country-id coastal? unit-counts]
   (cond
-    ;; 1. Transport: < max per country, coastal, need enough armies first
+    ;; 1. Transport: < max per country, coastal, need enough armies first, no other city producing
     (and coastal?
          (< (count-country-transports country-id) config/max-transports-per-country)
-         (>= (count-country-armies country-id) config/armies-before-transport))
+         (>= (count-country-armies country-id) config/armies-before-transport)
+         (not (country-city-producing-transports? city-pos country-id)))
     :transport
 
     ;; 2. Army: < max per country, no other city producing armies
@@ -158,10 +174,11 @@
          (< (count-country-patrol-boats country-id) config/max-patrol-boats-per-country))
     :patrol-boat
 
-    ;; 4. Destroyer: global cap, country has unadopted transport
+    ;; 4. Destroyer: global cap, country has unadopted transport, no other city producing
     (and coastal?
          (< (get unit-counts :destroyer 0) (get unit-counts :transport 0))
-         (country-has-unadopted-transport? country-id))
+         (country-has-unadopted-transport? country-id)
+         (not (country-city-producing-destroyers? city-pos country-id)))
     :destroyer
 
     ;; 5. Fighter: < max per country

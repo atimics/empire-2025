@@ -649,22 +649,23 @@
         (should-not-be-nil prod)
         (should= :army (:item prod)))))
 
-  (it "conquered city does not produce armies when country has 10+ armies"
+  (it "conquered city does not produce armies when country has 20+ armies"
     (with-redefs [rand (constantly 0.1)]
-      ;; Build a wider map with room for 10 armies and the conquering army + city
-      (reset! atoms/game-map (build-test-map ["aaaaaaaaaaO"
-                                              "a##########"]))
+      ;; Build a wider map with room for 20 armies and the conquering army + city
+      ;; 20 armies in row 0 (cols 0-19), plus city at col 20, and conquering army in row 1
+      (reset! atoms/game-map (build-test-map ["aaaaaaaaaaaaaaaaaaaaO"
+                                              "a####################"]))
       (reset! atoms/computer-map @atoms/game-map)
-      ;; Give all 11 armies the same country-id 3
-      (doseq [col (range 10)]
+      ;; Give all 21 armies the same country-id 3
+      (doseq [col (range 20)]
         (swap! atoms/game-map assoc-in [col 0 :contents :country-id] 3))
       (swap! atoms/game-map assoc-in [0 1 :contents :country-id] 3)
-      ;; Army at [0 0] conquers city at [10 0]
-      (computer-core/attempt-conquest-computer [0 0] [10 0])
+      ;; Army at [0 0] conquers city at [20 0]
+      (computer-core/attempt-conquest-computer [0 0] [20 0])
       ;; City should be computer-owned
-      (should= :computer (get-in @atoms/game-map [10 0 :city-status]))
-      ;; Production should NOT be set (10 armies still alive after conquering army removed)
-      (should-be-nil (get @atoms/production [10 0]))))
+      (should= :computer (get-in @atoms/game-map [20 0 :city-status]))
+      ;; Production should NOT be set (20 armies still alive after conquering army removed)
+      (should-be-nil (get @atoms/production [20 0]))))
 
   (it "conquered city does not produce armies when another city in country is already producing"
     (with-redefs [rand (constantly 0.1)]

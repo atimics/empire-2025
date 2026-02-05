@@ -510,6 +510,58 @@ For movements that take multiple rounds (target farther than one round of moveme
   (should= target-pos (:pos (get-test-unit atoms/game-map "A"))))
 ```
 
+### Stub Directives
+
+Stub directives use `with-redefs` to replace functions during the WHEN phase, enabling tests that depend on global game state (e.g., city counts, valid positions) without building large maps.
+
+**`GIVEN computer controls N cities.`**
+
+Stubs `empire.computer.production/count-computer-cities` to return N. Used for production gates that check city thresholds (carrier requires >10, satellite requires >15).
+
+```
+GIVEN computer controls 12 cities.
+```
+
+Generates `with-redefs` wrapping the WHEN code:
+```clojure
+(with-redefs [empire.computer.production/count-computer-cities (constantly 12)]
+  ;; WHEN code here
+  )
+```
+
+**`GIVEN a valid carrier position exists.`**
+
+Stubs `empire.computer.ship/find-carrier-position` to return `[0 0]`. Used for carrier production which requires a valid positioning result.
+
+```
+GIVEN a valid carrier position exists.
+```
+
+Generates:
+```clojure
+(with-redefs [empire.computer.ship/find-carrier-position (constantly [0 0])]
+  ;; WHEN code here
+  )
+```
+
+Multiple stubs can be combined — all bindings are merged into a single `with-redefs`:
+```
+GIVEN computer controls 12 cities.
+GIVEN a valid carrier position exists.
+```
+
+Generates:
+```clojure
+(with-redefs [empire.computer.production/count-computer-cities (constantly 12)
+              empire.computer.ship/find-carrier-position (constantly [0 0])]
+  ;; WHEN code here
+  )
+```
+
+**Parser IR:** `{:type :stub :bindings [{:var "fully.qualified/fn-name" :value "(constantly N)"}]}`
+
+**Generator behavior:** Stub givens produce no setup code. Instead, the generator collects all stub bindings and wraps the WHEN code in a `with-redefs` block. THEN assertions run outside the `with-redefs` (they check atom state, not stubbed functions).
+
 ## Rules
 
 1. Always ask permission before modifying an acceptance test file.

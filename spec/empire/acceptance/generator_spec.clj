@@ -478,7 +478,27 @@
       (should-contain "should-not=" result)
       (should-contain ":army" result)
       (should-contain "get-test-city" result)
-      (should-contain "atoms/production" result))))
+      (should-contain "atoms/production" result)))
+
+  (it "generates stub given as empty string"
+    (let [result (gen/generate-given {:type :stub
+                                      :bindings [{:var "empire.computer.production/count-computer-cities"
+                                                  :value "(constantly 12)"}]})]
+      (should= "" result)))
+
+  (it "wraps when-code in with-redefs when stubs present"
+    (let [test-ir {:line 1
+                   :description "test"
+                   :givens [{:type :map :target :game-map :rows ["~X~"]}
+                            {:type :stub
+                             :bindings [{:var "empire.computer.production/count-computer-cities"
+                                         :value "(constantly 12)"}]}]
+                   :whens [{:type :evaluate-production :city "X"}]
+                   :thens [{:type :production :city "X" :expected :carrier}]}
+          result (gen/generate-test test-ir "test.txt")]
+      (should-contain "with-redefs" result)
+      (should-contain "empire.computer.production/count-computer-cities" result)
+      (should-contain "(constantly 12)" result))))
 
 ;; --- Integration: generate-spec on actual EDN data ---
 

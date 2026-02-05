@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [empire.atoms :as atoms]
             [empire.movement.pathfinding :as pathfinding]
+            [empire.performance :as perf]
             [empire.units.dispatcher :as dispatcher]))
 
 (defn- make-unit [unit-type owner]
@@ -221,6 +222,9 @@
   (reset! atoms/coast-walkers-produced {})
   (reset! atoms/sea-lane-network {:nodes {} :segments {} :pos->node {} :pos->seg {}
                                    :next-node-id 1 :next-segment-id 1})
+  (reset! perf/monitoring-active false)
+  (reset! perf/monitoring-frames-remaining 0)
+  (reset! perf/monitoring-data [])
   (pathfinding/clear-path-cache))
 
 (defn message-matches?

@@ -10,6 +10,9 @@
             [empire.game-loop.item-processing :as item-processing]
             [empire.ui.rendering-util :as ru]))
 
+(defn- nanos->ms [nanos]
+  (/ nanos 1000000.0))
+
 (defn update-player-map
   "Reveals cells near player-owned units on the visible map."
   []
@@ -120,6 +123,37 @@
                  (not @atoms/waiting-for-input)
                  (or (seq @atoms/player-items) (seq @atoms/computer-items)))
         (recur (dec remaining))))))
+
+(defn- describe-advance-action
+  "Returns a string describing what advance-game will do."
+  []
+  (cond
+    @atoms/paused "paused"
+    (and (empty? @atoms/player-items) (empty? @atoms/computer-items))
+    (if @atoms/pause-requested "pause-at-round-end" "start-new-round")
+    @atoms/waiting-for-input "waiting-for-input"
+    (seq @atoms/player-items) (format "player-item[%d left]" (count @atoms/player-items))
+    :else (format "computer-item[%d left]" (count @atoms/computer-items))))
+
+(defn advance-game-batch-monitored
+  "Like advance-game-batch but returns timing details for each call.
+   Returns a vector of {:action string :ms elapsed}."
+  []
+  (loop [remaining config/advances-per-frame
+         details []]
+    (if (not (pos? remaining))
+      details
+      (let [action (describe-advance-action)
+            start (System/nanoTime)
+            _ (advance-game)
+            elapsed (nanos->ms (- (System/nanoTime) start))
+            new-details (conj details {:action action :ms elapsed})]
+        (if (and (> remaining 1)
+                 (not @atoms/paused)
+                 (not @atoms/waiting-for-input)
+                 (or (seq @atoms/player-items) (seq @atoms/computer-items)))
+          (recur (dec remaining) new-details)
+          new-details)))))
 
 (defn toggle-pause
   "Toggles pause state. If running, requests pause at end of round.

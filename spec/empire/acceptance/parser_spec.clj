@@ -375,6 +375,22 @@
       (let [lines ["t has 6 armies."]
             result (parser/parse-given lines {})]
         (should= [{:type :unit-props :unit "t" :props {:army-count 6}}]
+                 (:givens result))))
+
+    (it "parses 'computer controls N cities' as stub"
+      (let [lines ["GIVEN computer controls 12 cities."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :stub
+                   :bindings [{:var "empire.computer.production/count-computer-cities"
+                               :value "(constantly 12)"}]}]
+                 (:givens result))))
+
+    (it "parses 'a valid carrier position exists' as stub"
+      (let [lines ["GIVEN a valid carrier position exists."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :stub
+                   :bindings [{:var "empire.computer.ship/find-carrier-position"
+                               :value "(constantly [0 0])"}]}]
                  (:givens result)))))
 
   (describe "parse-when"

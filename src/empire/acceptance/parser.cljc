@@ -290,6 +290,18 @@
     :handler given-handle-waiting-for-input-bare}
    {:regex #"(\w+)'s\s+target\s+is\s+(\S+)"
     :handler given-handle-unit-target}
+   {:regex #"(?:the\s+)?computer\s+controls?\s+(\d+)\s+cit(?:y|ies)"
+    :handler (fn [[_ n] _ctx]
+               {:directive :stub
+                :ir {:type :stub
+                     :bindings [{:var "empire.computer.production/count-computer-cities"
+                                 :value (str "(constantly " n ")")}]}})}
+   {:regex #"(?:a\s+)?valid\s+carrier\s+position\s+exists"
+    :handler (fn [_ _ctx]
+               {:directive :stub
+                :ir {:type :stub
+                     :bindings [{:var "empire.computer.ship/find-carrier-position"
+                                 :value "(constantly [0 0])"}]}})}
    {:regex #"(\w+)\s+belongs\s+to\s+country\s+(\d+)"
     :handler (fn [[_ ref n] _ctx]
                (let [country-id (Integer/parseInt n)]
@@ -359,7 +371,7 @@
                   (swap! i inc))
 
               (:production :no-production :round :destination :cell-props
-               :player-items :waiting-for-input-bare :unit-target :city-prop)
+               :player-items :waiting-for-input-bare :unit-target :city-prop :stub)
               (do (swap! givens conj (:ir parsed))
                   (swap! i inc))
 

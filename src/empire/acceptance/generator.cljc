@@ -361,6 +361,7 @@
      :player-items (generate-player-items-given given)
      :waiting-for-input-state (generate-waiting-for-input-state-given given)
      :no-production (generate-no-production-given given)
+     :stub ""
      :unrecognized (str "    (pending \"Unrecognized: " (:text given) "\")")
      (str "    ;; Unknown given type: " (:type given)))))
 
@@ -709,6 +710,13 @@
 
 ;; --- Test generation ---
 
+(defn- wrap-with-redefs [bindings code-str]
+  (let [binding-pairs (str/join "\n                  "
+                        (map #(str (:var %) " " (:value %)) bindings))
+        lines (str/split-lines code-str)
+        re-indented (str/join "\n" (map #(str "  " %) lines))]
+    (str "    (with-redefs [" binding-pairs "]\n" re-indented ")")))
+
 (defn generate-test
   "Generate a single (it ...) block from test IR."
   [test-ir source-name]
@@ -717,8 +725,14 @@
                      (subs description 0 (dec (count description)))
                      description)
         it-name (str source-name ":" line " - " clean-desc)
-        given-code (str/join "\n" (map #(generate-given % givens) givens))
-        when-code (str/join "\n" (map #(generate-when % givens) whens))
+        stub-givens (filter #(= :stub (:type %)) givens)
+        regular-givens (remove #(= :stub (:type %)) givens)
+        all-bindings (mapcat :bindings stub-givens)
+        given-code (str/join "\n" (map #(generate-given % givens) regular-givens))
+        raw-when-code (str/join "\n" (map #(generate-when % givens) whens))
+        when-code (if (seq all-bindings)
+                    (wrap-with-redefs all-bindings raw-when-code)
+                    raw-when-code)
         then-code (str/join "\n" (map #(generate-then % givens) thens))
         body-parts (remove str/blank?
                            [(str "    (reset-all-atoms!)")

@@ -159,3 +159,54 @@ WHEN a new round starts.
 
 THEN there is an a at [1 1].
 THEN there is no production at X.
+
+;===============================================================
+; Carrier produced when city count and position stubs are met.
+;===============================================================
+GIVEN game map
+  ~X~
+GIVEN computer map
+  ~~~
+GIVEN computer controls 12 cities.
+GIVEN a valid carrier position exists.
+
+WHEN the computer chooses production at X.
+
+THEN production at X is carrier.
+
+;===============================================================
+; Battleship produced when carrier on map but few cities.
+;===============================================================
+GIVEN game map
+  ~X~c
+GIVEN computer map
+  ~~~~
+
+WHEN the computer chooses production at X.
+
+THEN production at X is battleship.
+
+;===============================================================
+; Submarine produced when carrier and battleship on map.
+;===============================================================
+GIVEN game map
+  ~X~cb
+GIVEN computer map
+  ~~~~~
+
+WHEN the computer chooses production at X.
+
+THEN production at X is submarine.
+
+;===============================================================
+; Satellite produced at inland city with enough cities.
+;===============================================================
+GIVEN game map
+  #X#
+GIVEN computer map
+  ###
+GIVEN computer controls 16 cities.
+
+WHEN the computer chooses production at X.
+
+THEN production at X is satellite.

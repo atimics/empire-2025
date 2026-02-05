@@ -167,7 +167,9 @@
 (describe "key-down :space when paused"
   (before
     (reset-all-atoms!)
-    (reset! atoms/game-map (build-test-map ["#"]))
+    (reset! atoms/game-map (build-test-map ["O"]))  ;; Player city so not game over
+    (reset! atoms/player-map (build-test-map ["#"]))
+    (reset! atoms/computer-map (build-test-map ["#"]))
     (reset! atoms/paused true)
     (reset! atoms/pause-requested false)
     (reset! atoms/backtick-pressed false)

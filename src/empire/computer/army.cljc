@@ -69,6 +69,13 @@
                 (nil? (:contents cell))))
             (get-passable-neighbors pos country-id))))
 
+(defn- find-nearest-unclaimed
+  "Find nearest position from candidates not in claimed-objectives."
+  [candidates pos]
+  (let [unclaimed (remove @atoms/claimed-objectives candidates)]
+    (when (seq unclaimed)
+      (apply min-key #(core/distance pos %) unclaimed))))
+
 (defn- find-adjacent-enemy
   "Finds an adjacent enemy unit or city to attack."
   [pos]
@@ -111,17 +118,26 @@
 
 (defn- find-land-objective
   "Find a land objective not already claimed by another army.
-   VMS-style: distributes armies across different targets."
+   VMS-style: distributes armies across different targets.
+   Priority: player cities > free cities > unexplored."
   [pos]
   (let [cont-positions (land-objectives/flood-fill-continent pos)
-        all-objectives (land-objectives/find-all-objectives-on-continent cont-positions)]
-    (when (seq all-objectives)
-      (let [claimed @atoms/claimed-objectives
-            unclaimed (remove claimed all-objectives)
-            candidates (if (seq unclaimed) unclaimed all-objectives)
-            nearest (apply min-key #(core/distance pos %) candidates)]
-        (swap! atoms/claimed-objectives conj nearest)
-        nearest))))
+        all-objectives (land-objectives/find-all-objectives-on-continent cont-positions)
+        comp-map @atoms/computer-map
+        ;; Categorize objectives
+        player-cities (filter #(= :player (:city-status (get-in comp-map %))) all-objectives)
+        free-cities (filter #(= :free (:city-status (get-in comp-map %))) all-objectives)
+        unexplored (filter #(nil? (get-in comp-map %)) all-objectives)
+        ;; Priority order: player > free > unexplored
+        target (or (find-nearest-unclaimed player-cities pos)
+                   (find-nearest-unclaimed free-cities pos)
+                   (find-nearest-unclaimed unexplored pos)
+                   ;; Fallback: any claimed objective
+                   (when (seq all-objectives)
+                     (apply min-key #(core/distance pos %) all-objectives)))]
+    (when target
+      (swap! atoms/claimed-objectives conj target)
+      target)))
 
 (defn- try-move
   "Attempt to move army from pos to target. Returns target if moved, nil if blocked."

@@ -79,7 +79,14 @@
   ;; Carrier fighters stay asleep until 'u' is pressed - do not auto-wake at round start
   (reset! atoms/claimed-objectives #{})
   (reset! atoms/claimed-transport-targets #{})
-  (reset! atoms/player-items (vec (build-player-items)))
+  (let [player-items (vec (build-player-items))]
+    (reset! atoms/player-items player-items)
+    ;; Check for game over: no player cities or units
+    (when (and @atoms/game-over-check-enabled (empty? player-items))
+      (reset! atoms/paused true)
+      (reset! atoms/error-message "****GAME OVER*****")
+      (reset! atoms/error-until Long/MAX_VALUE)
+      (reset! atoms/map-to-display :actual-map)))
   (reset! atoms/computer-items (vec (build-computer-items)))
   (reset! atoms/waiting-for-input false)
   (reset! atoms/attention-message "")

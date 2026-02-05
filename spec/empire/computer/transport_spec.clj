@@ -433,6 +433,57 @@
                                      true))]
           (should= 0 armies-on-land)))))
 
+  (describe "player city priority"
+    (it "chooses player city over free city when both visible"
+      ;; Origin continent (row 0), free city at row 3 (closer), player city at row 6
+      ;; Transport should prefer player city even though free city is closer
+      (let [game-map (build-test-map ["X##"
+                                      "~~~"
+                                      "~~~"
+                                      "+##"
+                                      "###"
+                                      "~~~"
+                                      "O##"
+                                      "###"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (reset! atoms/claimed-transport-targets #{})
+        (let [pickup-continent (land-objectives/flood-fill-continent [0 0])
+              target (transport/find-unload-target pickup-continent [1 1])]
+          ;; Should pick player city [0 6], not free city [0 3] (even though farther)
+          (should= [0 6] target))))
+
+    (it "chooses free city when no player cities visible off-continent"
+      ;; Origin continent has player city, only free city off-continent
+      (let [game-map (build-test-map ["O##"
+                                      "~~~"
+                                      "~~~"
+                                      "+##"
+                                      "###"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (reset! atoms/claimed-transport-targets #{})
+        (let [pickup-continent (land-objectives/flood-fill-continent [0 0])
+              target (transport/find-unload-target pickup-continent [1 1])]
+          ;; Should pick free city [0 3] since no player cities off-continent
+          (should= [0 3] target))))
+
+    (it "respects pickup-continent exclusion for player cities"
+      ;; Player cities on both origin and off-continent
+      ;; Should only target the off-continent player city
+      (let [game-map (build-test-map ["O##"
+                                      "~~~"
+                                      "~~~"
+                                      "O##"
+                                      "###"])]
+        (reset! atoms/game-map game-map)
+        (reset! atoms/computer-map game-map)
+        (reset! atoms/claimed-transport-targets #{})
+        (let [pickup-continent (land-objectives/flood-fill-continent [0 0])
+              target (transport/find-unload-target pickup-continent [1 1])]
+          ;; Should pick [0 3], not [0 0] which is on pickup continent
+          (should= [0 3] target)))))
+
   (describe "transport target diversification"
     (it "two transports pick different cities"
       ;; Origin continent (rows 0-1), two target continents each with a player city

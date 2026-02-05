@@ -107,6 +107,10 @@
   "An atom indicating if the game is currently paused."
   (atom false))
 
+(def game-over-check-enabled
+  "An atom to enable/disable game-over detection. Set to false in tests."
+  (atom true))
+
 (def pause-requested
   "An atom indicating a pause has been requested at end of current round."
   (atom false))

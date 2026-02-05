@@ -207,6 +207,7 @@
   (reset! atoms/computer-map {})
   (reset! atoms/destination nil)
   (reset! atoms/paused false)
+  (reset! atoms/game-over-check-enabled false)
   (reset! atoms/pause-requested false)
   (reset! atoms/computer-items [])
   (reset! atoms/computer-turn false)

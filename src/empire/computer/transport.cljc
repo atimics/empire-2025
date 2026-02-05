@@ -95,18 +95,24 @@
 
 (defn find-unload-target
   "Find best enemy city to unload near, excluding pickup continent.
+   Prioritizes player cities over free cities.
    Prefers unclaimed targets to spread transports."
   [pickup-continent transport-pos]
   (let [player-cities (core/find-visible-cities #{:player})
         free-cities (core/find-visible-cities #{:free})
-        all-targets (concat player-cities free-cities)
-        off-continent (if pickup-continent
-                        (remove #(contains? pickup-continent %) all-targets)
-                        all-targets)]
-    (when (seq off-continent)
+        ;; Filter both to off-continent
+        player-off (if pickup-continent
+                     (remove #(contains? pickup-continent %) player-cities)
+                     player-cities)
+        free-off (if pickup-continent
+                   (remove #(contains? pickup-continent %) free-cities)
+                   free-cities)
+        ;; Priority: player cities first
+        priority-targets (if (seq player-off) player-off free-off)]
+    (when (seq priority-targets)
       (let [claimed @atoms/claimed-transport-targets
-            unclaimed (remove claimed off-continent)
-            candidates (if (seq unclaimed) unclaimed off-continent)
+            unclaimed (remove claimed priority-targets)
+            candidates (if (seq unclaimed) unclaimed priority-targets)
             best (apply min-key
                         #(score-target-city transport-pos %)
                         candidates)]

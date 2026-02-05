@@ -301,6 +301,53 @@
   []
   (reset! atoms/distant-city-pairs (compute-distant-city-pairs)))
 
+(defn find-reserved-pairs
+  "Returns set of city pairs already assigned to computer carriers.
+   Includes carriers in :positioning and :holding modes."
+  []
+  (let [game-map @atoms/game-map]
+    (set (for [i (range (count game-map))
+               j (range (count (first game-map)))
+               :let [unit (get-in game-map [i j :contents])]
+               :when (and (= :carrier (:type unit))
+                          (= :computer (:owner unit))
+                          (#{:positioning :holding} (:carrier-mode unit))
+                          (:carrier-pair unit))]
+           (:carrier-pair unit)))))
+
+(defn find-unreserved-pair
+  "Returns a city pair that needs a carrier but has none assigned.
+   Returns nil if all distant pairs have carriers or no distant pairs exist."
+  []
+  (when (nil? @atoms/distant-city-pairs)
+    (update-distant-city-pairs!))
+  (let [distant-pairs @atoms/distant-city-pairs
+        reserved-pairs (find-reserved-pairs)
+        unreserved (clojure.set/difference distant-pairs reserved-pairs)]
+    (first unreserved)))
+
+(defn find-position-between-cities
+  "Finds a sea position between two cities where a carrier can refuel fighters.
+   Returns a position within fighter-fuel distance of both cities, closest to midpoint.
+   Returns nil if no such position exists."
+  [city-pair]
+  (let [[city1 city2] (vec city-pair)
+        midpoint [(quot (+ (first city1) (first city2)) 2)
+                  (quot (+ (second city1) (second city2)) 2)]
+        game-map @atoms/game-map
+        cols (count game-map)
+        rows (count (first game-map))
+        candidates (for [i (range cols)
+                         j (range rows)
+                         :let [cell (get-in game-map [i j])]
+                         :when (and (= :sea (:type cell))
+                                    (nil? (:contents cell))
+                                    (<= (core/distance [i j] city1) config/fighter-fuel)
+                                    (<= (core/distance [i j] city2) config/fighter-fuel))]
+                     [i j])]
+    (when (seq candidates)
+      (apply min-key #(core/distance % midpoint) candidates))))
+
 (defn find-refueling-sites
   "Returns positions of all computer cities and holding carriers."
   []
@@ -315,80 +362,33 @@
                          (= :holding (get-in cell [:contents :carrier-mode]))))]
       [i j])))
 
-(defn find-positioning-carrier-targets
-  "Returns carrier-target positions of all computer carriers in :positioning mode."
-  []
-  (let [game-map @atoms/game-map]
-    (for [i (range (count game-map))
-          j (range (count (first game-map)))
-          :let [contents (get-in game-map [i j :contents])]
-          :when (and (= :carrier (:type contents))
-                     (= :computer (:owner contents))
-                     (= :positioning (:carrier-mode contents))
-                     (:carrier-target contents))]
-      (:carrier-target contents))))
-
-(defn- valid-carrier-position?
-  "Returns true if pos is a valid carrier position: empty sea, within fuel range
-   of at least one refueling site, and at least carrier-spacing from all spacing sites."
-  [pos refuel-sites spacing-sites]
-  (let [cell (get-in @atoms/game-map pos)]
-    (and (= :sea (:type cell))
-         (nil? (:contents cell))
-         (some #(<= (core/distance pos %) config/fighter-fuel) refuel-sites)
-         (every? #(>= (core/distance pos %) config/carrier-spacing) spacing-sites))))
-
 (defn find-carrier-position
-  "Finds a valid carrier position between two refueling sites, preferring
-   positions closest to the midpoint of distant site pairs. Falls back to
-   first valid position by top-left scan."
+  "Finds a carrier position for an unreserved city pair.
+   Returns {:position pos :pair city-pair} or nil if no pair needs a carrier."
   []
-  (let [refuel-sites (find-refueling-sites)
-        positioning-targets (find-positioning-carrier-targets)
-        spacing-sites (into refuel-sites positioning-targets)]
-    (when (seq refuel-sites)
-      (let [pairs (for [a refuel-sites
-                        b refuel-sites
-                        :when (and (not= a b)
-                                   (> (core/distance a b) config/carrier-spacing)
-                                   (<= (core/distance a b) (* 2 config/fighter-fuel)))]
-                    [a b])
-            sorted-pairs (sort-by (fn [[a b]] (- (core/distance a b))) pairs)]
-        (or
-          (first
-            (for [[a b] sorted-pairs
-                  :let [mid [(quot (+ (first a) (first b)) 2)
-                             (quot (+ (second a) (second b)) 2)]
-                        radius 8
-                        candidates (for [dr (range (- radius) (inc radius))
-                                         dc (range (- radius) (inc radius))
-                                         :let [pos [(+ (first mid) dr)
-                                                    (+ (second mid) dc)]]
-                                         :when (valid-carrier-position? pos refuel-sites spacing-sites)]
-                                     pos)]
-                  :when (seq candidates)
-                  :let [best (apply min-key #(core/distance % mid) candidates)]]
-              best))
-          (let [game-map @atoms/game-map]
-            (first (for [i (range (count game-map))
-                         j (range (count (first game-map)))
-                         :when (valid-carrier-position? [i j] refuel-sites spacing-sites)]
-                     [i j]))))))))
+  (when-let [pair (find-unreserved-pair)]
+    (when-let [pos (find-position-between-cities pair)]
+      {:position pos :pair pair})))
 
 (declare position-carrier-without-target)
 
+(defn- target-still-valid?
+  "Returns true if the carrier target is still a valid sea cell."
+  [target]
+  (let [cell (get-in @atoms/game-map target)]
+    (and (= :sea (:type cell))
+         (nil? (:contents cell)))))
+
 (defn- position-carrier-with-target
   "Handles carrier in positioning mode that has a target.
-   Validates target; uses pathfinding for movement. CC=4."
+   Uses pathfinding for movement. CC=3."
   [pos target]
   (cond
     (= pos target)
     (swap! atoms/game-map update-in (conj pos :contents)
            #(-> % (assoc :carrier-mode :holding) (dissoc :carrier-target)))
 
-    (let [refuel-sites (vec (find-refueling-sites))
-          spacing-sites (into refuel-sites (vec (find-positioning-carrier-targets)))]
-      (not (valid-carrier-position? target refuel-sites spacing-sites)))
+    (not (target-still-valid? target))
     (do (swap! atoms/game-map update-in (conj pos :contents) dissoc :carrier-target)
         (position-carrier-without-target pos))
 
@@ -402,9 +402,10 @@
 (defn- position-carrier-without-target
   "Handles carrier in positioning mode without a target. Finds one or holds."
   [pos]
-  (if-let [new-target (find-carrier-position)]
-    (do (swap! atoms/game-map assoc-in (conj pos :contents :carrier-target) new-target)
-        (when-let [next-pos (pathfinding/next-step pos new-target :carrier)]
+  (if-let [{:keys [position pair]} (find-carrier-position)]
+    (do (swap! atoms/game-map update-in (conj pos :contents)
+               assoc :carrier-target position :carrier-pair pair :refueling :position)
+        (when-let [next-pos (pathfinding/next-step pos position :carrier)]
           (core/move-unit-to pos next-pos)
           (visibility/update-cell-visibility pos :computer)
           (visibility/update-cell-visibility next-pos :computer)
@@ -415,16 +416,26 @@
 (defn- reposition-carrier
   "Handles carrier in repositioning mode. Finds new position or holds."
   [pos]
-  (if-let [new-target (find-carrier-position)]
+  (if-let [{:keys [position pair]} (find-carrier-position)]
     (do (swap! atoms/game-map update-in (conj pos :contents)
-               #(-> % (assoc :carrier-mode :positioning :carrier-target new-target)))
-        (when-let [next-pos (pathfinding/next-step pos new-target :carrier)]
+               assoc :carrier-mode :positioning :carrier-target position :carrier-pair pair :refueling :position)
+        (when-let [next-pos (pathfinding/next-step pos position :carrier)]
           (core/move-unit-to pos next-pos)
           (visibility/update-cell-visibility pos :computer)
           (visibility/update-cell-visibility next-pos :computer)
           next-pos))
     (swap! atoms/game-map update-in (conj pos :contents)
            assoc :carrier-mode :holding)))
+
+(defn- pair-still-valid?
+  "Returns true if both cities in the pair are still computer-owned."
+  [pair]
+  (let [game-map @atoms/game-map]
+    (every? (fn [pos]
+              (let [cell (get-in game-map pos)]
+                (and (= :city (:type cell))
+                     (= :computer (:city-status cell)))))
+            pair)))
 
 (defn- process-carrier
   "Processes a computer carrier based on its carrier-mode.
@@ -439,7 +450,13 @@
           (position-carrier-with-target pos target)
           (position-carrier-without-target pos)))
 
-      :holding nil
+      :holding
+      (let [pair (:carrier-pair unit)]
+        (if (or (nil? pair) (pair-still-valid? pair))
+          nil  ; Stay holding - no pair or pair is valid
+          (do (swap! atoms/game-map update-in (conj pos :contents)
+                     #(-> % (assoc :carrier-mode :repositioning) (dissoc :carrier-pair)))
+              nil)))
 
       :repositioning (reposition-carrier pos)
 

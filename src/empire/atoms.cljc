@@ -189,5 +189,6 @@
 (def distant-city-pairs
   "Set of computer city pairs where distance > fighter-fuel.
    Each pair is a set of two positions #{[r1 c1] [r2 c2]}.
-   Updated when computer conquers or loses a city."
-  (atom #{}))
+   Updated when computer conquers or loses a city.
+   nil means not yet computed; #{} means computed but empty."
+  (atom nil))

@@ -2,6 +2,7 @@
   "Tests for VMS Empire style computer production."
   (:require [speclj.core :refer :all]
             [empire.computer.production :as production]
+            [empire.computer.ship :as ship]
             [empire.atoms :as atoms]
             [empire.test-utils :refer [build-test-map reset-all-atoms!]]))
 
@@ -377,15 +378,20 @@
   (before (reset-all-atoms!))
 
   (it "produces carrier when >10 cities, <2 producing, valid position exists"
-    (let [cells (vec (for [j (range 60)]
+    ;; 12 cities: 6 at j=0,2,4,6,8,10 and 6 at j=50,52,54,56,58,60
+    ;; Distance 0 to 50 = 50 > 32, creating a distant pair that needs carrier
+    (let [cells (vec (for [j (range 80)]
                        (cond
-                         (and (even? j) (<= j 22)) {:type :city :city-status :computer}
-                         (<= j 22) {:type :land}
+                         (and (even? j) (<= j 10)) {:type :city :city-status :computer}
+                         (<= j 10) {:type :land}
+                         (and (even? j) (>= j 50) (<= j 60)) {:type :city :city-status :computer}
+                         (and (>= j 50) (<= j 60)) {:type :land}
                          :else {:type :sea})))]
       (reset! atoms/game-map [cells])
       (reset! atoms/computer-map [cells])
-      (satisfy-coastal-per-country 22)
-      (should= :carrier (production/decide-production [0 22]))))
+      (satisfy-coastal-per-country 10)
+      (ship/update-distant-city-pairs!)
+      (should= :carrier (production/decide-production [0 10]))))
 
   (it "does not produce carrier when <=10 cities"
     (let [cells (vec (for [j (range 50)]

@@ -103,7 +103,10 @@
             (or (some #{:unit-eventually-at :unit-after-steps} types)
                 (some :at-next-round thens)
                 (some #(and (= :unit-at-next-round (:type %))
-                            (not (:at-next-step %))) thens)))}])
+                            (not (:at-next-step %))) thens)))}
+   {:need :computer-production
+    :pred (fn [{:keys [whens]}]
+            (some #(= :evaluate-production (:type %)) whens))}])
 
 (defn determine-needs
   "Scan all IR nodes across all tests. Returns a set of keywords
@@ -149,6 +152,8 @@
     (swap! requires conj "[empire.ui.input :as input]")
     (when (contains? needs :quil)
       (swap! requires conj "[quil.core :as q]"))
+    (when (contains? needs :computer-production)
+      (swap! requires conj "[empire.computer.production :as computer-production]"))
 
     (str "(ns " ns-name "\n"
          "  (:require [speclj.core :refer :all]\n"
@@ -385,6 +390,10 @@
 (defn- generate-visibility-update-when [_]
   "    (game-loop/update-player-map)")
 
+(defn- generate-evaluate-production-when [{:keys [city]}]
+  (let [pos-expr (target-pos-expr city)]
+    (str "    (computer-production/process-computer-city " pos-expr ")")))
+
 (defn- generate-start-new-round-when [_]
   (str "    (game-loop/start-new-round)\n"
        "    (game-loop/advance-game)"))
@@ -413,6 +422,7 @@
      :advance-game-batch (generate-advance-game-when when-ir)
      :process-player-items (generate-process-player-items-when when-ir)
      :advance-until-waiting (generate-advance-until-waiting-when when-ir)
+     :evaluate-production (generate-evaluate-production-when when-ir)
      :waiting-for-input (generate-waiting-for-input-given when-ir givens)
      :unrecognized (str "    (pending \"Unrecognized: " (:text when-ir) "\")")
      (str "    ;; Unknown when type: " (:type when-ir)))))
@@ -597,6 +607,10 @@
          "      (should= " (pr-str expected) " (:item prod))\n"
          "      (should= " remaining-rounds " (:remaining-rounds prod)))")))
 
+(defn- generate-production-not-then [{:keys [city excluded]}]
+  (let [pos-expr (target-pos-expr city)]
+    (str "    (should-not= " (pr-str excluded) " (:item (get @atoms/production " pos-expr ")))")))
+
 (defn- generate-game-paused-then [_]
   "    (should @atoms/paused)")
 
@@ -642,6 +656,7 @@
     :production (generate-production-then then-ir)
     :production-with-rounds (generate-production-with-rounds-then then-ir)
     :no-production (generate-no-production-then then-ir)
+    :production-not (generate-production-not-then then-ir)
     :game-paused (generate-game-paused-then then-ir)
     :player-map-cell-not-nil (generate-player-map-cell-not-nil-then then-ir)
     :player-map-cell-nil (generate-player-map-cell-nil-then then-ir)

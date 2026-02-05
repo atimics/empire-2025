@@ -78,7 +78,11 @@
 
   (it "detects :quil when whens have :mouse-at-key"
     (let [tests [{:givens [] :whens [{:type :mouse-at-key :coords [0 0] :key :period}] :thens []}]]
-      (should-contain :quil (gen/determine-needs tests)))))
+      (should-contain :quil (gen/determine-needs tests))))
+
+  (it "detects :computer-production when whens have :evaluate-production"
+    (let [tests [{:givens [] :whens [{:type :evaluate-production :city "X"}] :thens []}]]
+      (should-contain :computer-production (gen/determine-needs tests)))))
 
 ;; --- generate-given tests ---
 
@@ -238,7 +242,13 @@
 
   (it "generates visibility-update when"
     (let [result (gen/generate-when {:type :visibility-update})]
-      (should-contain "update-player-map" result))))
+      (should-contain "update-player-map" result)))
+
+  (it "generates evaluate-production when"
+    (let [result (gen/generate-when {:type :evaluate-production :city "X"})]
+      (should-contain "computer-production/process-computer-city" result)
+      (should-contain "get-test-city" result)
+      (should-contain "\"X\"" result))))
 
 ;; --- generate-then tests ---
 
@@ -442,7 +452,14 @@
     (let [result (gen/generate-given {:type :cell-props :coords [0 0] :props {:marching-orders :lookaround}})]
       (should-contain "update-in" result)
       (should-contain ":lookaround" result)
-      (should-contain ":marching-orders" result))))
+      (should-contain ":marching-orders" result)))
+
+  (it "generates production-not then"
+    (let [result (gen/generate-then {:type :production-not :city "X" :excluded :army} [])]
+      (should-contain "should-not=" result)
+      (should-contain ":army" result)
+      (should-contain "get-test-city" result)
+      (should-contain "atoms/production" result))))
 
 ;; --- Integration: generate-spec on actual EDN data ---
 

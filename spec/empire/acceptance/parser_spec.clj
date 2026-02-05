@@ -267,6 +267,36 @@
       (let [lines ["D's target is ="]
             result (parser/parse-given lines {})]
         (should= [{:type :unit-target :unit "D" :target "="}]
+                 (:givens result))))
+
+    (it "parses generic unit property - country-id"
+      (let [lines ["a has country-id 1."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "a" :props {:country-id 1}}]
+                 (:givens result))))
+
+    (it "parses generic unit property - patrol-country-id"
+      (let [lines ["p has patrol-country-id 1."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "p" :props {:patrol-country-id 1}}]
+                 (:givens result))))
+
+    (it "parses generic unit property - army-count on transport"
+      (let [lines ["t has army-count 6."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "t" :props {:army-count 6}}]
+                 (:givens result))))
+
+    (it "parses generic unit property - boolean true"
+      (let [lines ["t has been-to-sea true."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "t" :props {:been-to-sea true}}]
+                 (:givens result))))
+
+    (it "parses generic unit property combined with mode"
+      (let [lines ["a is awake with country-id 1."]
+            result (parser/parse-given lines {})]
+        (should= [{:type :unit-props :unit "a" :props {:mode :awake :country-id 1}}]
                  (:givens result)))))
 
   (describe "parse-when"
@@ -403,7 +433,19 @@
       (let [lines ["WHEN the player presses D and something unexpected."]
             ctx {:has-waiting-for-input true}
             output (with-out-str (parser/parse-when lines ctx))]
-        (should-contain "WARNING" output))))
+        (should-contain "WARNING" output)))
+
+    (it "parses production for X is evaluated"
+      (let [lines ["WHEN production for X is evaluated."]
+            result (parser/parse-when lines {})]
+        (should= [{:type :evaluate-production :city "X"}]
+                 (:whens result))))
+
+    (it "parses production updates"
+      (let [lines ["WHEN production updates."]
+            result (parser/parse-when lines {})]
+        (should= [{:type :update-production}]
+                 (:whens result)))))
 
   (describe "parse-then"
     (it "parses unit at position"
@@ -717,6 +759,18 @@
       (let [lines ["THEN A has target [4 0]."]
             result (parser/parse-then lines {})]
         (should= [{:type :unit-prop :unit "A" :property :target :expected [4 0]}]
+                 (:thens result))))
+
+    (it "parses negative production assertion"
+      (let [lines ["THEN production at X is not army."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :production-not :city "X" :excluded :army}]
+                 (:thens result))))
+
+    (it "parses negative production with hyphenated item"
+      (let [lines ["THEN production at X is not patrol-boat."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :production-not :city "X" :excluded :patrol-boat}]
                  (:thens result)))))
 
   (describe "parse-file integration"

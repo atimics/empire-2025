@@ -1,0 +1,146 @@
+; Computer AI production decision tests.
+
+;===============================================================
+; No-country city produces army when continent has free city.
+;===============================================================
+GIVEN game map
+  X+
+  ##
+GIVEN computer map
+  X+
+  ##
+
+WHEN production for X is evaluated.
+
+THEN production at X is army.
+
+;===============================================================
+; No-country city produces nothing when no land objective.
+;===============================================================
+GIVEN game map
+  X#
+  ##
+GIVEN computer map
+  X#
+  ##
+
+WHEN production for X is evaluated.
+
+THEN there is no production at X.
+
+;===============================================================
+; Country produces army when zero armies.
+;===============================================================
+GIVEN game map
+  X#
+  ##
+GIVEN cell [0 0] has country-id 1.
+
+WHEN production for X is evaluated.
+
+THEN production at X is army.
+
+;===============================================================
+; Country produces transport at coastal city after 6 armies.
+;===============================================================
+GIVEN game map
+  X~
+  t#
+GIVEN cell [0 0] has country-id 1.
+GIVEN t has country-id 1.
+GIVEN t has army-count 6.
+
+WHEN production for X is evaluated.
+
+THEN production at X is transport.
+
+;===============================================================
+; Country inland city skips transport, produces army.
+;===============================================================
+GIVEN game map
+  X#~
+  ##t
+GIVEN cell [0 0] has country-id 1.
+GIVEN t has country-id 1.
+GIVEN t has army-count 6.
+
+WHEN production for X is evaluated.
+
+THEN production at X is army.
+
+;===============================================================
+; Country produces patrol-boat when army and transport caps met.
+;===============================================================
+GIVEN game map
+  X~~~
+  ##t#
+  ##t#
+GIVEN cell [0 0] has country-id 1.
+GIVEN t1 has country-id 1.
+GIVEN t1 has army-count 5.
+GIVEN t2 has country-id 1.
+GIVEN t2 has army-count 5.
+
+WHEN production for X is evaluated.
+
+THEN production at X is patrol-boat.
+
+;===============================================================
+; Country produces destroyer when unadopted transport exists.
+;===============================================================
+GIVEN game map
+  X~~~
+  ##t#
+  ##t#
+  p###
+GIVEN cell [0 0] has country-id 1.
+GIVEN t1 has country-id 1.
+GIVEN t1 has army-count 5.
+GIVEN t2 has country-id 1.
+GIVEN t2 has army-count 5.
+GIVEN p has patrol-country-id 1.
+
+WHEN production for X is evaluated.
+
+THEN production at X is destroyer.
+
+;===============================================================
+; Country produces fighter at inland city when army cap met.
+;===============================================================
+GIVEN game map
+  X#~
+  ##t
+GIVEN cell [0 0] has country-id 1.
+GIVEN t has country-id 1.
+GIVEN t has army-count 10.
+
+WHEN production for X is evaluated.
+
+THEN production at X is fighter.
+
+;===============================================================
+; Existing production is not overwritten.
+;===============================================================
+GIVEN game map
+  X#
+  ##
+GIVEN cell [0 0] has country-id 1.
+GIVEN production at X is army.
+
+WHEN production for X is evaluated.
+
+THEN production at X is army.
+
+;===============================================================
+; Computer production does not repeat after spawning.
+;===============================================================
+GIVEN game map
+  ~~~
+  ~X~
+  ~~~
+GIVEN production at X is army with 1 round remaining.
+
+WHEN a new round starts.
+
+THEN there is an a at [1 1].
+THEN there is no production at X.

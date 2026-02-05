@@ -126,7 +126,14 @@
     :extract-fn (fn [[_ n]]
                   (when (not= n "no")
                     (when-let [cnt (parse-count n)]
-                      {:container-props {:awake-fighters cnt}})))}])
+                      {:container-props {:awake-fighters cnt}})))}
+   ;; Catch-all: "has <hyphenated-property> <value>" for unit properties like country-id, patrol-country-id, been-to-sea
+   {:regex #"(?:with|has)\s+([\w]+-[\w-]+)\s+(\S+)"
+    :extract-fn (fn [[_ k v]]
+                  (when-not (#{"army-count" "fighter-count" "awake-fighters"} k)
+                    {:props {(keyword k) (or (parse-number v)
+                                             (case v "true" true "false" false nil)
+                                             (keyword v))}}))}])
 
 (defn- parse-unit-props-line [line]
   (let [clean (strip-trailing-period (str/trim line))
@@ -417,6 +424,9 @@
 (defn- when-handle-standalone-waiting [[_ unit] _ctx]
   [{:type :waiting-for-input :unit unit :set-mode true}])
 
+(defn- when-handle-evaluate-production [[_ city] _ctx]
+  [{:type :evaluate-production :city city}])
+
 ;; --- WHEN parsing: pattern table ---
 
 (def ^:private when-patterns
@@ -450,6 +460,8 @@
     :handler when-handle-visibility-update}
    {:regex #"production\s+updates"
     :handler when-handle-production-updates}
+   {:regex #"production\s+for\s+(\w+)\s+is\s+evaluated"
+    :handler when-handle-evaluate-production}
    {:regex #"(\w+)\s+is\s+waiting\s+for\s+input"
     :handler when-handle-standalone-waiting}])
 
@@ -573,6 +585,9 @@
 (defn- then-handle-no-production [[_ city]]
   {:type :no-production :city city})
 
+(defn- then-handle-production-not [[_ city item]]
+  {:type :production-not :city city :excluded (keyword item)})
+
 (defn- then-handle-no-unit-at [[_ x y]]
   {:type :no-unit-at :coords [(Integer/parseInt x) (Integer/parseInt y)]})
 
@@ -688,6 +703,8 @@
     :handler then-handle-destination}
    {:regex #"production\s+at\s+(\w+)\s+is\s+([\w-]+)\s+with\s+(\d+)\s+rounds?\s+remaining"
     :handler then-handle-production-with-rounds}
+   {:regex #"production\s+at\s+(\w+)\s+is\s+not\s+([\w-]+)"
+    :handler then-handle-production-not}
    {:regex #"production\s+at\s+(\w+)\s+is\s+([\w-]+)"
     :handler then-handle-production}
    {:regex #"(?:there\s+is\s+)?no\s+production\s+at\s+(\w+)"

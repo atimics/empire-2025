@@ -147,6 +147,9 @@
    {:regex #"(?:with|has)\s+mission\s+(\w+)"
     :extract-fn (fn [[_ v]]
                   {:props {:transport-mission (keyword v)}})}
+   ;; "has escort destroyer" - natural language for escort-destroyer-id
+   {:regex #"(?:with|has)\s+(?:an?\s+)?escort\s+destroyer"
+    :extract-fn (fn [_] {:props {:escort-destroyer-id 1}})}
    ;; Catch-all: "has <hyphenated-property> <value>" for unit properties like country-id, patrol-country-id, been-to-sea
    {:regex #"(?:with|has)\s+([\w]+-[\w-]+)\s+(\S+)"
     :extract-fn (fn [[_ k v]]
@@ -706,6 +709,9 @@
 (defn- then-handle-unit-absent-short [[_ unit]]
   {:type :unit-absent :unit (normalize-unit-ref unit)})
 
+(defn- then-handle-refueling-position-near [[_ unit target]]
+  {:type :refueling-position-near :unit unit :target target})
+
 (defn- then-handle-unit-present-coords [[_ unit x y]]
   {:type :unit-present :unit unit :coords [(Integer/parseInt x) (Integer/parseInt y)]})
 
@@ -830,6 +836,8 @@
                {:type :unit-prop :unit unit :property :turns-remaining :expected (Integer/parseInt n)})}
    {:regex #"^(\w+)\s+has\s+mission\s+(\w+)$"
     :handler then-handle-unit-has-mission}
+   {:regex #"^(\w+)\s+has\s+refueling\s+position\s+near\s+(\S+)$"
+    :handler then-handle-refueling-position-near}
    {:regex #"^(\w+)\s+has\s+(\w[\w-]*)\s+(.+)$"
     :handler then-handle-unit-has-prop}
    {:regex #"^(\w+)\s+(?:has\s+mode|is)\s+(\w+)$"

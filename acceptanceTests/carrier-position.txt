@@ -3,37 +3,24 @@
 ; Carriers are positioned between pairs of computer cities that are
 ; too far apart for fighters to travel directly (distance > 32).
 ; Each distant city pair gets exactly one carrier assigned as a
-; refueling position.
+; refueling position. The = marks the expected refueling position.
+;
+; Carrier production is a global decision that only triggers after
+; per-country production needs are satisfied (armies, transport,
+; patrol boat, fighters).
 
 ;===============================================================
-; Carrier spawns as refueling position when distant cities exist.
-; Cities at columns 0 and 37 are 37 apart (> 32 fighter-fuel).
-;===============================================================
-GIVEN game map
-  X~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~X
-  ######################################
-GIVEN X1 belongs to country 1.
-GIVEN X2 belongs to country 1.
-GIVEN production at X1 is carrier with 1 round remaining.
-
-WHEN a new round starts.
-
-THEN there is a c at [1 0].
-THEN c has refueling position.
-
-;===============================================================
-; Carrier finds position for unreserved city pair.
-; Two distant cities (distance > 32) and no existing carrier.
+; Computer chooses carrier production when distant cities need
+; a refueling position and per-country needs are satisfied.
+; Verifies both production choice and position calculation.
 ;===============================================================
 GIVEN game map
-  X~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Xtffp
+  X~~~~~~~~~~~~~~~~~=~~~~~~~~~~~~~~~~~Xtffp
   ##########################################
-GIVEN computer map
-  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 GIVEN X1 belongs to country 1.
 GIVEN X2 belongs to country 1.
 GIVEN t belongs to country 1.
-GIVEN t has escort-destroyer-id 1.
+GIVEN t has escort destroyer.
 GIVEN t has 20 armies.
 GIVEN f1 belongs to country 1.
 GIVEN f2 belongs to country 1.
@@ -43,3 +30,58 @@ GIVEN computer controls 12 cities.
 WHEN the computer chooses production at X1.
 
 THEN production at X1 is carrier.
+
+;===============================================================
+; Carrier spawns with refueling position targeting the calculated
+; midpoint between distant cities.
+;===============================================================
+GIVEN game map
+  X~~~~~~~~~~~~~~~~~=~~~~~~~~~~~~~~~~~X
+  ######################################
+GIVEN X1 belongs to country 1.
+GIVEN X2 belongs to country 1.
+GIVEN production at X1 is carrier with 1 round remaining.
+
+WHEN a new round starts.
+
+THEN there is a c at [1 0].
+THEN c has refueling position near =.
+
+;===============================================================
+; Carrier finds position near land when midpoint is blocked.
+; The % marks land at the ideal midpoint; carrier finds adjacent sea.
+; The second row provides a sea path around the blocked cell.
+;===============================================================
+GIVEN game map
+  X~~~~~~~~~~~~~~~~~%~~~~~~~~~~~~~~~~~X
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+GIVEN X1 belongs to country 1.
+GIVEN X2 belongs to country 1.
+GIVEN production at X1 is carrier with 1 round remaining.
+
+WHEN a new round starts.
+
+THEN there is a c at [1 0].
+THEN c has refueling position near %.
+
+;===============================================================
+; Computer does not produce carrier when no sea path exists
+; between distant cities. Land blocks the refueling position.
+; City idles since per-country needs are satisfied.
+;===============================================================
+GIVEN game map
+  X#################Xtffp
+  #######################
+GIVEN X1 belongs to country 1.
+GIVEN X2 belongs to country 1.
+GIVEN t belongs to country 1.
+GIVEN t has escort destroyer.
+GIVEN t has 20 armies.
+GIVEN f1 belongs to country 1.
+GIVEN f2 belongs to country 1.
+GIVEN p patrols for country 1.
+GIVEN computer controls 12 cities.
+
+WHEN the computer chooses production at X1.
+
+THEN there is no production at X1.

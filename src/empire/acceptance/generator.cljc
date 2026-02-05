@@ -721,6 +721,16 @@
        "                         true))]\n"
        "      (should= " expected " count))"))
 
+(defn- generate-refueling-position-near-then [{:keys [unit target]}]
+  (let [target-expr (target-pos-expr target)]
+    (str "    (let [unit-data (:unit (get-test-unit atoms/game-map \"" unit "\"))\n"
+         "          carrier-target (:carrier-target unit-data)\n"
+         "          expected-pos " target-expr "\n"
+         "          distance (+ (Math/abs (- (first carrier-target) (first expected-pos)))\n"
+         "                      (Math/abs (- (second carrier-target) (second expected-pos))))]\n"
+         "      (should= :position (:refueling unit-data))\n"
+         "      (should (<= distance 1)))")))
+
 (defn generate-then
   "Generate code string for a single THEN IR node."
   [then-ir givens]
@@ -758,6 +768,7 @@
     :no-unit-at (generate-no-unit-at-then then-ir)
     :unit-prop-absent (generate-unit-prop-absent-then then-ir)
     :computer-army-count (generate-computer-army-count-then then-ir)
+    :refueling-position-near (generate-refueling-position-near-then then-ir)
     :unrecognized (str "    (pending \"Unrecognized: " (:text then-ir) "\")")
     (str "    ;; Unknown then type: " (:type then-ir))))
 

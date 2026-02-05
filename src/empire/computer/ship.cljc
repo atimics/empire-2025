@@ -1,7 +1,8 @@
 (ns empire.computer.ship
   "Computer ship module - VMS Empire style ship movement.
    Attack adjacent enemies, explore sea, protect transports, patrol."
-  (:require [empire.atoms :as atoms]
+  (:require [clojure.set :as set]
+            [empire.atoms :as atoms]
             [empire.combat :as combat]
             [empire.config :as config]
             [empire.computer.core :as core]
@@ -323,7 +324,7 @@
     (update-distant-city-pairs!))
   (let [distant-pairs @atoms/distant-city-pairs
         reserved-pairs (find-reserved-pairs)
-        unreserved (clojure.set/difference distant-pairs reserved-pairs)]
+        unreserved (set/difference distant-pairs reserved-pairs)]
     (first unreserved)))
 
 (defn find-position-between-cities

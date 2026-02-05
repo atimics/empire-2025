@@ -12,3 +12,5 @@
 /Empire-for-VMS/
 /Empire-for-VMS/*
 debug-*.txt
+acceptanceTests/edn/*.edn
+generated-acceptance-specs/acceptance/*.clj

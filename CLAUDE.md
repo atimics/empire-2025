@@ -45,7 +45,7 @@ clj -M:parse-tests && clj -M:generate-specs && clj -M:spec generated-acceptance-
 - On failure, report file name and line number of the first GIVEN line.
 - If a directive is ambiguous, report the ambiguity rather than guessing.
 - Never modify generated specs in `generated-acceptance-specs/`; only delete and regenerate them from the `.txt` source via the pipeline.
-- Generated specs and `.edn` files should be committed after regeneration.
+- Generated specs and `.edn` files are gitignored — do not commit them.
 - If an acceptance test cannot be translated to a spec, report which test and why to the user. Still generate the spec as a failing test documenting the desired behavior.
 - Mock the random number generator (`with-redefs [rand ...]`) for tests with random/non-deterministic conditions.
 

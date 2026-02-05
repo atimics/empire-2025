@@ -68,7 +68,7 @@ GIVEN O is waiting for input.
 
 WHEN the player presses space.
 
-THEN not waiting-for-input.
+THEN the game is not waiting for input.
 
 ;===============================================================
 ; Army spawns when production completes.
@@ -105,7 +105,7 @@ GIVEN production at O is satellite with 1 round remaining.
 WHEN a new round starts.
 
 THEN there is a V at [0 0].
-THEN V has turns-remaining 50.
+THEN V has 50 turns remaining.
 
 ;===============================================================
 ; Player production repeats after spawning.
@@ -137,7 +137,7 @@ THEN production at O is army with 1 round remaining.
 GIVEN game map
   O###%
 GIVEN production at O is army with 1 round remaining.
-GIVEN cell [0 0] has marching-orders [4 0].
+GIVEN cell [0 0] has spawn-orders [4 0].
 
 WHEN a new round starts.
 
@@ -150,7 +150,7 @@ THEN A has target [4 0].
 GIVEN game map
   O#
 GIVEN production at O is army with 1 round remaining.
-GIVEN cell [0 0] has marching-orders lookaround.
+GIVEN cell [0 0] has spawn-orders lookaround.
 
 WHEN a new round starts.
 
@@ -162,7 +162,7 @@ THEN A has mode explore.
 GIVEN game map
   O##########%
 GIVEN production at O is fighter with 1 round remaining.
-GIVEN cell [0 0] has flight-path [11 0].
+GIVEN cell [0 0] has flight-orders [11 0].
 
 WHEN a new round starts.
 

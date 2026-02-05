@@ -44,7 +44,7 @@ GIVEN A is waiting for input.
 
 WHEN the player presses d and wins the battle.
 
-THEN cell [1 0] has city-status player.
+THEN cell [1 0] is a player city.
 
 ;===============================================================
 ; Army skips round with space.
@@ -55,7 +55,7 @@ GIVEN A is waiting for input.
 
 WHEN the player presses space.
 
-THEN not waiting-for-input.
+THEN the game is not waiting for input.
 
 ;===============================================================
 ; Army blocked by friendly city.

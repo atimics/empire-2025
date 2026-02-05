@@ -7,7 +7,7 @@ GIVEN game map
   V#
 GIVEN V is waiting for input.
 
-THEN waiting-for-input.
+THEN the game is waiting for input.
 
 ;===============================================================
 ; Satellite with target does not need attention.
@@ -15,11 +15,11 @@ THEN waiting-for-input.
 GIVEN game map
   V###%
 GIVEN V's target is %.
-GIVEN player-items V.
+GIVEN player units V.
 
 WHEN player items are processed.
 
-THEN not waiting-for-input.
+THEN the game is not waiting for input.
 
 ;===============================================================
 ; Satellite spawns with turns-remaining 50.
@@ -27,7 +27,7 @@ THEN not waiting-for-input.
 GIVEN game map
   V#
 
-THEN V has turns-remaining 50.
+THEN V has 50 turns remaining.
 
 ;===============================================================
 ; Satellite moves 10 cells per round.

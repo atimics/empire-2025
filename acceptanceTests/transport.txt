@@ -18,7 +18,7 @@ THEN T has owner player.
 GIVEN game map
   T~
 
-THEN T does not have transport-mission.
+THEN T has no mission.
 
 ;===============================================================
 ; Wake armies command puts transport to sentry and wakes armies.
@@ -27,13 +27,13 @@ GIVEN game map
   ~~
   T#
   ~~
-T is awake with army-count 2.
+T is awake with two armies.
 GIVEN T is waiting for input.
 
 WHEN the player presses u.
 
 THEN T has mode sentry.
-THEN T has army-count 2.
+THEN T has two armies.
 
 ;===============================================================
 ; Disembarking army removes it from transport.
@@ -42,13 +42,13 @@ GIVEN game map
   ~~
   T#
   ~~
-T is awake with army-count 3.
+T is awake with three armies.
 GIVEN T is waiting for input.
 
 WHEN the player presses u and T is waiting for input.
 WHEN the player presses d.
 
-THEN T has army-count 2.
+THEN T has two armies.
 THEN there is an A at [1 1].
 
 ;===============================================================
@@ -58,14 +58,14 @@ GIVEN game map
   ~~
   T#
   ~~
-T is awake with army-count 1.
+T is awake with one army.
 GIVEN T is waiting for input.
 
 WHEN the player presses u and T is waiting for input.
 WHEN the player presses d.
 
 THEN T has mode awake.
-THEN T has army-count 0.
+THEN T has no armies.
 
 ;===============================================================
 ; Transport has 1 hit.

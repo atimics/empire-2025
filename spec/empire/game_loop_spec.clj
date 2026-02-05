@@ -536,7 +536,9 @@
         (should= (inc round-before) @atoms/round-number)))))
 
 (describe "game over"
-  (before (reset-all-atoms!))
+  (before
+    (reset-all-atoms!)
+    (reset! atoms/game-over-check-enabled true))
 
   (it "pauses game when player has no cities and no units"
     (reset! atoms/game-map (build-test-map ["X#"]))  ;; Only computer city

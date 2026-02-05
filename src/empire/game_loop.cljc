@@ -82,7 +82,7 @@
   (let [player-items (vec (build-player-items))]
     (reset! atoms/player-items player-items)
     ;; Check for game over: no player cities or units
-    (when (empty? player-items)
+    (when (and @atoms/game-over-check-enabled (empty? player-items))
       (reset! atoms/paused true)
       (reset! atoms/error-message "****GAME OVER*****")
       (reset! atoms/error-until Long/MAX_VALUE)

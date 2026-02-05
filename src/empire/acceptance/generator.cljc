@@ -438,11 +438,15 @@
 
 (defn- generate-computer-rounds-when [{:keys [count]}]
   (str "    (dotimes [_ " count "]\n"
-       "      (game-loop/start-new-round)\n"
-       "      (loop [n 100]\n"
-       "        (when (and (pos? n) (seq @atoms/computer-items))\n"
-       "          (game-loop/advance-game)\n"
-       "          (recur (dec n)))))"))
+       "      ;; Process all computer transports\n"
+       "      (doseq [i (range (count @atoms/game-map))\n"
+       "              j (range (count (first @atoms/game-map)))\n"
+       "              :let [cell (get-in @atoms/game-map [i j])\n"
+       "                    unit (:contents cell)]\n"
+       "              :when (and unit\n"
+       "                         (= :transport (:type unit))\n"
+       "                         (= :computer (:owner unit)))]\n"
+       "        (computer-transport/process-transport [i j])))"))
 
 (defn- generate-start-new-round-when [_]
   (str "    (game-loop/start-new-round)\n"

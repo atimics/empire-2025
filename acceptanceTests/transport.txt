@@ -120,18 +120,22 @@ WHEN the player presses s.
 THEN T has mode sentry.
 
 ;===============================================================
-; Computer transport unloads all armies when adjacent to land.
+; Computer transport heads toward other armies after unloading,
+; not back toward the armies it just dropped.
 ;===============================================================
 GIVEN game map
-  ~###
+  a###
+  =~~~
   ~t##
   ~###
 GIVEN t belongs to country 1.
 GIVEN t has 3 armies.
 GIVEN t has mission unloading.
+GIVEN t has unload-event-id 42.
+GIVEN a belongs to country 1.
 
 WHEN computer transport t is processed.
+WHEN 5 computer rounds pass.
 
-THEN t has no armies.
-THEN t has mission loading.
-THEN there are 3 computer armies on the map.
+THEN t is at =.
+THEN there are 4 computer armies on the map.

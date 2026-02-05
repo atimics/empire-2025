@@ -118,3 +118,20 @@ GIVEN T is waiting for input.
 WHEN the player presses s.
 
 THEN T has mode sentry.
+
+;===============================================================
+; Computer transport unloads all armies when adjacent to land.
+;===============================================================
+GIVEN game map
+  ~###
+  ~t##
+  ~###
+GIVEN t belongs to country 1.
+GIVEN t has 3 armies.
+GIVEN t has mission unloading.
+
+WHEN computer transport t is processed.
+
+THEN t has no armies.
+THEN t has mission loading.
+THEN there are 3 computer armies on the map.

@@ -143,6 +143,10 @@
                   (when (not= n "no")
                     (when-let [cnt (parse-count n)]
                       {:container-props {:awake-fighters cnt}})))}
+   ;; "has mission <value>" for transport-mission
+   {:regex #"(?:with|has)\s+mission\s+(\w+)"
+    :extract-fn (fn [[_ v]]
+                  {:props {:transport-mission (keyword v)}})}
    ;; Catch-all: "has <hyphenated-property> <value>" for unit properties like country-id, patrol-country-id, been-to-sea
    {:regex #"(?:with|has)\s+([\w]+-[\w-]+)\s+(\S+)"
     :extract-fn (fn [[_ k v]]
@@ -462,6 +466,12 @@
 (defn- when-handle-evaluate-production [[_ city] _ctx]
   [{:type :evaluate-production :city city}])
 
+(defn- when-handle-process-computer-transport [[_ unit] _ctx]
+  [{:type :process-computer-transport :unit unit}])
+
+(defn- when-handle-computer-rounds [[_ n] _ctx]
+  [{:type :computer-rounds :count (parse-count n)}])
+
 ;; --- WHEN parsing: pattern table ---
 
 (def ^:private when-patterns
@@ -502,6 +512,10 @@
     :handler when-handle-evaluate-production}
    {:regex #"computer\s+chooses\s+production\s+at\s+(\w+)"
     :handler when-handle-evaluate-production}
+   {:regex #"computer\s+transport\s+(\w+)\s+is\s+processed"
+    :handler when-handle-process-computer-transport}
+   {:regex #"(\w+)\s+computer\s+rounds?\s+pass"
+    :handler when-handle-computer-rounds}
    {:regex #"(\w+)\s+is\s+waiting\s+for\s+input"
     :handler when-handle-standalone-waiting}])
 
@@ -630,6 +644,10 @@
 
 (defn- then-handle-no-unit-at [[_ x y]]
   {:type :no-unit-at :coords [(Integer/parseInt x) (Integer/parseInt y)]})
+
+(defn- then-handle-unit-has-mission [[_ unit val]]
+  (when (city-or-unit-char? unit)
+    {:type :unit-prop :unit unit :property :transport-mission :expected (keyword val)}))
 
 (defn- then-handle-unit-has-prop [[_ unit prop val]]
   (let [val (str/trim val)]
@@ -762,7 +780,10 @@
    {:regex #"(?:there\s+is\s+)?no\s+production\s+at\s+(\w+)"
     :handler then-handle-no-production}
    {:regex #"no\s+unit\s+at\s+\[(\d+)\s+(\d+)\]"
-    :handler then-handle-no-unit-at}])
+    :handler then-handle-no-unit-at}
+   {:regex #"there\s+are\s+(\d+)\s+computer\s+armies\s+on\s+the\s+map"
+    :handler (fn [[_ n]]
+               {:type :computer-army-count :expected (Integer/parseInt n)})}])
 
 (def ^:private then-timed-patterns
   [{:regex #"^(\w+)\s+will\s+be\s+at\s+(\S+)$"
@@ -795,6 +816,8 @@
    {:regex #"^(\w+)\s+has\s+(\d+)\s+turns?\s+remaining$"
     :handler (fn [[_ unit n]]
                {:type :unit-prop :unit unit :property :turns-remaining :expected (Integer/parseInt n)})}
+   {:regex #"^(\w+)\s+has\s+mission\s+(\w+)$"
+    :handler then-handle-unit-has-mission}
    {:regex #"^(\w+)\s+has\s+(\w[\w-]*)\s+(.+)$"
     :handler then-handle-unit-has-prop}
    {:regex #"^(\w+)\s+(?:has\s+mode|is)\s+(\w+)$"

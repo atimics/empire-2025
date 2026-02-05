@@ -572,7 +572,16 @@
     (reset! atoms/production {})
     (reset! atoms/paused false)
     (game-loop/start-new-round)
-    (should-not @atoms/paused)))
+    (should-not @atoms/paused))
+
+  (it "switches map display to actual-map on game over"
+    (reset! atoms/game-map (build-test-map ["X#"]))  ;; Only computer city
+    (reset! atoms/player-map (build-test-map ["##"]))
+    (reset! atoms/computer-map (build-test-map ["##"]))
+    (reset! atoms/production {})
+    (reset! atoms/map-to-display :player-map)
+    (game-loop/start-new-round)
+    (should= :actual-map @atoms/map-to-display)))
 
 (describe "advance-game-batch"
   (before (reset-all-atoms!))

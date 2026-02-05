@@ -63,6 +63,37 @@
           updated (process-map-cells transient-map game-map ownership-predicate height width)]
       (reset! visible-map-atom (mapv persistent! (persistent! updated))))))
 
+(defn- in-bounds?
+  "Returns true if [row col] is within [0,height) x [0,width)."
+  [row col height width]
+  (and (>= row 0) (< row height)
+       (>= col 0) (< col width)))
+
+(defn- should-stamp-country?
+  "Returns truthy if unit is a computer army with a country-id."
+  [unit]
+  (and unit
+       (= :army (:type unit))
+       (= :computer (:owner unit))
+       (:country-id unit)))
+
+(defn- was-unexplored?
+  "Returns true if the cell at [row col] in visible-map is nil or unexplored."
+  [visible-map row col]
+  (let [vis-cell (get-in visible-map [row col])]
+    (or (nil? vis-cell)
+        (= :unexplored (:type vis-cell)))))
+
+(defn- reveal-cell!
+  "Reveals game-cell at [row col] in visible-map-atom.
+   If stamp-id is truthy and cell was unexplored land, stamps its country-id."
+  [visible-map-atom row col game-cell stamp-id visible-map]
+  (swap! visible-map-atom assoc-in [row col] game-cell)
+  (when (and stamp-id
+             (was-unexplored? visible-map row col)
+             (= :land (:type game-cell)))
+    (swap! atoms/game-map assoc-in [row col :country-id] stamp-id)))
+
 (defn update-cell-visibility
   "Updates visibility around a specific cell for the given owner.
    Satellites reveal two rectangular rings (distances 1 and 2).
@@ -72,12 +103,8 @@
    (let [visible-map-atom (if (= owner :player) atoms/player-map atoms/computer-map)
          [x y] pos
          cell (get-in @atoms/game-map pos)
-         is-satellite? (= :satellite (:type (:contents cell)))
-         radius (if is-satellite? 2 1)
-         should-stamp? (and unit
-                            (= :army (:type unit))
-                            (= :computer (:owner unit))
-                            (:country-id unit))]
+         radius (if (= :satellite (:type (:contents cell))) 2 1)
+         stamp-id (should-stamp-country? unit)]
      (when @visible-map-atom
        (let [height (count @atoms/game-map)
              width (count (first @atoms/game-map))
@@ -86,13 +113,7 @@
                  dj (range (- radius) (inc radius))]
            (let [ni (+ x di)
                  nj (+ y dj)]
-             (when (and (>= ni 0) (< ni height)
-                        (>= nj 0) (< nj width))
-               (let [game-cell (get-in @atoms/game-map [ni nj])
-                     was-unexplored? (let [vis-cell (get-in visible-map [ni nj])]
-                                       (or (nil? vis-cell)
-                                           (= :unexplored (:type vis-cell))))]
-                 (swap! visible-map-atom assoc-in [ni nj] game-cell)
-                 (when (and should-stamp? was-unexplored? (= :land (:type game-cell)))
-                   (swap! atoms/game-map assoc-in [ni nj :country-id]
-                          (:country-id unit))))))))))))
+             (when (in-bounds? ni nj height width)
+               (reveal-cell! visible-map-atom ni nj
+                             (get-in @atoms/game-map [ni nj])
+                             stamp-id visible-map)))))))))

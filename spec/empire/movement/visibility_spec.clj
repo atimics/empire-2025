@@ -150,3 +150,105 @@
     (should= {:type :sea} (get-in @atoms/player-map [3 3]))
     ;; Far corner should not be revealed
     (should= nil (get-in @atoms/player-map [6 6]))))
+
+(describe "in-bounds?"
+  (it "returns true for coordinates within bounds"
+    (should= true (#'empire.movement.visibility/in-bounds? 0 0 5 5))
+    (should= true (#'empire.movement.visibility/in-bounds? 4 4 5 5))
+    (should= true (#'empire.movement.visibility/in-bounds? 2 3 5 5)))
+
+  (it "returns false for negative row"
+    (should= false (#'empire.movement.visibility/in-bounds? -1 0 5 5)))
+
+  (it "returns false for negative col"
+    (should= false (#'empire.movement.visibility/in-bounds? 0 -1 5 5)))
+
+  (it "returns false for row at height"
+    (should= false (#'empire.movement.visibility/in-bounds? 5 0 5 5)))
+
+  (it "returns false for col at width"
+    (should= false (#'empire.movement.visibility/in-bounds? 0 5 5 5))))
+
+(describe "should-stamp-country?"
+  (it "returns truthy for computer army with country-id"
+    (should (#'empire.movement.visibility/should-stamp-country?
+              {:type :army :owner :computer :country-id 3})))
+
+  (it "returns falsy for nil unit"
+    (should-not (#'empire.movement.visibility/should-stamp-country? nil)))
+
+  (it "returns falsy for player army"
+    (should-not (#'empire.movement.visibility/should-stamp-country?
+                  {:type :army :owner :player :country-id 3})))
+
+  (it "returns falsy for computer fighter"
+    (should-not (#'empire.movement.visibility/should-stamp-country?
+                  {:type :fighter :owner :computer :country-id 3})))
+
+  (it "returns falsy for computer army without country-id"
+    (should-not (#'empire.movement.visibility/should-stamp-country?
+                  {:type :army :owner :computer}))))
+
+(describe "was-unexplored?"
+  (it "returns true for nil cell in visible map"
+    (let [visible-map [[nil nil] [nil nil]]]
+      (should= true (#'empire.movement.visibility/was-unexplored? visible-map 0 0))))
+
+  (it "returns true for unexplored cell"
+    (let [visible-map [[{:type :unexplored} nil] [nil nil]]]
+      (should= true (#'empire.movement.visibility/was-unexplored? visible-map 0 0))))
+
+  (it "returns false for revealed land cell"
+    (let [visible-map [[{:type :land} nil] [nil nil]]]
+      (should= false (#'empire.movement.visibility/was-unexplored? visible-map 0 0))))
+
+  (it "returns false for revealed sea cell"
+    (let [visible-map [[{:type :sea} nil] [nil nil]]]
+      (should= false (#'empire.movement.visibility/was-unexplored? visible-map 0 0)))))
+
+(describe "reveal-cell!"
+  (before (reset-all-atoms!))
+
+  (it "reveals a game cell in the visible map"
+    (reset! atoms/player-map (make-initial-test-map 3 3 nil))
+    (let [game-cell {:type :land}
+          visible-map @atoms/player-map]
+      (#'empire.movement.visibility/reveal-cell!
+        atoms/player-map 1 1 game-cell nil visible-map)
+      (should= {:type :land} (get-in @atoms/player-map [1 1]))))
+
+  (it "stamps country-id on newly-revealed land cell"
+    (reset! atoms/game-map (build-test-map ["###"
+                                             "###"
+                                             "###"]))
+    (reset! atoms/player-map (make-initial-test-map 3 3 nil))
+    (let [game-cell {:type :land}
+          visible-map @atoms/player-map]
+      (#'empire.movement.visibility/reveal-cell!
+        atoms/player-map 1 1 game-cell 5 visible-map)
+      (should= 5 (get-in @atoms/game-map [1 1 :country-id]))))
+
+  (it "does not stamp country-id on sea cell"
+    (reset! atoms/game-map (build-test-map ["~~~"
+                                             "~~~"
+                                             "~~~"]))
+    (reset! atoms/player-map (make-initial-test-map 3 3 nil))
+    (let [game-cell {:type :sea}
+          visible-map @atoms/player-map]
+      (#'empire.movement.visibility/reveal-cell!
+        atoms/player-map 1 1 game-cell 5 visible-map)
+      (should-not (get-in @atoms/game-map [1 1 :country-id]))))
+
+  (it "does not stamp country-id on already-revealed cell"
+    (reset! atoms/game-map (build-test-map ["###"
+                                             "###"
+                                             "###"]))
+    (let [pre-revealed [[{:type :land} {:type :land} {:type :land}]
+                        [{:type :land} {:type :land} {:type :land}]
+                        [{:type :land} {:type :land} {:type :land}]]]
+      (reset! atoms/player-map pre-revealed)
+      (let [game-cell {:type :land}
+            visible-map @atoms/player-map]
+        (#'empire.movement.visibility/reveal-cell!
+          atoms/player-map 1 1 game-cell 5 visible-map)
+        (should-not (get-in @atoms/game-map [1 1 :country-id]))))))

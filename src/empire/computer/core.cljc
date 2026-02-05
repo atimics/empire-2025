@@ -179,29 +179,45 @@
 
 ;; Army-Transport Coordination (used by army module)
 
+(defn- transport-compatible?
+  "Returns true if the transport doesn't have a matching unload-event-id as the army.
+   An army should not board the same transport that unloaded it."
+  [transport-unit army-unload-event-id]
+  (or (nil? army-unload-event-id)
+      (nil? (:unload-event-id transport-unit))
+      (not= (:unload-event-id transport-unit) army-unload-event-id)))
+
 (defn find-loading-transport
-  "Finds a transport in loading state that has room."
-  []
-  (first (for [i (range (count @atoms/game-map))
-               j (range (count (first @atoms/game-map)))
-               :let [cell (get-in @atoms/game-map [i j])
-                     unit (:contents cell)]
-               :when (and unit
-                          (= :computer (:owner unit))
-                          (= :transport (:type unit))
-                          (= :loading (:transport-mission unit))
-                          (< (:army-count unit 0) 6))]
-           [i j])))
+  "Finds a transport in loading state that has room.
+   When army-unload-event-id is provided, excludes transports with matching ID."
+  ([]
+   (find-loading-transport nil))
+  ([army-unload-event-id]
+   (first (for [i (range (count @atoms/game-map))
+                j (range (count (first @atoms/game-map)))
+                :let [cell (get-in @atoms/game-map [i j])
+                      unit (:contents cell)]
+                :when (and unit
+                           (= :computer (:owner unit))
+                           (= :transport (:type unit))
+                           (= :loading (:transport-mission unit))
+                           (< (:army-count unit 0) 6)
+                           (transport-compatible? unit army-unload-event-id))]
+            [i j]))))
 
 (defn find-adjacent-loading-transport
-  "Finds an adjacent loading transport with room."
-  [pos]
-  (first (filter (fn [neighbor]
-                   (let [cell (get-in @atoms/game-map neighbor)
-                         unit (:contents cell)]
-                     (and unit
-                          (= :computer (:owner unit))
-                          (= :transport (:type unit))
-                          (= :loading (:transport-mission unit))
-                          (< (:army-count unit 0) 6))))
-                 (get-neighbors pos))))
+  "Finds an adjacent loading transport with room.
+   When army-unload-event-id is provided, excludes transports with matching ID."
+  ([pos]
+   (find-adjacent-loading-transport pos nil))
+  ([pos army-unload-event-id]
+   (first (filter (fn [neighbor]
+                    (let [cell (get-in @atoms/game-map neighbor)
+                          unit (:contents cell)]
+                      (and unit
+                           (= :computer (:owner unit))
+                           (= :transport (:type unit))
+                           (= :loading (:transport-mission unit))
+                           (< (:army-count unit 0) 6)
+                           (transport-compatible? unit army-unload-event-id))))
+                  (get-neighbors pos)))))

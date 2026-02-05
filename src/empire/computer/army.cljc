@@ -150,17 +150,21 @@
               (try-move pos (first sorted))))))))
 
 (defn- find-and-board-transport
-  "Look for a loading transport and move toward/board it."
+  "Look for a loading transport and move toward/board it.
+   Excludes transports with matching unload-event-id to prevent
+   re-boarding the same transport that unloaded this army."
   [pos country-id]
-  ;; Check for adjacent loading transport first
-  (if-let [transport-pos (core/find-adjacent-loading-transport pos)]
-    (do
-      (core/board-transport pos transport-pos)
-      (visibility/update-cell-visibility pos :computer)
-      nil)  ; Army is now on transport, return nil
-    ;; Move toward nearest loading transport
-    (when-let [transport-pos (core/find-loading-transport)]
-      (move-toward-objective pos transport-pos country-id))))
+  (let [army (get-in @atoms/game-map (conj pos :contents))
+        army-unload-id (:unload-event-id army)]
+    ;; Check for adjacent loading transport first (excluding parent transport)
+    (if-let [transport-pos (core/find-adjacent-loading-transport pos army-unload-id)]
+      (do
+        (core/board-transport pos transport-pos)
+        (visibility/update-cell-visibility pos :computer)
+        nil)  ; Army is now on transport, return nil
+      ;; Move toward nearest loading transport (excluding parent transport)
+      (when-let [transport-pos (core/find-loading-transport army-unload-id)]
+        (move-toward-objective pos transport-pos country-id)))))
 
 (defn- explore-randomly
   "Move toward any unexplored territory adjacent to computer's explored area.

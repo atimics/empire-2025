@@ -108,6 +108,13 @@
    {:need :computer-production
     :pred (fn [{:keys [whens]}]
             (some #(= :evaluate-production (:type %)) whens))}
+   {:need :computer-transport
+    :pred (fn [{:keys [whens]}]
+            (some #(= :process-computer-transport (:type %)) whens))}
+   {:need :computer-rounds
+    :needs-also #{:game-loop}
+    :pred (fn [{:keys [whens]}]
+            (some #(= :computer-rounds (:type %)) whens))}
    {:need :visibility-mask
     :pred (fn [{:keys [types]}]
             (some #{:player-map-visibility} types))}
@@ -169,6 +176,8 @@
       (swap! requires conj "[quil.core :as q]"))
     (when (contains? needs :computer-production)
       (swap! requires conj "[empire.computer.production :as computer-production]"))
+    (when (contains? needs :computer-transport)
+      (swap! requires conj "[empire.computer.transport :as computer-transport]"))
     (when (contains? needs :visibility)
       (swap! requires conj "[empire.movement.visibility :as visibility]"))
 
@@ -424,6 +433,22 @@
   (let [pos-expr (target-pos-expr city)]
     (str "    (computer-production/process-computer-city " pos-expr ")")))
 
+(defn- generate-process-computer-transport-when [{:keys [unit]}]
+  (let [pos-expr (target-pos-expr unit)]
+    (str "    (computer-transport/process-transport " pos-expr ")")))
+
+(defn- generate-computer-rounds-when [{:keys [count]}]
+  (str "    (dotimes [_ " count "]\n"
+       "      ;; Process all computer transports\n"
+       "      (doseq [i (range (count @atoms/game-map))\n"
+       "              j (range (count (first @atoms/game-map)))\n"
+       "              :let [cell (get-in @atoms/game-map [i j])\n"
+       "                    unit (:contents cell)]\n"
+       "              :when (and unit\n"
+       "                         (= :transport (:type unit))\n"
+       "                         (= :computer (:owner unit)))]\n"
+       "        (computer-transport/process-transport [i j])))"))
+
 (defn- generate-start-new-round-when [_]
   (str "    (game-loop/start-new-round)\n"
        "    (game-loop/advance-game)"))
@@ -454,6 +479,8 @@
      :process-player-items (generate-process-player-items-when when-ir)
      :advance-until-waiting (generate-advance-until-waiting-when when-ir)
      :evaluate-production (generate-evaluate-production-when when-ir)
+     :process-computer-transport (generate-process-computer-transport-when when-ir)
+     :computer-rounds (generate-computer-rounds-when when-ir)
      :waiting-for-input (generate-waiting-for-input-given when-ir givens)
      :unrecognized (str "    (pending \"Unrecognized: " (:text when-ir) "\")")
      (str "    ;; Unknown when type: " (:type when-ir)))))
@@ -669,6 +696,16 @@
 (defn- generate-unit-prop-absent-then [{:keys [unit property]}]
   (str "    (should-be-nil (:" (name property) " (:unit (get-test-unit atoms/game-map \"" unit "\"))))"))
 
+(defn- generate-computer-army-count-then [{:keys [expected]}]
+  (str "    (let [count (count (for [i (range (count @atoms/game-map))\n"
+       "                             j (range (count (first @atoms/game-map)))\n"
+       "                             :let [cell (get-in @atoms/game-map [i j])]\n"
+       "                             :when (and (:contents cell)\n"
+       "                                        (= :army (:type (:contents cell)))\n"
+       "                                        (= :computer (:owner (:contents cell))))]\n"
+       "                         true))]\n"
+       "      (should= " expected " count))"))
+
 (defn generate-then
   "Generate code string for a single THEN IR node."
   [then-ir givens]
@@ -705,6 +742,7 @@
     :territory-map (generate-territory-map-then then-ir)
     :no-unit-at (generate-no-unit-at-then then-ir)
     :unit-prop-absent (generate-unit-prop-absent-then then-ir)
+    :computer-army-count (generate-computer-army-count-then then-ir)
     :unrecognized (str "    (pending \"Unrecognized: " (:text then-ir) "\")")
     (str "    ;; Unknown then type: " (:type then-ir))))
 

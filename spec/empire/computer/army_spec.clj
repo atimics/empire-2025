@@ -366,4 +366,67 @@
       (reset! atoms/computer-map @atoms/game-map)
       (army/process-army [0 0])
       ;; Combat should have occurred - computer army no longer at [0 0]
-      (should-be-nil (get-in @atoms/game-map [0 0 :contents])))))
+      (should-be-nil (get-in @atoms/game-map [0 0 :contents]))))
+
+  (describe "unload-event-id filtering"
+    (it "army does not board transport with matching unload-event-id"
+      ;; Army with unload-event-id 42, adjacent transport also has unload-event-id 42
+      (reset-all-atoms!)
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1
+                                                        :unload-event-id 42}}
+                                {:type :sea :contents {:type :transport :owner :computer
+                                                        :transport-mission :loading
+                                                        :army-count 0
+                                                        :unload-event-id 42}}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (army/process-army [0 0])
+      ;; Army should still be on land (not boarded)
+      (should= :army (get-in @atoms/game-map [0 0 :contents :type]))
+      ;; Transport should still have 0 armies
+      (should= 0 (get-in @atoms/game-map [0 1 :contents :army-count])))
+
+    (it "army boards transport with different unload-event-id"
+      ;; Army with unload-event-id 42, transport has unload-event-id 99
+      (reset-all-atoms!)
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1
+                                                        :unload-event-id 42}}
+                                {:type :sea :contents {:type :transport :owner :computer
+                                                        :transport-mission :loading
+                                                        :army-count 0
+                                                        :unload-event-id 99}}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (army/process-army [0 0])
+      ;; Army should be gone from land
+      (should-be-nil (get-in @atoms/game-map [0 0 :contents]))
+      ;; Transport should have 1 army
+      (should= 1 (get-in @atoms/game-map [0 1 :contents :army-count])))
+
+    (it "army boards transport with no unload-event-id"
+      ;; Army with unload-event-id 42, transport has no unload-event-id
+      (reset-all-atoms!)
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1
+                                                        :unload-event-id 42}}
+                                {:type :sea :contents {:type :transport :owner :computer
+                                                        :transport-mission :loading
+                                                        :army-count 0}}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (army/process-army [0 0])
+      ;; Army should be gone from land
+      (should-be-nil (get-in @atoms/game-map [0 0 :contents]))
+      ;; Transport should have 1 army
+      (should= 1 (get-in @atoms/game-map [0 1 :contents :army-count])))
+
+    (it "army without unload-event-id boards any transport"
+      ;; Army with no unload-event-id, transport has unload-event-id 42
+      (reset-all-atoms!)
+      (reset! atoms/game-map [[{:type :land :contents {:type :army :owner :computer :hits 1}}
+                                {:type :sea :contents {:type :transport :owner :computer
+                                                        :transport-mission :loading
+                                                        :army-count 0
+                                                        :unload-event-id 42}}]])
+      (reset! atoms/computer-map @atoms/game-map)
+      (army/process-army [0 0])
+      ;; Army should be gone from land (boarded)
+      (should-be-nil (get-in @atoms/game-map [0 0 :contents]))
+      ;; Transport should have 1 army
+      (should= 1 (get-in @atoms/game-map [0 1 :contents :army-count])))))

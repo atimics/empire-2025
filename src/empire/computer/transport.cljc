@@ -43,8 +43,9 @@
 (defn- find-nearest-army
   "Find the nearest army to the transport. When pickup-continent is provided,
    only considers armies on that continent. Excludes armies from countries
-   the transport recently unloaded into."
-  [transport-pos pickup-continent unloaded-countries]
+   the transport recently unloaded into. Excludes armies with matching
+   transport-unload-event-id to prevent reloading just-unloaded armies."
+  [transport-pos pickup-continent unloaded-countries transport-unload-event-id]
   (let [armies (find-armies-to-load)
         candidates (cond->> armies
                      pickup-continent
@@ -55,7 +56,12 @@
                                (let [unit (get-in @atoms/game-map (conj army-pos :contents))]
                                  (and (:country-id unit)
                                       (recently-unloaded-country?
-                                        unloaded-countries (:country-id unit)))))))]
+                                        unloaded-countries (:country-id unit))))))
+
+                     transport-unload-event-id
+                     (remove (fn [army-pos]
+                               (let [unit (get-in @atoms/game-map (conj army-pos :contents))]
+                                 (= (:unload-event-id unit) transport-unload-event-id)))))]
     (when (seq candidates)
       (apply min-key #(core/distance transport-pos %) candidates))))
 
@@ -280,13 +286,13 @@
   (swap! atoms/game-map assoc-in (conj pos :contents :transport-mission) mission))
 
 (defn- mint-unload-event-id
-  "Mint a new unload-event-id when transport transitions to unloading."
-  [pos transport]
-  (when-not (:unload-event-id transport)
-    (let [id @atoms/next-unload-event-id]
-      (swap! atoms/next-unload-event-id inc)
-      (swap! atoms/game-map assoc-in
-             (conj pos :contents :unload-event-id) id))))
+  "Mint a new unload-event-id each time transport transitions to unloading.
+   Always mints a fresh ID so armies from previous unload cycles can be loaded."
+  [pos _transport]
+  (let [id @atoms/next-unload-event-id]
+    (swap! atoms/next-unload-event-id inc)
+    (swap! atoms/game-map assoc-in
+           (conj pos :contents :unload-event-id) id)))
 
 (defn- record-pickup-continent-pos
   "When transport becomes full, record the nearest adjacent land position
@@ -377,8 +383,9 @@
               (= current-mission :loading)
               (let [pickup-continent (when-let [ocp (:pickup-continent-pos transport)]
                                        (land-objectives/flood-fill-continent ocp))
-                    unloaded-countries (:unloaded-countries transport)]
-                (if-let [army-pos (find-nearest-army pos pickup-continent unloaded-countries)]
+                    unloaded-countries (:unloaded-countries transport)
+                    transport-unload-id (:unload-event-id transport)]
+                (if-let [army-pos (find-nearest-army pos pickup-continent unloaded-countries transport-unload-id)]
                   (when-let [new-pos (move-toward-position pos army-pos)]
                     (reset-stuck-counter new-pos))
                   (when-let [new-pos (explore-sea pos)]

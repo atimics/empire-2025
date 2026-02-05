@@ -7,7 +7,8 @@
             [empire.computer.core :as core]
             [empire.computer.threat :as threat]
             [empire.movement.pathfinding :as pathfinding]
-            [empire.movement.visibility :as visibility]))
+            [empire.movement.visibility :as visibility]
+            [empire.performance :as perf]))
 
 (defn- get-passable-sea-neighbors
   "Returns passable sea neighbors for a ship."
@@ -315,8 +316,8 @@
    positions closest to the midpoint of distant site pairs. Falls back to
    first valid position by top-left scan."
   []
-  (let [refuel-sites (vec (find-refueling-sites))
-        positioning-targets (vec (find-positioning-carrier-targets))
+  (let [refuel-sites (find-refueling-sites)
+        positioning-targets (find-positioning-carrier-targets)
         spacing-sites (into refuel-sites positioning-targets)]
     (when (seq refuel-sites)
       (let [pairs (for [a refuel-sites

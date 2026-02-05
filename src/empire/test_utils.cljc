@@ -1,6 +1,7 @@
 (ns empire.test-utils
   (:require [clojure.string :as str]
             [empire.atoms :as atoms]
+            [empire.computer.land-objectives :as land-objectives]
             [empire.movement.pathfinding :as pathfinding]
             [empire.performance :as perf]
             [empire.units.dispatcher :as dispatcher]))
@@ -225,7 +226,9 @@
   (reset! perf/monitoring-active false)
   (reset! perf/monitoring-frames-remaining 0)
   (reset! perf/monitoring-data [])
-  (pathfinding/clear-path-cache))
+  (reset! perf/current-frame-details {})
+  (pathfinding/clear-path-cache)
+  (land-objectives/clear-continent-cache!))
 
 (defn message-matches?
   "Checks if a message template matches an actual message string.

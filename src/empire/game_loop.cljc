@@ -3,6 +3,7 @@
    Delegates round setup to round-setup and item processing to item-processing."
   (:require [empire.atoms :as atoms]
             [empire.config :as config]
+            [empire.computer.land-objectives :as land-objectives]
             [empire.movement.pathfinding :as pathfinding]
             [empire.movement.visibility :as visibility]
             [empire.player.production :as production]
@@ -69,6 +70,7 @@
   []
   (swap! atoms/round-number inc)
   (pathfinding/clear-path-cache)
+  (land-objectives/clear-continent-cache!)
   (round-setup/move-satellites)
   (round-setup/consume-sentry-fighter-fuel)
   (round-setup/wake-sentries-seeing-enemy)

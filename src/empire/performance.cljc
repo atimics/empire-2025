@@ -16,6 +16,10 @@
   "Vector of frame timing reports."
   (atom []))
 
+(def current-frame-details
+  "Accumulator for detailed timings within the current frame."
+  (atom {}))
+
 (def slow-frame-threshold-ms
   "Frame time in ms that triggers monitoring (1 second)."
   1000)
@@ -38,10 +42,23 @@
          elapsed# (nanos->ms (- (System/nanoTime) start#))]
      [result# elapsed#]))
 
+(defn record-detail!
+  "Records a timing detail for the current frame. Category is a keyword, ms is elapsed time."
+  [category ms]
+  (when @monitoring-active
+    (swap! current-frame-details update category
+           (fn [existing]
+             (if existing
+               {:count (inc (:count existing))
+                :total-ms (+ (:total-ms existing) ms)
+                :max-ms (max (:max-ms existing) ms)}
+               {:count 1 :total-ms ms :max-ms ms})))))
+
 (defn start-monitoring!
   "Begins performance monitoring for the specified number of frames."
   []
   (reset! monitoring-data [])
+  (reset! current-frame-details {})
   (reset! monitoring-frames-remaining frames-to-monitor)
   (reset! monitoring-active true)
   (println "Performance monitoring STARTED - slow frame detected!"))
@@ -50,25 +67,37 @@
   (let [pct (if (pos? total-ms) (* 100.0 (/ ms total-ms)) 0.0)]
     (format "  %-30s %8.2f ms  (%5.1f%%)" label ms pct)))
 
+(defn- format-unit-details [unit-details]
+  (when (seq unit-details)
+    (let [sorted (sort-by (fn [[_ v]] (- (:total-ms v))) unit-details)]
+      (concat
+       ["  Unit processing breakdown:"]
+       (map (fn [[category {:keys [count total-ms max-ms]}]]
+              (format "    %-20s %3d calls  %8.2f ms total  %6.2f ms avg  %6.2f ms max"
+                      (name category) count total-ms (/ total-ms count) max-ms))
+            sorted)))))
+
 (defn- format-frame-report [frame-num frame-data]
   (let [{:keys [total-ms update-player-map-ms update-computer-map-ms
                 advance-game-batch-ms update-hover-status-ms
-                advance-calls advance-details]} frame-data
+                advance-calls advance-details unit-details]} frame-data
         lines [(format "Frame %d: %.2f ms total" frame-num total-ms)
                (format-timing-line "update-player-map" update-player-map-ms total-ms)
                (format-timing-line "update-computer-map" update-computer-map-ms total-ms)
                (format-timing-line "advance-game-batch" advance-game-batch-ms total-ms)
                (format-timing-line "update-hover-status" update-hover-status-ms total-ms)
-               (format "  advance-game called %d times" advance-calls)]]
-    (if (seq advance-details)
-      (concat lines
-              ["  Breakdown of advance-game calls:"]
-              (map-indexed
-               (fn [i detail]
-                 (format "    [%d] %s: %.2f ms"
-                         i (:action detail) (:ms detail)))
-               advance-details))
-      lines)))
+               (format "  advance-game called %d times" advance-calls)]
+        unit-lines (format-unit-details unit-details)]
+    (concat lines
+            (when (seq unit-lines) unit-lines)
+            (when (seq advance-details)
+              (concat
+               ["  Breakdown of advance-game calls:"]
+               (map-indexed
+                (fn [i detail]
+                  (format "    [%d] %s: %.2f ms"
+                          i (:action detail) (:ms detail)))
+                advance-details))))))
 
 (defn- generate-report []
   (let [header [""
@@ -139,14 +168,17 @@
 (defn record-frame-timing!
   "Records timing data for the current frame and handles monitoring lifecycle."
   [frame-data]
-  (swap! monitoring-data conj frame-data)
-  (swap! monitoring-frames-remaining dec)
-  (println (format "  Monitored frame %d/%d: %.2f ms"
-                   (- frames-to-monitor @monitoring-frames-remaining)
-                   frames-to-monitor
-                   (:total-ms frame-data)))
-  (when (<= @monitoring-frames-remaining 0)
-    (write-report-and-abort!)))
+  (let [details @current-frame-details
+        frame-data-with-details (assoc frame-data :unit-details details)]
+    (reset! current-frame-details {})
+    (swap! monitoring-data conj frame-data-with-details)
+    (swap! monitoring-frames-remaining dec)
+    (println (format "  Monitored frame %d/%d: %.2f ms"
+                     (- frames-to-monitor @monitoring-frames-remaining)
+                     frames-to-monitor
+                     (:total-ms frame-data)))
+    (when (<= @monitoring-frames-remaining 0)
+      (write-report-and-abort!))))
 
 (defn should-start-monitoring?
   "Returns true if frame-time-ms exceeds threshold and monitoring not active."

@@ -9,7 +9,8 @@
             [empire.containers.helpers :as uc]
             [empire.movement.coastline :as coastline]
             [empire.movement.explore :as explore]
-            [empire.movement.movement :as movement]))
+            [empire.movement.movement :as movement]
+            [empire.performance :as perf]))
 
 (defn move-current-unit
   "Moves the unit at coords one step. Returns new coords if still moving, nil if done.
@@ -153,13 +154,16 @@
   (let [coords (first @atoms/computer-items)
         cell (get-in @atoms/game-map coords)
         is-computer-city? (and (= (:type cell) :city) (= (:city-status cell) :computer))
-        has-computer-unit? (= (:owner (:contents cell)) :computer)]
+        has-computer-unit? (= (:owner (:contents cell)) :computer)
+        unit-type (when has-computer-unit? (:type (:contents cell)))]
     ;; Handle city production if this is a computer city
     (when is-computer-city?
-      (computer-production/process-computer-city coords))
+      (let [[_ city-ms] (perf/timed (computer-production/process-computer-city coords))]
+        (perf/record-detail! :city-production city-ms)))
     ;; Process unit movement if there's a computer unit here
     (if has-computer-unit?
-      (let [new-coords (computer/process-computer-unit coords)]
+      (let [[new-coords unit-ms] (perf/timed (computer/process-computer-unit coords))]
+        (perf/record-detail! unit-type unit-ms)
         (if new-coords
           (do (swap! atoms/computer-items #(cons new-coords (rest %))) :continue)
           (do (swap! atoms/computer-items rest) :done)))

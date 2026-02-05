@@ -5,6 +5,15 @@
             [empire.computer.core :as core]
             [empire.movement.map-utils :as map-utils]))
 
+;; Cache for continent flood-fill results.
+;; Maps position -> continent-set. Cleared each round.
+(def continent-cache (atom {}))
+
+(defn clear-continent-cache!
+  "Clears the continent cache. Called at the start of each round."
+  []
+  (reset! continent-cache {}))
+
 (defn- get-terrain
   "Returns terrain type for a cell: :land, :sea, :city, or :unexplored."
   [cell]
@@ -13,7 +22,7 @@
     (= :city (:type cell)) :land  ; cities count as land for continent purposes
     :else (:type cell)))
 
-(defn flood-fill-continent
+(defn- flood-fill-continent-uncached
   "Flood-fill from start-pos to find all connected land cells on computer-map.
    Marks unexplored cells adjacent to continent but does NOT expand through them.
    Returns a set of positions that are part of this continent (including adjacent unexplored)."
@@ -58,6 +67,19 @@
                     (recur new-frontier
                            (conj visited pos)
                            (conj continent pos))))))))))))
+
+(defn flood-fill-continent
+  "Cached flood-fill from start-pos. Returns a set of positions.
+   Caches the result for all positions in the continent so subsequent
+   lookups from any position on the same continent are O(1)."
+  [start-pos]
+  (if-let [cached (get @continent-cache start-pos)]
+    cached
+    (when-let [continent (flood-fill-continent-uncached start-pos)]
+      ;; Cache result for all positions in the continent
+      (let [cache-entries (zipmap continent (repeat continent))]
+        (swap! continent-cache merge cache-entries))
+      continent)))
 
 (defn scan-continent
   "Scan a continent (set of positions) and return counts of items of interest."

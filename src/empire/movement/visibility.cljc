@@ -65,21 +65,34 @@
 
 (defn update-cell-visibility
   "Updates visibility around a specific cell for the given owner.
-   Satellites reveal two rectangular rings (distances 1 and 2)."
-  [pos owner]
-  (let [visible-map-atom (if (= owner :player) atoms/player-map atoms/computer-map)
-        [x y] pos
-        cell (get-in @atoms/game-map pos)
-        is-satellite? (= :satellite (:type (:contents cell)))
-        radius (if is-satellite? 2 1)]
-    (when @visible-map-atom
-      (let [height (count @atoms/game-map)
-            width (count (first @atoms/game-map))]
-        (doseq [di (range (- radius) (inc radius))
-                dj (range (- radius) (inc radius))]
-          (let [ni (+ x di)
-                nj (+ y dj)]
-            (when (and (>= ni 0) (< ni height)
-                       (>= nj 0) (< nj width))
-              (let [game-cell (get-in @atoms/game-map [ni nj])]
-                (swap! visible-map-atom assoc-in [ni nj] game-cell)))))))))
+   Satellites reveal two rectangular rings (distances 1 and 2).
+   When unit is a computer army with country-id, stamps newly-revealed land cells."
+  ([pos owner] (update-cell-visibility pos owner nil))
+  ([pos owner unit]
+   (let [visible-map-atom (if (= owner :player) atoms/player-map atoms/computer-map)
+         [x y] pos
+         cell (get-in @atoms/game-map pos)
+         is-satellite? (= :satellite (:type (:contents cell)))
+         radius (if is-satellite? 2 1)
+         should-stamp? (and unit
+                            (= :army (:type unit))
+                            (= :computer (:owner unit))
+                            (:country-id unit))]
+     (when @visible-map-atom
+       (let [height (count @atoms/game-map)
+             width (count (first @atoms/game-map))
+             visible-map @visible-map-atom]
+         (doseq [di (range (- radius) (inc radius))
+                 dj (range (- radius) (inc radius))]
+           (let [ni (+ x di)
+                 nj (+ y dj)]
+             (when (and (>= ni 0) (< ni height)
+                        (>= nj 0) (< nj width))
+               (let [game-cell (get-in @atoms/game-map [ni nj])
+                     was-unexplored? (let [vis-cell (get-in visible-map [ni nj])]
+                                       (or (nil? vis-cell)
+                                           (= :unexplored (:type vis-cell))))]
+                 (swap! visible-map-atom assoc-in [ni nj] game-cell)
+                 (when (and should-stamp? was-unexplored? (= :land (:type game-cell)))
+                   (swap! atoms/game-map assoc-in [ni nj :country-id]
+                          (:country-id unit))))))))))))

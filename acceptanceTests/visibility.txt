@@ -121,3 +121,43 @@ THEN player map
   #####
   #####
   #####
+
+;===============================================================
+; Computer army claims surrounding land when visibility updates.
+;===============================================================
+GIVEN game map
+  ###
+  #a#
+  ###
+GIVEN computer map
+  ...
+  ...
+  ...
+GIVEN a belongs to country 1.
+
+WHEN cell visibility updates for a.
+
+THEN territory map
+  111
+  111
+  111
+
+;===============================================================
+; Computer army does not claim sea cells.
+;===============================================================
+GIVEN game map
+  #~#
+  ~a~
+  #~#
+GIVEN computer map
+  ...
+  ...
+  ...
+GIVEN a belongs to country 1.
+
+WHEN cell visibility updates for a.
+
+THEN territory map
+  1~1
+  ~1~
+  1~1

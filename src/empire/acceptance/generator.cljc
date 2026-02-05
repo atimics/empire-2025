@@ -110,7 +110,13 @@
             (some #(= :evaluate-production (:type %)) whens))}
    {:need :visibility-mask
     :pred (fn [{:keys [types]}]
-            (some #{:player-map-visibility} types))}])
+            (some #{:player-map-visibility} types))}
+   {:need :visibility
+    :pred (fn [{:keys [types]}]
+            (some #{:cell-visibility-update} types))}
+   {:need :territory-mask
+    :pred (fn [{:keys [types]}]
+            (some #{:territory-map} types))}])
 
 (defn determine-needs
   "Scan all IR nodes across all tests. Returns a set of keywords
@@ -145,6 +151,9 @@
       (swap! refers conj "make-initial-test-map"))
     (when (contains? needs :visibility-mask)
       (swap! refers conj "visibility-mask"))
+    (when (contains? needs :territory-mask)
+      (swap! refers conj "territory-mask")
+      (swap! refers conj "build-territory-expected"))
 
     ;; Always need atoms
     (swap! requires conj "[empire.atoms :as atoms]")
@@ -160,6 +169,8 @@
       (swap! requires conj "[quil.core :as q]"))
     (when (contains? needs :computer-production)
       (swap! requires conj "[empire.computer.production :as computer-production]"))
+    (when (contains? needs :visibility)
+      (swap! requires conj "[empire.movement.visibility :as visibility]"))
 
     (str "(ns " ns-name "\n"
          "  (:require [speclj.core :refer :all]\n"
@@ -402,6 +413,12 @@
 (defn- generate-visibility-update-when [_]
   "    (game-loop/update-player-map)")
 
+(defn- generate-cell-visibility-update-when [{:keys [unit]}]
+  (let [pos-expr (target-pos-expr unit)]
+    (str "    (let [pos " pos-expr "\n"
+         "          cell (get-in @atoms/game-map pos)]\n"
+         "      (visibility/update-cell-visibility pos (:owner (:contents cell)) (:contents cell)))")))
+
 (defn- generate-evaluate-production-when [{:keys [city]}]
   (let [pos-expr (target-pos-expr city)]
     (str "    (computer-production/process-computer-city " pos-expr ")")))
@@ -429,6 +446,7 @@
      :backtick (generate-backtick-when when-ir)
      :mouse-at-key (generate-mouse-at-key-when when-ir)
      :visibility-update (generate-visibility-update-when when-ir)
+     :cell-visibility-update (generate-cell-visibility-update-when when-ir)
      :start-new-round (generate-start-new-round-when when-ir)
      :advance-game (generate-advance-game-when when-ir)
      :advance-game-batch (generate-advance-game-when when-ir)
@@ -634,6 +652,11 @@
   (let [[x y] coords]
     (str "    (should-be-nil (get-in @atoms/player-map [" x " " y "]))")))
 
+(defn- generate-territory-map-then [{:keys [rows]}]
+  (let [row-strs (str/join " " (map #(str "\"" % "\"") rows))]
+    (str "    (should= (build-territory-expected [" row-strs "])"
+         "\n             (territory-mask @atoms/game-map))")))
+
 (defn- generate-player-map-visibility-then [{:keys [rows]}]
   (let [row-strs (str/join " " (map #(str "\"" % "\"") rows))]
     (str "    (should= (visibility-mask (build-test-map [" row-strs "]))"
@@ -678,6 +701,7 @@
     :player-map-cell-not-nil (generate-player-map-cell-not-nil-then then-ir)
     :player-map-cell-nil (generate-player-map-cell-nil-then then-ir)
     :player-map-visibility (generate-player-map-visibility-then then-ir)
+    :territory-map (generate-territory-map-then then-ir)
     :no-unit-at (generate-no-unit-at-then then-ir)
     :unit-prop-absent (generate-unit-prop-absent-then then-ir)
     :unrecognized (str "    (pending \"Unrecognized: " (:text then-ir) "\")")

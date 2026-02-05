@@ -88,6 +88,7 @@
         (swap! atoms/game-map assoc-in from-pos (dissoc from-cell :contents))
         (swap! atoms/game-map assoc-in (conj to-pos :contents) unit)
         (stamp-territory to-pos unit)
+        (visibility/update-cell-visibility to-pos (:owner unit) unit)
         to-pos))))
 
 (defn- assign-country-on-conquest

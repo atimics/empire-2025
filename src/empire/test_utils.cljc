@@ -50,6 +50,29 @@
 (defn visibility-mask [grid]
   (mapv (fn [col] (mapv some? col)) grid))
 
+(defn territory-mask [grid]
+  (mapv (fn [col]
+          (mapv (fn [cell]
+                  (cond
+                    (nil? cell) nil
+                    (= :sea (:type cell)) :sea
+                    (:country-id cell) (:country-id cell)
+                    :else nil))
+                col))
+        grid))
+
+(defn build-territory-expected [strings]
+  (let [rows (mapv (fn [row-str]
+                     (mapv (fn [c]
+                             (cond
+                               (= c \~) :sea
+                               (= c \.) nil
+                               (Character/isDigit c) (Character/digit c 10)
+                               :else nil))
+                           row-str))
+                   strings)]
+    (apply mapv vector rows)))
+
 (defn build-sparse-test-map
   "Builds a rows x cols map of unexplored (nil) cells, then overlays specific cells.
    overlays is a map of [row col] -> character."

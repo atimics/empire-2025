@@ -31,6 +31,11 @@
          (not (re-matches #"^[A-Za-z].*\s+(is|has|are|with)\b.*" trimmed))
          (re-matches #"^[~#.=% +XOAFTDCSBPVatdfcsbpv\-]+$" trimmed))))
 
+(defn- territory-map-row? [line]
+  (let [trimmed (str/trim line)]
+    (and (not (str/blank? trimmed))
+         (re-matches #"^[0-9~.]+$" trimmed))))
+
 (def direction-keys #{"q" "w" "e" "a" "d" "z" "x" "c"})
 
 (defn- lowercase-direction? [k]
@@ -486,6 +491,9 @@
     :handler when-handle-advance-game}
    {:regex #"player\s+items\s+are\s+processed"
     :handler when-handle-process-player-items}
+   {:regex #"cell\s+visibility\s+updates\s+for\s+(\w+)"
+    :handler (fn [[_ unit] _ctx]
+               [{:type :cell-visibility-update :unit unit}])}
    {:regex #"visibility\s+updates"
     :handler when-handle-visibility-update}
    {:regex #"production\s+updates"
@@ -886,7 +894,8 @@
     (while (< @i (count lines))
       (let [line (nth lines @i)
             trimmed (str/trim line)]
-        (if (re-matches #"(?i)^THEN\s+player\s+map\s*\.?\s*$" trimmed)
+        (cond
+          (re-matches #"(?i)^THEN\s+player\s+map\s*\.?\s*$" trimmed)
           (let [_ (swap! i inc)
                 rows (atom [])]
             (while (and (< @i (count lines))
@@ -894,6 +903,17 @@
               (swap! rows conj (str/trim (nth lines @i)))
               (swap! i inc))
             (swap! map-thens conj {:type :player-map-visibility :rows @rows}))
+
+          (re-matches #"(?i)^THEN\s+territory\s+map\s*\.?\s*$" trimmed)
+          (let [_ (swap! i inc)
+                rows (atom [])]
+            (while (and (< @i (count lines))
+                        (territory-map-row? (nth lines @i)))
+              (swap! rows conj (str/trim (nth lines @i)))
+              (swap! i inc))
+            (swap! map-thens conj {:type :territory-map :rows @rows}))
+
+          :else
           (do
             (swap! remaining conj line)
             (swap! i inc)))))

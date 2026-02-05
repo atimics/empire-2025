@@ -103,7 +103,10 @@
             (or (some #{:unit-eventually-at :unit-after-steps} types)
                 (some :at-next-round thens)
                 (some #(and (= :unit-at-next-round (:type %))
-                            (not (:at-next-step %))) thens)))}])
+                            (not (:at-next-step %))) thens)))}
+   {:need :visibility-mask
+    :pred (fn [{:keys [types]}]
+            (some #{:player-map-visibility} types))}])
 
 (defn determine-needs
   "Scan all IR nodes across all tests. Returns a set of keywords
@@ -136,6 +139,8 @@
       (swap! refers conj "message-matches?"))
     (when (contains? needs :make-initial-test-map)
       (swap! refers conj "make-initial-test-map"))
+    (when (contains? needs :visibility-mask)
+      (swap! refers conj "visibility-mask"))
 
     ;; Always need atoms
     (swap! requires conj "[empire.atoms :as atoms]")
@@ -608,6 +613,11 @@
   (let [[x y] coords]
     (str "    (should-be-nil (get-in @atoms/player-map [" x " " y "]))")))
 
+(defn- generate-player-map-visibility-then [{:keys [rows]}]
+  (let [row-strs (str/join " " (map #(str "\"" % "\"") rows))]
+    (str "    (should= (visibility-mask (build-test-map [" row-strs "]))"
+         "\n             (visibility-mask @atoms/player-map))")))
+
 (defn- generate-no-unit-at-then [{:keys [coords]}]
   (str "    (should-be-nil (:contents (get-in @atoms/game-map " (pr-str coords) ")))"))
 
@@ -645,6 +655,7 @@
     :game-paused (generate-game-paused-then then-ir)
     :player-map-cell-not-nil (generate-player-map-cell-not-nil-then then-ir)
     :player-map-cell-nil (generate-player-map-cell-nil-then then-ir)
+    :player-map-visibility (generate-player-map-visibility-then then-ir)
     :no-unit-at (generate-no-unit-at-then then-ir)
     :unit-prop-absent (generate-unit-prop-absent-then then-ir)
     :unrecognized (str "    (pending \"Unrecognized: " (:text then-ir) "\")")

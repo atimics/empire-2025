@@ -47,6 +47,9 @@
   (let [rows (mapv (fn [row-str] (mapv char->cell row-str)) strings)]
     (apply mapv vector rows)))
 
+(defn visibility-mask [grid]
+  (mapv (fn [col] (mapv some? col)) grid))
+
 (defn build-sparse-test-map
   "Builds a rows x cols map of unexplored (nil) cells, then overlays specific cells.
    overlays is a map of [row col] -> character."

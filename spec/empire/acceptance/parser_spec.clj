@@ -717,7 +717,22 @@
       (let [lines ["THEN A has target [4 0]."]
             result (parser/parse-then lines {})]
         (should= [{:type :unit-prop :unit "A" :property :target :expected [4 0]}]
-                 (:thens result)))))
+                 (:thens result))))
+
+    (it "parses THEN player map with map rows"
+      (let [lines ["THEN player map" ".###." ".###." ".###."]
+            result (parser/parse-then lines {})]
+        (should= [{:type :player-map-visibility :rows [".###." ".###." ".###."]}]
+                 (:thens result))))
+
+    (it "parses THEN player map mixed with other assertions"
+      (let [lines ["THEN player map" ".##." ".##." "THEN A is at [0 0]."]
+            result (parser/parse-then lines {})]
+        (should= 2 (count (:thens result)))
+        (should= {:type :player-map-visibility :rows [".##." ".##."]}
+                 (first (:thens result)))
+        (should= {:type :unit-at :unit "A" :coords [0 0]}
+                 (second (:thens result))))))
 
   (describe "parse-file integration"
     (it "parses army.txt correctly"

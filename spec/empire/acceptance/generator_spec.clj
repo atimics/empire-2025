@@ -78,7 +78,11 @@
 
   (it "detects :quil when whens have :mouse-at-key"
     (let [tests [{:givens [] :whens [{:type :mouse-at-key :coords [0 0] :key :period}] :thens []}]]
-      (should-contain :quil (gen/determine-needs tests)))))
+      (should-contain :quil (gen/determine-needs tests))))
+
+  (it "detects :visibility-mask when thens have :player-map-visibility"
+    (let [tests [{:givens [] :whens [] :thens [{:type :player-map-visibility :rows [".#." ".#."]}]}]]
+      (should-contain :visibility-mask (gen/determine-needs tests)))))
 
 ;; --- generate-given tests ---
 
@@ -423,6 +427,14 @@
       (should-contain "should-be-nil" result)
       (should-contain "atoms/player-map" result)
       (should-contain "[1 2]" result)))
+
+  (it "generates player-map-visibility then"
+    (let [result (gen/generate-then {:type :player-map-visibility :rows [".###." ".###." ".###."]} [])]
+      (should-contain "should=" result)
+      (should-contain "visibility-mask" result)
+      (should-contain "build-test-map" result)
+      (should-contain "\".###.\"" result)
+      (should-contain "atoms/player-map" result)))
 
   (it "generates production-with-rounds then"
     (let [result (gen/generate-then {:type :production-with-rounds :city "O" :expected :army :remaining-rounds 5} [])]

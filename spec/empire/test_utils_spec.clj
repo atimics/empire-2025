@@ -401,3 +401,20 @@
 
   (it "escapes regex special characters in template"
     (should (message-matches? "What? Really." "What? Really."))))
+
+(describe "visibility-mask"
+  (it "returns true for non-nil cells and false for nil cells"
+    (let [grid (build-test-map ["#." ".#"])]
+      (should= [[true false] [false true]] (visibility-mask grid))))
+
+  (it "returns all false for all-nil grid"
+    (let [grid (build-test-map [".." ".."])]
+      (should= [[false false] [false false]] (visibility-mask grid))))
+
+  (it "returns all true for all-non-nil grid"
+    (let [grid (build-test-map ["##" "##"])]
+      (should= [[true true] [true true]] (visibility-mask grid))))
+
+  (it "works with single-cell grid"
+    (should= [[true]] (visibility-mask (build-test-map ["#"])))
+    (should= [[false]] (visibility-mask (build-test-map ["."])))))

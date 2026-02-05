@@ -14,15 +14,10 @@ GIVEN player map
 
 WHEN visibility updates.
 
-THEN player-map cell [1 0] is not nil.
-THEN player-map cell [2 0] is not nil.
-THEN player-map cell [3 0] is not nil.
-THEN player-map cell [1 1] is not nil.
-THEN player-map cell [2 1] is not nil.
-THEN player-map cell [3 1] is not nil.
-THEN player-map cell [1 2] is not nil.
-THEN player-map cell [2 2] is not nil.
-THEN player-map cell [3 2] is not nil.
+THEN player map
+  .###.
+  .###.
+  .###.
 
 ;===============================================================
 ; Unexplored cells are not visible.
@@ -36,9 +31,10 @@ GIVEN player map
   ...
   ...
 
-THEN player-map cell [0 0] is nil.
-THEN player-map cell [1 1] is nil.
-THEN player-map cell [2 2] is nil.
+THEN player map
+  ...
+  ...
+  ...
 
 ;===============================================================
 ; City reveals surroundings.
@@ -54,15 +50,10 @@ GIVEN player map
 
 WHEN visibility updates.
 
-THEN player-map cell [0 0] is not nil.
-THEN player-map cell [1 0] is not nil.
-THEN player-map cell [2 0] is not nil.
-THEN player-map cell [0 1] is not nil.
-THEN player-map cell [1 1] is not nil.
-THEN player-map cell [2 1] is not nil.
-THEN player-map cell [0 2] is not nil.
-THEN player-map cell [1 2] is not nil.
-THEN player-map cell [2 2] is not nil.
+THEN player map
+  ###
+  ###
+  ###
 
 ;===============================================================
 ; Enemy units hidden in fog.
@@ -74,9 +65,8 @@ GIVEN player map
 
 WHEN visibility updates.
 
-THEN player-map cell [0 0] is not nil.
-THEN player-map cell [1 0] is not nil.
-THEN player-map cell [5 0] is nil.
+THEN player map
+  ##....
 
 ;===============================================================
 ; Satellite reveals 5x5 area.
@@ -96,8 +86,9 @@ GIVEN player map
 
 WHEN visibility updates.
 
-THEN player-map cell [0 0] is not nil.
-THEN player-map cell [4 4] is not nil.
-THEN player-map cell [0 4] is not nil.
-THEN player-map cell [4 0] is not nil.
-THEN player-map cell [2 2] is not nil.
+THEN player map
+  #####
+  #####
+  #####
+  #####
+  #####

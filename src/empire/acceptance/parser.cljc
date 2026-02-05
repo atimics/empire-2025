@@ -805,11 +805,35 @@
         ;; Already handled by split-then-continuations
         [clean]))))
 
+(defn- extract-then-map-blocks
+  "Pre-process THEN lines: extract map blocks after 'THEN player map'.
+   Returns {:remaining-lines [...] :map-thens [...]}"
+  [lines]
+  (let [remaining (atom [])
+        map-thens (atom [])
+        i (atom 0)]
+    (while (< @i (count lines))
+      (let [line (nth lines @i)
+            trimmed (str/trim line)]
+        (if (re-matches #"(?i)^THEN\s+player\s+map\s*\.?\s*$" trimmed)
+          (let [_ (swap! i inc)
+                rows (atom [])]
+            (while (and (< @i (count lines))
+                        (map-row? (nth lines @i)))
+              (swap! rows conj (str/trim (nth lines @i)))
+              (swap! i inc))
+            (swap! map-thens conj {:type :player-map-visibility :rows @rows}))
+          (do
+            (swap! remaining conj line)
+            (swap! i inc)))))
+    {:remaining-lines @remaining :map-thens @map-thens}))
+
 (defn parse-then
   "Parse THEN lines into IR. Returns {:thens [...]}"
   [lines context]
-  (let [clauses (split-then-continuations lines)
-        thens (atom [])]
+  (let [{:keys [remaining-lines map-thens]} (extract-then-map-blocks lines)
+        clauses (split-then-continuations remaining-lines)
+        thens (atom (vec map-thens))]
     (doseq [clause clauses]
       (let [parts (split-compound-then clause)]
         (doseq [part parts]

@@ -222,3 +222,26 @@
   (it "does nothing when load menu is closed"
     (input/key-down :escape)
     (should= false @atoms/load-menu-open)))
+
+(describe "load menu click handling"
+  (around [it]
+    (reset-all-atoms!)
+    (it))
+
+  (it "loads selected file when clicking on menu item"
+    (let [loaded (atom nil)]
+      (reset! atoms/load-menu-open true)
+      (reset! atoms/load-menu-files ["file1.edn" "file2.edn"])
+      (reset! atoms/load-menu-hovered 1)
+      (with-redefs [save-load/load-game! (fn [f] (reset! loaded f))]
+        (input/handle-load-menu-click)
+        (should= "file2.edn" @loaded))))
+
+  (it "does nothing when no file is hovered"
+    (let [loaded (atom nil)]
+      (reset! atoms/load-menu-open true)
+      (reset! atoms/load-menu-files ["file1.edn"])
+      (reset! atoms/load-menu-hovered nil)
+      (with-redefs [save-load/load-game! (fn [f] (reset! loaded f))]
+        (input/handle-load-menu-click)
+        (should-be-nil @loaded)))))

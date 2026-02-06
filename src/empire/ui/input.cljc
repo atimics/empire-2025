@@ -64,10 +64,26 @@
     (when (attention/is-unit-needing-attention? attention-coords)
       (handle-unit-click clicked-coords attention-coords))))
 
+(defn handle-load-menu-click
+  "Handles a mouse click when the load menu is open.
+   Loads the hovered file if one is selected."
+  []
+  (when-let [idx @atoms/load-menu-hovered]
+    (let [files @atoms/load-menu-files]
+      (when (< idx (count files))
+        (save-load/load-game! (nth files idx))))))
+
 (defn mouse-down
   "Handles mouse click events."
   [x y button]
-  (when (and (= button :left) (map-utils/on-map? x y))
+  (cond
+    ;; Load menu is open - handle menu click
+    @atoms/load-menu-open
+    (when (= button :left)
+      (handle-load-menu-click))
+
+    ;; Normal map click
+    (and (= button :left) (map-utils/on-map? x y))
     (let [[cell-x cell-y] (map-utils/determine-cell-coordinates x y)]
       (reset! atoms/last-clicked-cell [cell-x cell-y])
       (handle-cell-click cell-x cell-y))))

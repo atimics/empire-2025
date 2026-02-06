@@ -42,7 +42,8 @@
     [i j]))
 
 (defn item-processed
-  "Called when user input has been processed for current item."
+  "Called when user input has been processed for current item.
+   Victory check happens in item-processing/process-player-items-batch."
   []
   (reset! atoms/waiting-for-input false)
   (reset! atoms/cells-needing-attention []))

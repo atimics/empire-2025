@@ -11,6 +11,34 @@
             [empire.movement.explore :as explore]
             [empire.movement.movement :as movement]))
 
+(defn- computer-has-items?
+  "Returns true if computer has any cities or units on the map."
+  []
+  (let [game-map @atoms/game-map]
+    (some (fn [col]
+            (some (fn [cell]
+                    (or (= (:city-status cell) :computer)
+                        (= (:owner (:contents cell)) :computer)))
+                  col))
+          game-map)))
+
+(defn- declare-victory!
+  "Declares player victory, pauses game, and flushes remaining items."
+  []
+  (reset! atoms/paused true)
+  (reset! atoms/error-message "****YOU WIN!*****")
+  (reset! atoms/error-until Long/MAX_VALUE)
+  (reset! atoms/map-to-display :actual-map)
+  (reset! atoms/player-items [])
+  (reset! atoms/computer-items []))
+
+(defn check-player-victory!
+  "Checks if player has won (no computer items remain) and declares victory if so."
+  []
+  (when (and @atoms/game-over-check-enabled
+             (not (computer-has-items?)))
+    (declare-victory!)))
+
 (defn move-current-unit
   "Moves the unit at coords one step. Returns new coords if still moving, nil if done.
    Sidesteps consume a step but continue moving if steps remain."
@@ -188,14 +216,17 @@
 ;; 1. player-items list becomes empty
 ;; 2. waiting-for-input is set (unit needs player attention)
 ;; 3. 100 items processed (batch limit to keep UI responsive)
+;; 4. Player wins (all computer items eliminated)
 (defn process-player-items-batch []
   (loop [processed 0]
     (cond
+      @atoms/paused nil  ;; Stop if victory was declared
       (empty? @atoms/player-items) nil
       @atoms/waiting-for-input nil
       (>= processed 100) nil
       :else
       (let [result (process-one-item)]
+        (check-player-victory!)
         (case result
           :waiting nil
           :continue (recur (inc processed))

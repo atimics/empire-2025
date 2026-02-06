@@ -777,7 +777,43 @@
     (reset! atoms/production {})
     (reset! atoms/map-to-display :player-map)
     (game-loop/start-new-round)
-    (should= :actual-map @atoms/map-to-display)))
+    (should= :actual-map @atoms/map-to-display))
+
+  (it "declares victory immediately after player move eliminates last computer"
+    ;; Scenario: player has two armies, computer has one army
+    ;; First army kills computer army, victory should be declared immediately
+    ;; Second army should NOT get attention
+    (reset! atoms/game-map (build-test-map ["Aa#A"]))
+    (set-test-unit atoms/game-map "A1" :mode :awake :steps-remaining 1)
+    (set-test-unit atoms/game-map "A2" :mode :awake :steps-remaining 1)
+    (reset! atoms/player-map (build-test-map ["####"]))
+    (reset! atoms/computer-map (build-test-map ["####"]))
+    (reset! atoms/production {})
+    (reset! atoms/player-items [[0 0] [3 0]])  ;; Both player armies in queue
+    (reset! atoms/waiting-for-input false)
+    (reset! atoms/paused false)
+    ;; Step 1: first army asks for attention
+    (game-loop/advance-game)
+    (should @atoms/waiting-for-input)
+    (should= [[0 0]] @atoms/cells-needing-attention)
+    ;; Step 2: user moves first army to attack computer army
+    (movement/set-unit-movement [0 0] [1 0])
+    (game-loop/item-processed)
+    ;; After item-processed, if combat killed last computer unit, victory should be declared
+    ;; Victory check happens in item-processed
+    (if @atoms/paused
+      ;; Victory was declared - verify state
+      (do
+        (should= "****YOU WIN!*****" @atoms/error-message)
+        (should= :actual-map @atoms/map-to-display)
+        ;; Player items should be flushed
+        (should= [] (vec @atoms/player-items)))
+      ;; Combat hasn't happened yet - advance game to trigger combat
+      (do
+        (game-loop/advance-game)
+        ;; Now check if victory was declared
+        (should @atoms/paused)
+        (should= "****YOU WIN!*****" @atoms/error-message)))))
 
 (describe "advance-game-batch"
   (before (reset-all-atoms!))

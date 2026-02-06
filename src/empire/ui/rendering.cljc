@@ -105,10 +105,18 @@
 
 (defn update-hover-status
   "Updates hover-message based on mouse position.
-   Shows contents from the currently displayed map."
+   Shows contents from the currently displayed map.
+   Also updates load-menu-hovered when menu is open."
   []
   (let [x (q/mouse-x)
         y (q/mouse-y)]
+    ;; Update load menu hover
+    (when @atoms/load-menu-open
+      (let [files @atoms/load-menu-files
+            geom (save-load/menu-geometry (q/width) (q/height) (count files))
+            idx (save-load/hovered-file-index x y geom (count files))]
+        (reset! atoms/load-menu-hovered idx)))
+    ;; Update map hover (existing code)
     (if (map-utils/on-map? x y)
       (let [[cx cy] (map-utils/determine-cell-coordinates x y)
             coords [cx cy]

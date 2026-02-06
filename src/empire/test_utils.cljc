@@ -224,6 +224,9 @@
   (reset! atoms/sea-lane-network {:nodes {} :segments {} :pos->node {} :pos->seg {}
                                    :next-node-id 1 :next-segment-id 1})
   (reset! atoms/distant-city-pairs nil)
+  (reset! atoms/load-menu-open false)
+  (reset! atoms/load-menu-files [])
+  (reset! atoms/load-menu-hovered nil)
   (pathfinding/clear-path-cache)
   (land-objectives/clear-continent-cache!))
 

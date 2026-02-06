@@ -196,3 +196,16 @@
    Updated when computer conquers or loses a city.
    nil means not yet computed; #{} means computed but empty."
   (atom nil))
+
+;; Load menu state
+(def load-menu-open
+  "An atom indicating if the load game menu is open."
+  (atom false))
+
+(def load-menu-files
+  "An atom containing the list of available save files."
+  (atom []))
+
+(def load-menu-hovered
+  "An atom containing the index of the hovered file in the load menu, or nil."
+  (atom nil))

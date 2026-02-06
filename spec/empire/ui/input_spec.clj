@@ -223,6 +223,23 @@
     (input/key-down :escape)
     (should= false @atoms/load-menu-open)))
 
+(describe "key blocking while load menu open"
+  (around [it]
+    (reset-all-atoms!)
+    (it))
+
+  (it "ignores non-escape keys when menu is open"
+    (reset! atoms/load-menu-open true)
+    (reset! atoms/pause-requested false)
+    (input/key-down :P)
+    (should= false @atoms/pause-requested))
+
+  (it "processes normal keys when menu is closed"
+    (reset! atoms/load-menu-open false)
+    (reset! atoms/paused false)
+    (input/key-down :P)
+    (should= true @atoms/pause-requested)))
+
 (describe "load menu click handling"
   (around [it]
     (reset-all-atoms!)

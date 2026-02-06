@@ -495,8 +495,14 @@
 
 (defn key-down [k]
   (debug/log-action! [:key-pressed k])
-  ;; Handle key down events
-  (if @atoms/backtick-pressed
+  (cond
+    ;; Load menu is open - only Escape works
+    @atoms/load-menu-open
+    (when (= k :escape)
+      (save-load/close-load-menu!))
+
+    ;; Backtick prefix mode
+    @atoms/backtick-pressed
     (do
       (reset! atoms/backtick-pressed false)
       (case k
@@ -523,8 +529,10 @@
         ;; Other commands
         :o (own-city-at-mouse)
         nil))
+
+    ;; Normal key handling
+    :else
     (cond
-      (and (= k :escape) @atoms/load-menu-open) (save-load/close-load-menu!)
       (= k (keyword "`")) (reset! atoms/backtick-pressed true)
       (= k :P) (game-loop/toggle-pause)
       (and (= k :space) @atoms/paused) (game-loop/step-one-round)

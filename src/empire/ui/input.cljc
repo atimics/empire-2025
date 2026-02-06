@@ -153,6 +153,15 @@
 
       :else true))) ;; Ignore invalid disembark targets
 
+(defn- undamaged-ship-entering-friendly-city? [active-unit adjacent-target]
+  (let [target-cell (get-in @atoms/game-map adjacent-target)
+        unit-type (:type active-unit)
+        max-hits (dispatcher/hits unit-type)]
+    (and (dispatcher/naval-unit? unit-type)
+         (= :city (:type target-cell))
+         (= :player (:city-status target-cell))
+         (= (:hits active-unit) max-hits))))
+
 (defn- handle-standard-unit-movement [coords adjacent-target target extended? active-unit]
   (cond
     (and (= :army (:type active-unit)) (not extended?) (combat/hostile-city? adjacent-target))
@@ -163,6 +172,10 @@
     (and (= :fighter (:type active-unit)) (not extended?) (combat/hostile-city? adjacent-target))
     (do (combat/attempt-fighter-overfly coords adjacent-target)
         (game-loop/item-processed)
+        true)
+
+    (and (not extended?) (undamaged-ship-entering-friendly-city? active-unit adjacent-target))
+    (do (atoms/set-error-message "Ship not damaged, entry denied." config/error-message-duration)
         true)
 
     :else

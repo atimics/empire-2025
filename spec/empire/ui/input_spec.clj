@@ -286,3 +286,47 @@
       (with-redefs [save-load/load-game! (fn [f] (reset! loaded f))]
         (input/handle-load-menu-click)
         (should-be-nil @loaded)))))
+
+(describe "undamaged ship entering friendly city"
+  (before (reset-all-atoms!))
+
+  (it "rejects command and shows error message"
+    (reset! atoms/game-map (build-test-map ["~D~"
+                                             "~O~"
+                                             "~~~"]))
+    (set-test-unit atoms/game-map "D" :mode :awake :hits 3)  ; full health destroyer (max 3)
+    (let [ship-coords (:pos (get-test-unit atoms/game-map "D"))
+          city-coords (:pos (get-test-city atoms/game-map "O"))]
+      (reset! atoms/cells-needing-attention [ship-coords])
+      (reset! atoms/player-items [ship-coords])
+      (reset! atoms/waiting-for-input true)
+      (reset! atoms/error-message "")
+      ;; Press 'x' to move down toward city
+      (input/handle-key :x)
+      ;; Should show error message
+      (should= "Ship not damaged, entry denied." @atoms/error-message)
+      ;; Ship should still be awake (command rejected, not processed)
+      (let [ship (:contents (get-in @atoms/game-map ship-coords))]
+        (should= :awake (:mode ship)))
+      ;; Should still be waiting for input
+      (should= true @atoms/waiting-for-input)))
+
+  (it "allows damaged ship to set movement toward city"
+    (reset! atoms/game-map (build-test-map ["~D~"
+                                             "~O~"
+                                             "~~~"]))
+    (set-test-unit atoms/game-map "D" :mode :awake :hits 2)  ; damaged destroyer
+    (let [ship-coords (:pos (get-test-unit atoms/game-map "D"))
+          city-coords (:pos (get-test-city atoms/game-map "O"))]
+      (reset! atoms/cells-needing-attention [ship-coords])
+      (reset! atoms/player-items [ship-coords])
+      (reset! atoms/waiting-for-input true)
+      (reset! atoms/error-message "")
+      ;; Press 'x' to move down toward city
+      (input/handle-key :x)
+      ;; Should NOT show error message
+      (should= "" @atoms/error-message)
+      ;; Ship should be in moving mode with city as target
+      (let [ship (:contents (get-in @atoms/game-map ship-coords))]
+        (should= :moving (:mode ship))
+        (should= city-coords (:target ship))))))

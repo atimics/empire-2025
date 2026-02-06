@@ -729,6 +729,56 @@
     (game-loop/start-new-round)
     (should= :actual-map @atoms/map-to-display)))
 
+(describe "player victory"
+  (before
+    (reset-all-atoms!)
+    (reset! atoms/game-over-check-enabled true))
+
+  (it "pauses game when computer has no cities and no units"
+    (reset! atoms/game-map (build-test-map ["O#"]))  ;; Only player city
+    (reset! atoms/player-map (build-test-map ["##"]))
+    (reset! atoms/computer-map (build-test-map ["##"]))
+    (reset! atoms/production {})
+    (reset! atoms/paused false)
+    (game-loop/start-new-round)
+    (should @atoms/paused))
+
+  (it "displays ****YOU WIN!***** in error message"
+    (reset! atoms/game-map (build-test-map ["O#"]))  ;; Only player city
+    (reset! atoms/player-map (build-test-map ["##"]))
+    (reset! atoms/computer-map (build-test-map ["##"]))
+    (reset! atoms/production {})
+    (reset! atoms/error-message "")
+    (game-loop/start-new-round)
+    (should= "****YOU WIN!*****" @atoms/error-message))
+
+  (it "does not trigger victory when computer has a city"
+    (reset! atoms/game-map (build-test-map ["OX"]))  ;; Computer has a city
+    (reset! atoms/player-map (build-test-map ["##"]))
+    (reset! atoms/computer-map (build-test-map ["##"]))
+    (reset! atoms/production {})
+    (reset! atoms/paused false)
+    (game-loop/start-new-round)
+    (should-not @atoms/paused))
+
+  (it "does not trigger victory when computer has a unit"
+    (reset! atoms/game-map (build-test-map ["Oa"]))  ;; Computer has an army
+    (reset! atoms/player-map (build-test-map ["##"]))
+    (reset! atoms/computer-map (build-test-map ["##"]))
+    (reset! atoms/production {})
+    (reset! atoms/paused false)
+    (game-loop/start-new-round)
+    (should-not @atoms/paused))
+
+  (it "switches map display to actual-map on victory"
+    (reset! atoms/game-map (build-test-map ["O#"]))  ;; Only player city
+    (reset! atoms/player-map (build-test-map ["##"]))
+    (reset! atoms/computer-map (build-test-map ["##"]))
+    (reset! atoms/production {})
+    (reset! atoms/map-to-display :player-map)
+    (game-loop/start-new-round)
+    (should= :actual-map @atoms/map-to-display)))
+
 (describe "advance-game-batch"
   (before (reset-all-atoms!))
 

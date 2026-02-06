@@ -59,3 +59,18 @@
            data (into {} (map (fn [[k atom]] [k @atom]) saveable-atoms))]
        (spit filepath (pr-str data))
        filename))))
+
+(defn load-game!
+  "Loads game state from an EDN file. Closes the load menu after loading.
+   If dir-path is not provided, defaults to 'saves'."
+  ([filename] (load-game! "saves" filename))
+  ([dir-path filename]
+   (let [filepath (str dir-path "/" filename)
+         data (clojure.edn/read-string (slurp filepath))]
+     (doseq [[k atom] saveable-atoms]
+       (when-let [value (get data k)]
+         (reset! atom value)))
+     (reset! atoms/load-menu-open false)
+     (reset! atoms/load-menu-files [])
+     (reset! atoms/load-menu-hovered nil)
+     (atoms/set-turn-message (str "Loaded " filename) 3000))))

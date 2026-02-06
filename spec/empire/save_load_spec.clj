@@ -98,3 +98,42 @@
 
   (it "does not contain load-menu-open"
     (should-not-contain :load-menu-open save-load/saveable-atoms)))
+
+(describe "load-game!"
+  (before (reset-all-atoms!))
+
+  (it "restores game-map from saved file"
+    (let [dir (str (java.io.File/createTempFile "saves" "") "-dir")
+          test-map [[{:type :land} {:type :sea}]]]
+      (reset! atoms/game-map test-map)
+      (try
+        (let [filename (save-load/save-game! dir)]
+          (reset! atoms/game-map nil)
+          (save-load/load-game! dir filename)
+          (should= test-map @atoms/game-map))
+        (finally
+          (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
+          (.delete (java.io.File. dir))))))
+
+  (it "restores round-number from saved file"
+    (let [dir (str (java.io.File/createTempFile "saves" "") "-dir")]
+      (reset! atoms/round-number 42)
+      (try
+        (let [filename (save-load/save-game! dir)]
+          (reset! atoms/round-number 0)
+          (save-load/load-game! dir filename)
+          (should= 42 @atoms/round-number))
+        (finally
+          (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
+          (.delete (java.io.File. dir))))))
+
+  (it "closes the load menu after loading"
+    (let [dir (str (java.io.File/createTempFile "saves" "") "-dir")]
+      (reset! atoms/load-menu-open true)
+      (try
+        (let [filename (save-load/save-game! dir)]
+          (save-load/load-game! dir filename)
+          (should= false @atoms/load-menu-open))
+        (finally
+          (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
+          (.delete (java.io.File. dir)))))))

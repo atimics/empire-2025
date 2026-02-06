@@ -27,3 +27,16 @@
    :fighter-leg-records atoms/fighter-leg-records
    :coast-walkers-produced atoms/coast-walkers-produced
    :distant-city-pairs atoms/distant-city-pairs})
+
+(defn list-save-files
+  "Returns a vector of save filenames sorted by modification time (newest first).
+   If dir-path is not provided, defaults to 'saves'."
+  ([] (list-save-files "saves"))
+  ([dir-path]
+   (let [dir (java.io.File. dir-path)]
+     (if (.exists dir)
+       (->> (.listFiles dir)
+            (filter #(.endsWith (.getName %) ".edn"))
+            (sort-by #(- (.lastModified %)))
+            (mapv #(.getName %)))
+       []))))

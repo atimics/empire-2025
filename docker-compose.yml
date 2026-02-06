@@ -1,0 +1,5 @@
+services:
+  empire:
+    build: .
+    ports:
+      - "6080:6080"

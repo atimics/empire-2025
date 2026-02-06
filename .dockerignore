@@ -1,0 +1,9 @@
+.git
+.gitignore
+saves
+plans
+acceptanceTests
+generated-acceptance-specs
+target
+*.md
+debug-*.txt

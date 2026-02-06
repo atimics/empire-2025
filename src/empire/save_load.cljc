@@ -89,3 +89,34 @@
   (reset! atoms/load-menu-open false)
   (reset! atoms/load-menu-files [])
   (reset! atoms/load-menu-hovered nil))
+
+(def menu-width 350)
+(def menu-padding 15)
+(def menu-title-height 30)
+(def menu-item-height 25)
+
+(defn menu-geometry
+  "Calculates menu geometry for given screen dimensions and file count."
+  [screen-w screen-h file-count]
+  (let [content-height (* menu-item-height (max 1 file-count))
+        total-height (+ menu-title-height content-height (* 2 menu-padding))
+        left (/ (- screen-w menu-width) 2)
+        top (/ (- screen-h total-height) 2)]
+    {:left left
+     :top top
+     :right (+ left menu-width)
+     :bottom (+ top total-height)
+     :width menu-width
+     :height total-height
+     :content-top (+ top menu-padding menu-title-height)
+     :item-height menu-item-height}))
+
+(defn hovered-file-index
+  "Returns the index of the file at mouse position, or nil if none."
+  [mouse-x mouse-y geom file-count]
+  (when (and (> file-count 0)
+             (>= mouse-x (:left geom))
+             (<= mouse-x (:right geom))
+             (>= mouse-y (:content-top geom))
+             (< mouse-y (+ (:content-top geom) (* file-count (:item-height geom)))))
+    (int (/ (- mouse-y (:content-top geom)) (:item-height geom)))))

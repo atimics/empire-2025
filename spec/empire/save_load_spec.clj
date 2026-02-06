@@ -173,3 +173,33 @@
     (reset! atoms/load-menu-hovered 2)
     (save-load/close-load-menu!)
     (should-be-nil @atoms/load-menu-hovered)))
+
+(describe "menu-geometry"
+  (it "calculates centered menu position"
+    (let [geom (save-load/menu-geometry 800 600 3)]
+      (should (< (:left geom) 400))
+      (should (> (:right geom) 400))
+      (should (< (:top geom) 300))
+      (should (> (:bottom geom) 300))))
+
+  (it "includes item-height for row calculations"
+    (let [geom (save-load/menu-geometry 800 600 3)]
+      (should (> (:item-height geom) 0))))
+
+  (it "includes content-top after title"
+    (let [geom (save-load/menu-geometry 800 600 3)]
+      (should (> (:content-top geom) (:top geom))))))
+
+(describe "hovered-file-index"
+  (it "returns nil when mouse is outside menu"
+    (let [geom (save-load/menu-geometry 800 600 3)]
+      (should-be-nil (save-load/hovered-file-index 0 0 geom 3))))
+
+  (it "returns 0 for first item"
+    (let [geom (save-load/menu-geometry 800 600 3)
+          y (+ (:content-top geom) 5)]
+      (should= 0 (save-load/hovered-file-index 400 y geom 3))))
+
+  (it "returns nil when no files"
+    (let [geom (save-load/menu-geometry 800 600 0)]
+      (should-be-nil (save-load/hovered-file-index 400 300 geom 0)))))

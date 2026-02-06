@@ -8,6 +8,26 @@
                    [java.time.format DateTimeFormatter])))
 
 (def ^:private max-action-log-size 100)
+(def ^:private max-movement-log-size 500)
+
+(defn log-player-movement!
+  "Log a player unit movement for debugging.
+   event is :move, :wake, or :blocked.
+   reason is the wake/block reason (e.g., :steps-exhausted, :blocked) or nil for normal moves."
+  [unit-type from-pos to-pos mode event reason]
+  (let [entry {:round @atoms/round-number
+               :unit-type unit-type
+               :from from-pos
+               :to to-pos
+               :mode mode
+               :event event
+               :reason reason}]
+    (swap! atoms/player-movement-log
+           (fn [log]
+             (let [new-log (conj log entry)]
+               (if (> (count new-log) max-movement-log-size)
+                 (vec (drop (- (count new-log) max-movement-log-size) new-log))
+                 new-log))))))
 
 (defn log-action!
   "Append action to circular buffer with timestamp. Cap at 100 entries.
@@ -98,6 +118,61 @@
   [{:keys [timestamp action]}]
   (str "  " timestamp " " (pr-str action)))
 
+(defn- find-coastline-units
+  "Find all units in coastline-follow mode."
+  []
+  (let [game-map @atoms/game-map]
+    (for [col (range (count game-map))
+          row (range (count (first game-map)))
+          :let [cell (get-in game-map [col row])
+                unit (:contents cell)]
+          :when (= (:mode unit) :coastline-follow)]
+      {:pos [col row]
+       :type (:type unit)
+       :owner (:owner unit)
+       :visited (count (:visited unit))
+       :steps-remaining (:coastline-steps unit)})))
+
+(defn- format-coastline-section
+  "Format coastline-follow units for debug dump."
+  []
+  (let [units (find-coastline-units)]
+    (str "=== Coastline-Follow Units ===\n"
+         (if (empty? units)
+           "  (none)\n"
+           (str (str/join "\n"
+                          (for [{:keys [pos type owner visited steps-remaining]} units]
+                            (str "  " pos " " (name type) " owner:" (name owner)
+                                 " visited:" visited " steps:" steps-remaining)))
+                "\n"))
+         "\n")))
+
+(defn- format-movement-entry
+  "Format a single movement log entry."
+  [{:keys [unit-type from to mode event reason]}]
+  (str "    " (name unit-type) " " from "→" to
+       " " (name mode)
+       (when (not= event :move) (str " " (name event)))
+       (when reason (str " (" (name reason) ")"))))
+
+(defn- format-movement-history-section
+  "Format player unit movement history for the last 20 rounds."
+  []
+  (let [current-round @atoms/round-number
+        min-round (max 1 (- current-round 19))
+        entries @atoms/player-movement-log
+        recent-entries (filter #(<= min-round (:round %) current-round) entries)
+        by-round (group-by :round recent-entries)
+        rounds-with-moves (sort (keys by-round))]
+    (str "=== Player Unit Movement History (last 20 rounds) ===\n"
+         (if (empty? rounds-with-moves)
+           "  (no movements logged)\n"
+           (str/join "\n"
+                     (for [r rounds-with-moves]
+                       (str "  Round " r ":\n"
+                            (str/join "\n" (map format-movement-entry (get by-round r)))))))
+         "\n\n")))
+
 (defn- format-sea-lane-section
   "Format the sea lane network for the debug dump."
   []
@@ -167,13 +242,15 @@
                                (str (str/join "\n" (map format-action-entry actions)) "\n"))
                              "\n")
         sea-lane-section (format-sea-lane-section)
+        coastline-section (format-coastline-section)
+        movement-section (format-movement-history-section)
         maps-section (str "=== Map Data ===\n"
                           (format-map-section "game-map" (:game-map region-data))
                           "\n"
                           (format-map-section "player-map" (:player-map region-data))
                           "\n"
                           (format-map-section "computer-map" (:computer-map region-data)))]
-    (str header global-state actions-section sea-lane-section maps-section)))
+    (str header global-state actions-section sea-lane-section coastline-section movement-section maps-section)))
 
 (defn generate-dump-filename
   "Generate a timestamped filename for the dump file.

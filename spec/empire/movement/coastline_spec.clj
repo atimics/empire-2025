@@ -451,3 +451,37 @@
       (when unit-3-2
         (should= :awake (:mode unit-3-2))
         (should= :found-a-bay (:reason unit-3-2))))))
+
+(describe "collision prevention"
+  (before (reset-all-atoms!))
+
+  (it "prevents overwriting another unit when destination becomes occupied"
+    ;; Set up: patrol boat next to another unit in narrow channel
+    ;; The defensive check should prevent overwriting if pick-coastline-move
+    ;; returns an occupied cell (simulating race condition)
+    (reset! atoms/game-map (build-test-map ["###"
+                                             "#~#"
+                                             "#P#"
+                                             "#D#"
+                                             "###"]))
+    ;; After transpose: P is at [1 2], D is at [1 3]
+    (let [patrol-coords [1 2]
+          destroyer-pos [1 3]]
+      ;; Set patrol boat to coastline-follow mode
+      (set-test-unit atoms/game-map "P" :mode :coastline-follow
+                     :coastline-steps 10 :start-pos patrol-coords :visited #{patrol-coords} :prev-pos [1 1])
+      (reset! atoms/player-map @atoms/game-map)
+
+      ;; Mock pick-coastline-move to return the destroyer's position
+      ;; This simulates a race condition where the cell was empty when checked
+      ;; but occupied when the move happens
+      (with-redefs [pick-coastline-move (constantly destroyer-pos)]
+        (move-coastline-unit patrol-coords))
+
+      ;; Both units should still exist - patrol boat wakes instead of overwriting
+      (should-not-be-nil (:contents (get-in @atoms/game-map [1 3])))  ;; Destroyer still there
+      (let [patrol-unit (get-in @atoms/game-map [1 2 :contents])]
+        (should-not-be-nil patrol-unit)
+        (should= :patrol-boat (:type patrol-unit))
+        (should= :awake (:mode patrol-unit))
+        (should= :blocked (:reason patrol-unit))))))

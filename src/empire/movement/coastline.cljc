@@ -1,6 +1,7 @@
 (ns empire.movement.coastline
   (:require [empire.atoms :as atoms]
             [empire.config :as config]
+            [empire.debug :as debug]
             [empire.movement.map-utils :as map-utils]
             [empire.movement.visibility :as visibility]
             [empire.movement.explore :as explore]))
@@ -163,20 +164,44 @@
         remaining-steps (dec (:coastline-steps unit config/coastline-steps))
         visited (or (:visited unit) #{})
         start-pos (:start-pos unit)
-        prev-pos (:prev-pos unit)]
+        prev-pos (:prev-pos unit)
+        player? (= :player (:owner unit))]
     (if-let [pre-wake (pre-move-wake-reason coords visited start-pos)]
-      (do (wake-coastline-unit coords pre-wake) nil)
+      (do
+        (when player?
+          (debug/log-player-movement! (:type unit) coords coords :coastline-follow :wake pre-wake))
+        (wake-coastline-unit coords pre-wake)
+        nil)
       (if-let [next-pos (pick-coastline-move coords atoms/game-map visited prev-pos)]
-        (let [next-cell (get-in @atoms/game-map next-pos)
-              post-wake (post-move-wake-reason unit next-pos remaining-steps start-pos)
-              moved-unit (if post-wake
-                           (make-woken-unit unit post-wake)
-                           (make-continuing-unit unit remaining-steps visited next-pos coords))]
-          (swap! atoms/game-map assoc-in coords (dissoc cell :contents))
-          (swap! atoms/game-map assoc-in next-pos (assoc next-cell :contents moved-unit))
-          (visibility/update-cell-visibility next-pos (:owner unit))
-          (when-not post-wake next-pos))
-        (do (wake-coastline-unit coords :blocked) nil)))))
+        (let [next-cell (get-in @atoms/game-map next-pos)]
+          ;; Defensive check: verify destination is still empty
+          (if (:contents next-cell)
+            (do
+              (debug/log-action! [:collision-avoided :coastline-follow coords next-pos
+                                  (:type unit) (:type (:contents next-cell))])
+              (when player?
+                (debug/log-player-movement! (:type unit) coords coords :coastline-follow :blocked :collision))
+              (wake-coastline-unit coords :blocked)
+              nil)
+            ;; Normal move
+            (let [post-wake (post-move-wake-reason unit next-pos remaining-steps start-pos)
+                  moved-unit (if post-wake
+                               (make-woken-unit unit post-wake)
+                               (make-continuing-unit unit remaining-steps visited next-pos coords))]
+              (debug/log-action! [:coastline-move (:type unit) coords next-pos])
+              (when player?
+                (if post-wake
+                  (debug/log-player-movement! (:type unit) coords next-pos :coastline-follow :wake post-wake)
+                  (debug/log-player-movement! (:type unit) coords next-pos :coastline-follow :move nil)))
+              (swap! atoms/game-map assoc-in coords (dissoc cell :contents))
+              (swap! atoms/game-map assoc-in next-pos (assoc next-cell :contents moved-unit))
+              (visibility/update-cell-visibility next-pos (:owner unit))
+              (when-not post-wake next-pos))))
+        (do
+          (when player?
+            (debug/log-player-movement! (:type unit) coords coords :coastline-follow :blocked :no-valid-moves))
+          (wake-coastline-unit coords :blocked)
+          nil)))))
 
 (defn move-coastline-unit
   "Moves a coastline-following unit based on its speed. Returns nil when done."

@@ -190,6 +190,12 @@
    Each entry is {:timestamp <ms> :action <vector describing the action>}."
   (atom []))
 
+(def player-movement-log
+  "Circular buffer of player unit movements for debugging. Capped at 500 entries.
+   Each entry is {:round N :unit-type :keyword :from [x y] :to [x y]
+                  :mode :keyword :event :move/:wake/:blocked :reason :keyword-or-nil}."
+  (atom []))
+
 (def distant-city-pairs
   "Set of computer city pairs where distance > fighter-fuel.
    Each pair is a set of two positions #{[r1 c1] [r2 c2]}.

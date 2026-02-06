@@ -137,3 +137,39 @@
         (finally
           (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
           (.delete (java.io.File. dir)))))))
+
+(describe "open-load-menu!"
+  (before (reset-all-atoms!))
+
+  (it "sets load-menu-open to true"
+    (save-load/open-load-menu!)
+    (should= true @atoms/load-menu-open))
+
+  (it "populates load-menu-files from saves directory"
+    (let [dir (str (java.io.File/createTempFile "saves" "") "-dir")]
+      (try
+        (.mkdirs (java.io.File. dir))
+        (spit (str dir "/save-test.edn") "{}")
+        (save-load/open-load-menu! dir)
+        (should= ["save-test.edn"] @atoms/load-menu-files)
+        (finally
+          (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
+          (.delete (java.io.File. dir)))))))
+
+(describe "close-load-menu!"
+  (before (reset-all-atoms!))
+
+  (it "sets load-menu-open to false"
+    (reset! atoms/load-menu-open true)
+    (save-load/close-load-menu!)
+    (should= false @atoms/load-menu-open))
+
+  (it "clears load-menu-files"
+    (reset! atoms/load-menu-files ["file.edn"])
+    (save-load/close-load-menu!)
+    (should= [] @atoms/load-menu-files))
+
+  (it "clears load-menu-hovered"
+    (reset! atoms/load-menu-hovered 2)
+    (save-load/close-load-menu!)
+    (should-be-nil @atoms/load-menu-hovered)))

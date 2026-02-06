@@ -74,3 +74,18 @@
      (reset! atoms/load-menu-files [])
      (reset! atoms/load-menu-hovered nil)
      (atoms/set-turn-message (str "Loaded " filename) 3000))))
+
+(defn open-load-menu!
+  "Opens the load menu, populating it with available save files."
+  ([] (open-load-menu! "saves"))
+  ([dir-path]
+   (reset! atoms/load-menu-files (list-save-files dir-path))
+   (reset! atoms/load-menu-hovered nil)
+   (reset! atoms/load-menu-open true)))
+
+(defn close-load-menu!
+  "Closes the load menu without loading."
+  []
+  (reset! atoms/load-menu-open false)
+  (reset! atoms/load-menu-files [])
+  (reset! atoms/load-menu-hovered nil))

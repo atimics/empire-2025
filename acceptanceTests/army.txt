@@ -30,9 +30,8 @@ GIVEN game map
   A#+
 A's target is +
 
-WHEN the next round begins
+WHEN a new round starts and A is waiting for input.
 
-THEN A is awake.
 THEN the attention message contains :army-found-city.
 
 ;===============================================================

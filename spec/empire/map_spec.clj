@@ -169,10 +169,14 @@
       (should= [1 0] result)
       (should= :awake (:mode (:contents (get-in @atoms/game-map [1 0]))))))
 
-  (it "returns position when unit wakes up after using last step"
+  (it "returns nil when unit wakes up at target with no steps remaining and no reason"
     (reset! atoms/game-map (build-test-map ["A#"]))
     (set-test-unit atoms/game-map "A" :mode :moving :target [1 0] :steps-remaining 1)
-    (should= [1 0] (game-loop/move-current-unit [0 0])))
+    (should= nil (game-loop/move-current-unit [0 0]))
+    ;; Unit should still be awake at target, just not needing immediate attention
+    (let [unit (:contents (get-in @atoms/game-map [1 0]))]
+      (should= :awake (:mode unit))
+      (should= 0 (:steps-remaining unit))))
 
   (it "limits unit to its rate per round even with new orders"
     (reset! atoms/game-map (build-test-map ["A##"]))

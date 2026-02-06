@@ -42,8 +42,8 @@
              (when moved-unit
                (let [new-steps (dec (:steps-remaining moved-unit 1))]
                  (swap! atoms/game-map assoc-in (conj pos :contents :steps-remaining) new-steps)
-                 (when (or (> new-steps 0)
-                           (= :awake (:mode moved-unit)))
+                 ;; Only continue if unit has steps remaining to use
+                 (when (> new-steps 0)
                    pos))))
 
            ;; Combat - attacker is at pos if won, nil if lost
@@ -128,6 +128,7 @@
         cell (get-in @atoms/game-map coords)
         unit (:contents cell)
         satellite-with-target? (and (= (:type unit) :satellite) (:target unit))
+        unit-in-auto-mode? (#{:moving :explore :coastline-follow} (:mode unit))
         auto-coords (when-not satellite-with-target?
                       (or (auto-launch-fighter coords cell)
                           (auto-disembark-army coords cell)))]
@@ -137,6 +138,10 @@
 
       auto-coords
       (do (swap! atoms/player-items #(cons auto-coords (rest %))) :continue)
+
+      ;; If unit is actively moving, let it move before checking attention
+      unit-in-auto-mode?
+      (process-auto-movement coords unit)
 
       (attention/item-needs-attention? coords)
       (do (reset! atoms/cells-needing-attention [coords])

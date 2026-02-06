@@ -124,11 +124,17 @@
         (should= {:type :land :contents {:type :army :owner :player :hits 1 :steps-remaining 0 :mode :awake :reason :army-found-city}} (get-in @atoms/game-map [1 0]))
         (should= {:type :city :city-status :computer} (get-in @atoms/game-map [2 0])))
 
-      (it "returns position when unit wakes near enemy city"
+      (it "returns nil when army wakes near enemy city with no steps remaining"
+        ;; Army uses its one step, wakes near city, but can't act this round
         (reset! atoms/game-map (build-test-map ["A#X"]))
         (set-test-unit atoms/game-map "A" :mode :moving :target [2 0] :steps-remaining 1)
         (reset! atoms/player-map (build-test-map ["---"]))
-        (should= [1 0] (game-loop/move-current-unit [0 0])))
+        (should= nil (game-loop/move-current-unit [0 0]))
+        ;; Army should still be awake at [1 0] with reason set
+        (let [unit (:contents (get-in @atoms/game-map [1 0]))]
+          (should= :awake (:mode unit))
+          (should= :army-found-city (:reason unit))
+          (should= 0 (:steps-remaining unit))))
 
       (it "returns position when unit wakes due to blocking"
         (reset! atoms/game-map (build-test-map ["A~"]))

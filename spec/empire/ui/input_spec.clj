@@ -1,9 +1,11 @@
 (ns empire.ui.input-spec
   (:require [speclj.core :refer :all]
+            [clojure.string :as string]
             [empire.ui.input :as input]
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.game-loop :as game-loop]
+            [empire.save-load :as save-load]
             [empire.test-utils :refer [build-test-map get-test-city get-test-unit set-test-unit reset-all-atoms!]]))
 
 (describe "set-city-lookaround"
@@ -188,3 +190,19 @@
   (it "unpauses to allow game loop to process"
     (input/key-down :space)
     (should= false @atoms/paused)))
+
+(describe "save/load key handling"
+  (around [it]
+    (reset-all-atoms!)
+    (it))
+
+  (it "! key calls save-game! and shows confirmation"
+    (let [saved (atom false)]
+      (with-redefs [save-load/save-game! (fn [] (reset! saved true) "test-file.edn")]
+        (input/key-down (keyword "!"))
+        (should @saved)
+        (should (string/includes? @atoms/turn-message "test-file.edn")))))
+
+  (it "^ key opens load menu"
+    (input/key-down (keyword "^"))
+    (should= true @atoms/load-menu-open)))

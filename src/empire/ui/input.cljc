@@ -12,6 +12,7 @@
             [empire.movement.movement :as movement]
             [empire.player.production :as production]
             [empire.containers.helpers :as uc]
+            [empire.save-load :as save-load]
             [empire.units.dispatcher :as dispatcher]
             [empire.movement.waypoint :as waypoint]
             [quil.core :as q]))
@@ -519,6 +520,9 @@
       (and (= k :u) (wake-at-mouse)) nil
       (and (= k :l) (set-lookaround-at-mouse)) nil
       (and (= k (keyword "*")) (set-waypoint-at-mouse)) nil
+      (= k (keyword "!")) (let [filename (save-load/save-game!)]
+                            (atoms/set-turn-message (str "Saved to " filename) 3000))
+      (= k (keyword "^")) (save-load/open-load-menu!)
       (set-city-marching-orders-by-direction k) nil
       (handle-key k) nil
       :else nil)))

@@ -98,6 +98,8 @@
    Processes multiple non-attention items per frame for faster rounds."
   []
   (cond
+    @atoms/load-menu-open nil
+
     @atoms/paused nil
 
     ;; Both lists empty - start new round (or pause)

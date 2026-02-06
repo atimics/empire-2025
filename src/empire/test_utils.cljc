@@ -226,6 +226,9 @@
   (reset! atoms/distant-city-pairs nil)
   (reset! atoms/action-log [])
   (reset! atoms/player-movement-log [])
+  (reset! atoms/load-menu-open false)
+  (reset! atoms/load-menu-files [])
+  (reset! atoms/load-menu-hovered nil)
   (pathfinding/clear-path-cache)
   (land-objectives/clear-continent-cache!))
 

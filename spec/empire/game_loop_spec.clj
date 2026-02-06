@@ -611,6 +611,17 @@
     (should (:contents (get-in @atoms/game-map [1 0])))))
 
 
+(describe "game pauses when load menu is open"
+  (before (reset-all-atoms!))
+
+  (it "does not advance game when load-menu-open is true"
+    (reset! atoms/load-menu-open true)
+    (reset! atoms/player-items [])
+    (reset! atoms/computer-items [])
+    (reset! atoms/round-number 5)
+    (game-loop/advance-game)
+    (should= 5 @atoms/round-number)))
+
 (describe "pause functionality"
   (before
     (reset-all-atoms!)

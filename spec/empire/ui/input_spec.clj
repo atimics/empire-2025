@@ -1,9 +1,11 @@
 (ns empire.ui.input-spec
   (:require [speclj.core :refer :all]
+            [clojure.string :as string]
             [empire.ui.input :as input]
             [empire.atoms :as atoms]
             [empire.config :as config]
             [empire.game-loop :as game-loop]
+            [empire.save-load :as save-load]
             [empire.test-utils :refer [build-test-map get-test-city get-test-unit set-test-unit reset-all-atoms!]]))
 
 (describe "set-city-lookaround"
@@ -212,3 +214,75 @@
   (it "unpauses to allow game loop to process"
     (input/key-down :space)
     (should= false @atoms/paused)))
+
+(describe "save/load key handling"
+  (around [it]
+    (reset-all-atoms!)
+    (it))
+
+  (it "! key calls save-game! and shows confirmation"
+    (let [saved (atom false)]
+      (with-redefs [save-load/save-game! (fn [] (reset! saved true) "test-file.edn")]
+        (input/key-down (keyword "!"))
+        (should @saved)
+        (should (string/includes? @atoms/turn-message "test-file.edn")))))
+
+  (it "^ key opens load menu"
+    (input/key-down (keyword "^"))
+    (should= true @atoms/load-menu-open)))
+
+(describe "Escape key with load menu"
+  (around [it]
+    (reset-all-atoms!)
+    (it))
+
+  (it "closes load menu when open"
+    (reset! atoms/load-menu-open true)
+    (reset! atoms/load-menu-files ["file.edn"])
+    (input/key-down :escape)
+    (should= false @atoms/load-menu-open)
+    (should= [] @atoms/load-menu-files))
+
+  (it "does nothing when load menu is closed"
+    (input/key-down :escape)
+    (should= false @atoms/load-menu-open)))
+
+(describe "key blocking while load menu open"
+  (around [it]
+    (reset-all-atoms!)
+    (it))
+
+  (it "ignores non-escape keys when menu is open"
+    (reset! atoms/load-menu-open true)
+    (reset! atoms/pause-requested false)
+    (input/key-down :P)
+    (should= false @atoms/pause-requested))
+
+  (it "processes normal keys when menu is closed"
+    (reset! atoms/load-menu-open false)
+    (reset! atoms/paused false)
+    (input/key-down :P)
+    (should= true @atoms/pause-requested)))
+
+(describe "load menu click handling"
+  (around [it]
+    (reset-all-atoms!)
+    (it))
+
+  (it "loads selected file when clicking on menu item"
+    (let [loaded (atom nil)]
+      (reset! atoms/load-menu-open true)
+      (reset! atoms/load-menu-files ["file1.edn" "file2.edn"])
+      (reset! atoms/load-menu-hovered 1)
+      (with-redefs [save-load/load-game! (fn [f] (reset! loaded f))]
+        (input/handle-load-menu-click)
+        (should= "file2.edn" @loaded))))
+
+  (it "does nothing when no file is hovered"
+    (let [loaded (atom nil)]
+      (reset! atoms/load-menu-open true)
+      (reset! atoms/load-menu-files ["file1.edn"])
+      (reset! atoms/load-menu-hovered nil)
+      (with-redefs [save-load/load-game! (fn [f] (reset! loaded f))]
+        (input/handle-load-menu-click)
+        (should-be-nil @loaded)))))

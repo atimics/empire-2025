@@ -1,0 +1,205 @@
+(ns empire.save-load-spec
+  (:require [speclj.core :refer :all]
+            [empire.atoms :as atoms]
+            [empire.save-load :as save-load]
+            [empire.test-utils :refer [reset-all-atoms!]]))
+
+(describe "load menu atoms"
+  (before (reset-all-atoms!))
+
+  (it "load-menu-open defaults to false"
+    (should= false @atoms/load-menu-open))
+
+  (it "load-menu-files defaults to empty vector"
+    (should= [] @atoms/load-menu-files))
+
+  (it "load-menu-hovered defaults to nil"
+    (should-be-nil @atoms/load-menu-hovered)))
+
+(describe "list-save-files"
+  (it "returns empty vector when saves directory doesn't exist"
+    (should= [] (save-load/list-save-files "nonexistent-dir")))
+
+  (it "returns empty vector when saves directory is empty"
+    (let [dir (java.io.File/createTempFile "saves" "")]
+      (.delete dir)
+      (.mkdir dir)
+      (try
+        (should= [] (save-load/list-save-files (.getPath dir)))
+        (finally
+          (.delete dir)))))
+
+  (it "returns edn files sorted newest first"
+    (let [dir (java.io.File/createTempFile "saves" "")]
+      (.delete dir)
+      (.mkdir dir)
+      (try
+        (let [f1 (java.io.File. dir "save-2026-01-01-120000.edn")
+              f2 (java.io.File. dir "save-2026-01-02-120000.edn")]
+          (spit f1 "{}")
+          (Thread/sleep 10)
+          (spit f2 "{}")
+          (let [files (save-load/list-save-files (.getPath dir))]
+            (should= 2 (count files))
+            (should= "save-2026-01-02-120000.edn" (first files))
+            (should= "save-2026-01-01-120000.edn" (second files))))
+        (finally
+          (doseq [f (.listFiles dir)] (.delete f))
+          (.delete dir))))))
+
+(describe "save-game!"
+  (before (reset-all-atoms!))
+
+  (it "creates saves directory if it doesn't exist"
+    (let [dir (str (java.io.File/createTempFile "saves" "") "-dir")]
+      (try
+        (save-load/save-game! dir)
+        (should (.exists (java.io.File. dir)))
+        (finally
+          (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
+          (.delete (java.io.File. dir))))))
+
+  (it "creates a timestamped edn file"
+    (let [dir (str (java.io.File/createTempFile "saves" "") "-dir")]
+      (try
+        (let [filename (save-load/save-game! dir)
+              files (.listFiles (java.io.File. dir))]
+          (should= 1 (count files))
+          (should (.startsWith filename "save-"))
+          (should (.endsWith filename ".edn")))
+        (finally
+          (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
+          (.delete (java.io.File. dir))))))
+
+  (it "saves game-map atom value"
+    (let [dir (str (java.io.File/createTempFile "saves" "") "-dir")
+          test-map [[{:type :land}]]]
+      (reset! atoms/game-map test-map)
+      (try
+        (let [filename (save-load/save-game! dir)
+              saved (clojure.edn/read-string (slurp (str dir "/" filename)))]
+          (should= test-map (:game-map saved)))
+        (finally
+          (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
+          (.delete (java.io.File. dir)))))))
+
+(describe "saveable-atoms"
+  (it "contains game-map"
+    (should-contain :game-map save-load/saveable-atoms))
+
+  (it "contains production"
+    (should-contain :production save-load/saveable-atoms))
+
+  (it "contains round-number"
+    (should-contain :round-number save-load/saveable-atoms))
+
+  (it "does not contain transient atoms like last-key"
+    (should-not-contain :last-key save-load/saveable-atoms))
+
+  (it "does not contain load-menu-open"
+    (should-not-contain :load-menu-open save-load/saveable-atoms)))
+
+(describe "load-game!"
+  (before (reset-all-atoms!))
+
+  (it "restores game-map from saved file"
+    (let [dir (str (java.io.File/createTempFile "saves" "") "-dir")
+          test-map [[{:type :land} {:type :sea}]]]
+      (reset! atoms/game-map test-map)
+      (try
+        (let [filename (save-load/save-game! dir)]
+          (reset! atoms/game-map nil)
+          (save-load/load-game! dir filename)
+          (should= test-map @atoms/game-map))
+        (finally
+          (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
+          (.delete (java.io.File. dir))))))
+
+  (it "restores round-number from saved file"
+    (let [dir (str (java.io.File/createTempFile "saves" "") "-dir")]
+      (reset! atoms/round-number 42)
+      (try
+        (let [filename (save-load/save-game! dir)]
+          (reset! atoms/round-number 0)
+          (save-load/load-game! dir filename)
+          (should= 42 @atoms/round-number))
+        (finally
+          (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
+          (.delete (java.io.File. dir))))))
+
+  (it "closes the load menu after loading"
+    (let [dir (str (java.io.File/createTempFile "saves" "") "-dir")]
+      (reset! atoms/load-menu-open true)
+      (try
+        (let [filename (save-load/save-game! dir)]
+          (save-load/load-game! dir filename)
+          (should= false @atoms/load-menu-open))
+        (finally
+          (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
+          (.delete (java.io.File. dir)))))))
+
+(describe "open-load-menu!"
+  (before (reset-all-atoms!))
+
+  (it "sets load-menu-open to true"
+    (save-load/open-load-menu!)
+    (should= true @atoms/load-menu-open))
+
+  (it "populates load-menu-files from saves directory"
+    (let [dir (str (java.io.File/createTempFile "saves" "") "-dir")]
+      (try
+        (.mkdirs (java.io.File. dir))
+        (spit (str dir "/save-test.edn") "{}")
+        (save-load/open-load-menu! dir)
+        (should= ["save-test.edn"] @atoms/load-menu-files)
+        (finally
+          (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
+          (.delete (java.io.File. dir)))))))
+
+(describe "close-load-menu!"
+  (before (reset-all-atoms!))
+
+  (it "sets load-menu-open to false"
+    (reset! atoms/load-menu-open true)
+    (save-load/close-load-menu!)
+    (should= false @atoms/load-menu-open))
+
+  (it "clears load-menu-files"
+    (reset! atoms/load-menu-files ["file.edn"])
+    (save-load/close-load-menu!)
+    (should= [] @atoms/load-menu-files))
+
+  (it "clears load-menu-hovered"
+    (reset! atoms/load-menu-hovered 2)
+    (save-load/close-load-menu!)
+    (should-be-nil @atoms/load-menu-hovered)))
+
+(describe "menu-geometry"
+  (it "calculates centered menu position"
+    (let [geom (save-load/menu-geometry 800 600 3)]
+      (should (< (:left geom) 400))
+      (should (> (:right geom) 400))
+      (should (< (:top geom) 300))
+      (should (> (:bottom geom) 300))))
+
+  (it "includes item-height for row calculations"
+    (let [geom (save-load/menu-geometry 800 600 3)]
+      (should (> (:item-height geom) 0))))
+
+  (it "includes content-top after title"
+    (let [geom (save-load/menu-geometry 800 600 3)]
+      (should (> (:content-top geom) (:top geom))))))
+
+(describe "hovered-file-index"
+  (it "returns nil when mouse is outside menu"
+    (let [geom (save-load/menu-geometry 800 600 3)]
+      (should-be-nil (save-load/hovered-file-index 0 0 geom 3))))
+
+  (it "returns 0 for first item"
+    (let [geom (save-load/menu-geometry 800 600 3)
+          y (+ (:content-top geom) 5)]
+      (should= 0 (save-load/hovered-file-index 400 y geom 3))))
+
+  (it "returns nil when no files"
+    (let [geom (save-load/menu-geometry 800 600 0)]
+      (should-be-nil (save-load/hovered-file-index 400 300 geom 0)))))

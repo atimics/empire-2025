@@ -12,6 +12,7 @@
             [empire.movement.movement :as movement]
             [empire.player.production :as production]
             [empire.containers.helpers :as uc]
+            [empire.save-load :as save-load]
             [empire.units.dispatcher :as dispatcher]
             [empire.movement.waypoint :as waypoint]
             [quil.core :as q]))
@@ -63,10 +64,26 @@
     (when (attention/is-unit-needing-attention? attention-coords)
       (handle-unit-click clicked-coords attention-coords))))
 
+(defn handle-load-menu-click
+  "Handles a mouse click when the load menu is open.
+   Loads the hovered file if one is selected."
+  []
+  (when-let [idx @atoms/load-menu-hovered]
+    (let [files @atoms/load-menu-files]
+      (when (< idx (count files))
+        (save-load/load-game! (nth files idx))))))
+
 (defn mouse-down
   "Handles mouse click events."
   [x y button]
-  (when (and (= button :left) (map-utils/on-map? x y))
+  (cond
+    ;; Load menu is open - handle menu click
+    @atoms/load-menu-open
+    (when (= button :left)
+      (handle-load-menu-click))
+
+    ;; Normal map click
+    (and (= button :left) (map-utils/on-map? x y))
     (let [[cell-x cell-y] (map-utils/determine-cell-coordinates x y)]
       (reset! atoms/last-clicked-cell [cell-x cell-y])
       (handle-cell-click cell-x cell-y))))
@@ -476,8 +493,14 @@
 
 (defn key-down [k]
   (debug/log-action! [:key-pressed k])
-  ;; Handle key down events
-  (if @atoms/backtick-pressed
+  (cond
+    ;; Load menu is open - only Escape works
+    @atoms/load-menu-open
+    (when (= k :escape)
+      (save-load/close-load-menu!))
+
+    ;; Backtick prefix mode
+    @atoms/backtick-pressed
     (do
       (reset! atoms/backtick-pressed false)
       (case k
@@ -504,6 +527,9 @@
         ;; Other commands
         :o (own-city-at-mouse)
         nil))
+
+    ;; Normal key handling
+    :else
     (cond
       (= k (keyword "`")) (reset! atoms/backtick-pressed true)
       (= k :P) (game-loop/toggle-pause)
@@ -517,6 +543,9 @@
       (and (= k :u) (wake-at-mouse)) nil
       (and (= k :l) (set-lookaround-at-mouse)) nil
       (and (= k (keyword "*")) (set-waypoint-at-mouse)) nil
+      (= k (keyword "!")) (let [filename (save-load/save-game!)]
+                            (atoms/set-turn-message (str "Saved to " filename) 3000))
+      (= k (keyword "^")) (save-load/open-load-menu!)
       (set-city-marching-orders-by-direction k) nil
       (handle-key k) nil
       :else nil)))

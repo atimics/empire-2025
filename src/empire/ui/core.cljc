@@ -65,7 +65,8 @@
                   :actual-map @atoms/game-map)]
     (rendering/draw-map the-map)
     (rendering/draw-debug-selection-rectangle)
-    (rendering/draw-message-area)))
+    (rendering/draw-message-area)
+    (rendering/draw-load-menu)))
 
 (defn key-pressed [state _]
   (let [k (q/key-as-keyword)]

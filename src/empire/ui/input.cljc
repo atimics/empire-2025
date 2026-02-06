@@ -518,7 +518,7 @@
       (and (= k :f) @atoms/destination (set-flight-path-at-mouse)) nil
       (and (= k :u) (wake-at-mouse)) nil
       (and (= k :l) (set-lookaround-at-mouse)) nil
+      (and (= k (keyword "*")) (set-waypoint-at-mouse)) nil
       (set-city-marching-orders-by-direction k) nil
       (handle-key k) nil
-      (and (= k (keyword "*")) (set-waypoint-at-mouse)) nil
       :else nil)))

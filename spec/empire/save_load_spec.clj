@@ -47,6 +47,42 @@
           (doseq [f (.listFiles dir)] (.delete f))
           (.delete dir))))))
 
+(describe "save-game!"
+  (before (reset-all-atoms!))
+
+  (it "creates saves directory if it doesn't exist"
+    (let [dir (str (java.io.File/createTempFile "saves" "") "-dir")]
+      (try
+        (save-load/save-game! dir)
+        (should (.exists (java.io.File. dir)))
+        (finally
+          (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
+          (.delete (java.io.File. dir))))))
+
+  (it "creates a timestamped edn file"
+    (let [dir (str (java.io.File/createTempFile "saves" "") "-dir")]
+      (try
+        (let [filename (save-load/save-game! dir)
+              files (.listFiles (java.io.File. dir))]
+          (should= 1 (count files))
+          (should (.startsWith filename "save-"))
+          (should (.endsWith filename ".edn")))
+        (finally
+          (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
+          (.delete (java.io.File. dir))))))
+
+  (it "saves game-map atom value"
+    (let [dir (str (java.io.File/createTempFile "saves" "") "-dir")
+          test-map [[{:type :land}]]]
+      (reset! atoms/game-map test-map)
+      (try
+        (let [filename (save-load/save-game! dir)
+              saved (clojure.edn/read-string (slurp (str dir "/" filename)))]
+          (should= test-map (:game-map saved)))
+        (finally
+          (doseq [f (.listFiles (java.io.File. dir))] (.delete f))
+          (.delete (java.io.File. dir)))))))
+
 (describe "saveable-atoms"
   (it "contains game-map"
     (should-contain :game-map save-load/saveable-atoms))

@@ -40,3 +40,22 @@
             (sort-by #(- (.lastModified %)))
             (mapv #(.getName %)))
        []))))
+
+(defn- timestamp []
+  (let [now (java.time.LocalDateTime/now)
+        fmt (java.time.format.DateTimeFormatter/ofPattern "yyyy-MM-dd-HHmmss")]
+    (.format now fmt)))
+
+(defn save-game!
+  "Saves the current game state to a timestamped EDN file.
+   Returns the filename. If dir-path is not provided, defaults to 'saves'."
+  ([] (save-game! "saves"))
+  ([dir-path]
+   (let [dir (java.io.File. dir-path)]
+     (when-not (.exists dir)
+       (.mkdirs dir))
+     (let [filename (str "save-" (timestamp) ".edn")
+           filepath (str dir-path "/" filename)
+           data (into {} (map (fn [[k atom]] [k @atom]) saveable-atoms))]
+       (spit filepath (pr-str data))
+       filename))))

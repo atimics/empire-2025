@@ -104,8 +104,9 @@
     (doseq [col (range (count game-map))
             row (range (count (first game-map)))]
       (swap! total-cells inc)
-      (when (get-in player-map [col row])
-        (swap! explored-cells inc))
+      (let [player-cell (get-in player-map [col row])]
+        (when (and player-cell (not= :unexplored (:type player-cell)))
+          (swap! explored-cells inc)))
       (let [cell (get-in game-map [col row])
             unit (:contents cell)]
         (when (and unit (= :player (:owner unit)))

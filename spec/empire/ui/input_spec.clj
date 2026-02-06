@@ -206,3 +206,19 @@
   (it "^ key opens load menu"
     (input/key-down (keyword "^"))
     (should= true @atoms/load-menu-open)))
+
+(describe "Escape key with load menu"
+  (around [it]
+    (reset-all-atoms!)
+    (it))
+
+  (it "closes load menu when open"
+    (reset! atoms/load-menu-open true)
+    (reset! atoms/load-menu-files ["file.edn"])
+    (input/key-down :escape)
+    (should= false @atoms/load-menu-open)
+    (should= [] @atoms/load-menu-files))
+
+  (it "does nothing when load menu is closed"
+    (input/key-down :escape)
+    (should= false @atoms/load-menu-open)))

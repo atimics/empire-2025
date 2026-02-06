@@ -508,6 +508,7 @@
         :o (own-city-at-mouse)
         nil))
     (cond
+      (and (= k :escape) @atoms/load-menu-open) (save-load/close-load-menu!)
       (= k (keyword "`")) (reset! atoms/backtick-pressed true)
       (= k :P) (game-loop/toggle-pause)
       (and (= k :space) @atoms/paused) (game-loop/step-one-round)

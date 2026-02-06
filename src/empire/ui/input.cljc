@@ -258,10 +258,8 @@
       ;; Army aboard transport - disembark to explore
       is-army-aboard?
       (do (when-let [valid-target (find-adjacent-land coords)]
-            (let [army-pos (container-ops/disembark-army-to-explore coords valid-target)]
-              ;; Add army to front but keep transport in list for remaining awake armies
-              (swap! atoms/player-items #(cons army-pos %))
-              (game-loop/item-processed)))
+            (container-ops/disembark-army-to-explore coords valid-target)
+            (game-loop/item-processed))
           true)
 
       ;; Transport or patrol-boat near coast - coastline follow

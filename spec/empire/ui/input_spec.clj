@@ -128,6 +128,30 @@
 (describe "handle-key :l on army aboard transport"
   (before (reset-all-atoms!))
 
+  (it "does not add disembarked army to player-items (no double move)"
+    (reset! atoms/game-map (build-test-map ["---------"
+                                             "---------"
+                                             "---------"
+                                             "---------"
+                                             "----T----"
+                                             "----#----"
+                                             "---------"
+                                             "---------"
+                                             "---------"]))
+    (set-test-unit atoms/game-map "T" :mode :sentry :hits 1 :army-count 1 :awake-armies 1)
+    (let [transport-coords (:pos (get-test-unit atoms/game-map "T"))
+          land-coords [(first transport-coords) (inc (second transport-coords))]]
+      (reset! atoms/cells-needing-attention [transport-coords])
+      (reset! atoms/player-items [transport-coords])
+      (reset! atoms/waiting-for-input true)
+      (input/handle-key :l)
+      ;; Army should be on land
+      (should= :army (:type (:contents (get-in @atoms/game-map land-coords))))
+      ;; Army should NOT be in player-items (would cause double move)
+      (should-not (some #{land-coords} @atoms/player-items))
+      ;; Transport remains in player-items for normal processing
+      (should (some #{transport-coords} @atoms/player-items))))
+
   (it "keeps transport in player-items when more awake armies remain"
     (reset! atoms/game-map (build-test-map ["---------"
                                              "---------"
@@ -147,8 +171,8 @@
       (input/handle-key :l)
       ;; Transport should still be in player-items so remaining armies get attention
       (should (some #{transport-coords} @atoms/player-items))
-      ;; Disembarked army should be at front of player-items
-      (should= land-coords (first @atoms/player-items))
+      ;; Disembarked army should NOT be in player-items (no double move)
+      (should-not (some #{land-coords} @atoms/player-items))
       ;; Transport should still have 2 awake armies
       (let [transport (:contents (get-in @atoms/game-map transport-coords))]
         (should= 2 (:awake-armies transport))))))

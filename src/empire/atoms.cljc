@@ -215,3 +215,40 @@
 (def load-menu-hovered
   "An atom containing the index of the hovered file in the load menu, or nil."
   (atom nil))
+
+;; Tutorial state
+(def tutorial-active
+  "An atom indicating if a tutorial scenario is currently running."
+  (atom false))
+
+(def tutorial-scenario-id
+  "Keyword ID of the current tutorial scenario, or nil."
+  (atom nil))
+
+(def tutorial-pages
+  "Vector of page text strings for the current tutorial scenario."
+  (atom []))
+
+(def tutorial-page-index
+  "Current tutorial page index (0-based)."
+  (atom 0))
+
+(def tutorial-overlay-visible
+  "An atom indicating if the tutorial overlay panel is visible."
+  (atom true))
+
+(def tutorial-scenarios-list
+  "Vector of {:id :name :description} maps for the tutorial menu."
+  (atom []))
+
+(def tutorial-menu-open
+  "An atom indicating if the tutorial selection menu is open."
+  (atom false))
+
+(def tutorial-menu-hovered
+  "Index of the hovered scenario in the tutorial menu, or nil."
+  (atom nil))
+
+(def last-mouse-position
+  "Screen pixel coordinates [x y] of the last known mouse position."
+  (atom [0 0]))

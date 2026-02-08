@@ -166,6 +166,9 @@ impl Renderer {
         // Draw hover cell highlight
         self.draw_hover_highlight(state, grid_w, map_h);
 
+        // Draw selected cell outline
+        self.draw_selected_outline(state, grid_w, map_h);
+
         // Draw production indicators, units, and waypoints
         self.ctx.set_font(FONT_CELL);
         self.draw_cell_contents(state, cols, rows, pulse_unit);
@@ -323,6 +326,27 @@ impl Renderer {
                     self.ctx.set_stroke_style_str(&rgba(COLOR_ACCENT, 0.8));
                     self.ctx.set_line_width(2.0);
                     self.ctx.stroke_rect(x + 0.5, y + 0.5, CELL_W - 1.0, CELL_H - 1.0);
+                    self.ctx.set_line_width(1.0);
+                }
+            }
+        }
+    }
+
+    fn draw_selected_outline(&self, state: &GameState, map_w: f64, map_h: f64) {
+        if let (Some(col), Some(row)) = (state.selected_col, state.selected_row) {
+            let (cols, rows) = state.map_size;
+            if col < cols && row < rows {
+                let x = col as f64 * CELL_W;
+                let y = row as f64 * CELL_H;
+                if x + CELL_W <= map_w && y + CELL_H <= map_h {
+                    // Bold white outline with subtle shadow for high contrast.
+                    self.ctx.set_stroke_style_str("rgba(0,0,0,0.55)");
+                    self.ctx.set_line_width(4.0);
+                    self.ctx.stroke_rect(x + 1.5, y + 1.5, CELL_W - 3.0, CELL_H - 3.0);
+
+                    self.ctx.set_stroke_style_str("rgba(255,255,255,0.95)");
+                    self.ctx.set_line_width(2.0);
+                    self.ctx.stroke_rect(x + 1.5, y + 1.5, CELL_W - 3.0, CELL_H - 3.0);
                     self.ctx.set_line_width(1.0);
                 }
             }

@@ -21,6 +21,7 @@ pub struct GameStateMsg {
     pub error_message: String,
     pub error_until: f64,
     pub hover_message: String,
+    pub selected_cell: Option<Vec<usize>>,
     pub production_status: String,
     pub destination: Option<Vec<usize>>,
     pub map_to_display: String,

@@ -20,6 +20,8 @@ pub struct GameState {
     pub tutorial: Option<TutorialMsg>,
     pub tutorial_menu: Option<TutorialMenuMsg>,
     pub tips: Option<TipsMsg>,
+    pub selected_col: Option<usize>,
+    pub selected_row: Option<usize>,
     // Client-side hover tracking (not from server)
     pub hover_col: Option<usize>,
     pub hover_row: Option<usize>,
@@ -59,6 +61,8 @@ impl GameState {
             tutorial: None,
             tutorial_menu: None,
             tips: None,
+            selected_col: None,
+            selected_row: None,
             hover_col: None,
             hover_row: None,
             tutorial_menu_hovered: None,
@@ -94,6 +98,12 @@ impl GameState {
                 self.error_message = s.error_message;
                 self.error_until = s.error_until;
                 self.hover_message = s.hover_message;
+                (self.selected_col, self.selected_row) = s
+                    .selected_cell
+                    .as_ref()
+                    .and_then(|c| if c.len() == 2 { Some((c[0], c[1])) } else { None })
+                    .map(|(c, r)| (Some(c), Some(r)))
+                    .unwrap_or((None, None));
                 self.production_status = s.production_status;
                 self.destination = s.destination.as_ref().and_then(|d| {
                     if d.len() == 2 { Some((d[0], d[1])) } else { None }

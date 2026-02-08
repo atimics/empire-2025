@@ -208,6 +208,16 @@ pub fn start() -> Result<(), JsValue> {
 
             let col = (x / CELL_W) as i32;
             let row = (y / CELL_H) as i32;
+
+            // Immediate local selection feedback
+            {
+                let mut st = state_clone.borrow_mut();
+                if col >= 0 && row >= 0 {
+                    st.selected_col = Some(col as usize);
+                    st.selected_row = Some(row as usize);
+                }
+            }
+
             let button = match e.button() {
                 0 => "left",
                 2 => "right",

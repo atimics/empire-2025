@@ -79,6 +79,7 @@
      :error_message @atoms/error-message
      :error_until @atoms/error-until
      :hover_message @atoms/hover-message
+    :selected_cell @atoms/last-clicked-cell
      :production_status @atoms/production-status
      :destination @atoms/destination
      :map_to_display (name @atoms/map-to-display)

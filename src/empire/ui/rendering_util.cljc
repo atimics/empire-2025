@@ -30,7 +30,7 @@
         orders (cond
                  (:marching-orders unit) "march"
                  (:flight-path unit) "flight"
-                 :else nil)]
+             :else nil)
         mode-name (or (some-> (:mode unit) name) "awake")]
     (str owner " " type-name
          " [" hits "/" max-hits "]"

@@ -557,6 +557,7 @@
      :else
      (cond
        (= k (keyword "`")) (reset! atoms/backtick-pressed true)
+       (= k :?) (tutorial/open-menu!)
        (= k :P) (game-loop/toggle-pause)
        (and (= k :space) @atoms/paused) (game-loop/step-one-round)
        (= k :+) (swap! atoms/map-to-display {:player-map :computer-map

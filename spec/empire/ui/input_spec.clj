@@ -190,6 +190,18 @@
     (input/key-down :P)
     (should @atoms/pause-requested)))
 
+(describe "key-down :? tutorial menu"
+  (before
+    (reset-all-atoms!)
+    (reset! atoms/backtick-pressed false)
+    (reset! atoms/tutorial-menu-open false)
+    (reset! atoms/tutorial-scenarios-list []))
+
+  (it "opens tutorial menu without backtick prefix"
+    (input/key-down :?)
+    (should= true @atoms/tutorial-menu-open)
+    (should (pos? (count @atoms/tutorial-scenarios-list)))))
+
 (describe "key-down :space when paused"
   (before
     (reset-all-atoms!)

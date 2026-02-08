@@ -16,3 +16,5 @@ acceptanceTests/edn/*.edn
 generated-acceptance-specs/acceptance/*.clj
 /.worktrees/
 saves/
+client/target/
+client/target/release/.cargo-lock

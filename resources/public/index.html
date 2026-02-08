@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Empire: Global Conquest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0d1117;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    }
+    canvas {
+      display: block;
+      image-rendering: auto;
+      cursor: crosshair;
+    }
+    #status {
+      position: fixed;
+      top: 12px;
+      left: 14px;
+      color: #8b949e;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+      z-index: 10;
+    }
+    #status::before {
+      content: '';
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #f0883e;
+      transition: background 0.3s ease;
+    }
+    #status.connected::before { background: #2ea043; }
+    #status.connecting::before { background: #f0883e; }
+    #status.disconnected::before { background: #f85149; }
+  </style>
+</head>
+<body>
+  <div id="status" class="connecting">Connecting...</div>
+  <canvas id="empire" tabindex="0"></canvas>
+  <script type="module">
+    import init from './pkg/empire_client.js';
+    await init();
+  </script>
+</body>
+</html>

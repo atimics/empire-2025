@@ -2,8 +2,9 @@
 .gitignore
 saves
 plans
-acceptanceTests
 generated-acceptance-specs
 target
+client/target
 *.md
 debug-*.txt
+resources/public/pkg

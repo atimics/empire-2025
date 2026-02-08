@@ -1,24 +1,16 @@
+## Stage 1: Build the Rust WASM client
+FROM rust:1-bookworm AS wasm-builder
+
+RUN cargo install wasm-pack --locked
+
+WORKDIR /build
+COPY client/ client/
+RUN cd client && wasm-pack build --target web --out-dir ../pkg
+
+## Stage 2: Run the Clojure game server
 FROM eclipse-temurin:21-jdk-jammy
 
-# Install Xvfb, x11vnc, noVNC, and OpenGL software rendering
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    xvfb \
-    x11vnc \
-    novnc \
-    websockify \
-    libgl1-mesa-dri \
-    libgl1-mesa-glx \
-    libegl1-mesa \
-    libxrender1 \
-    libxtst6 \
-    libxi6 \
-    libxrandr2 \
-    libxcursor1 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libfontconfig1 \
-    fonts-dejavu \
     curl \
     rlwrap \
     && rm -rf /var/lib/apt/lists/*
@@ -30,16 +22,19 @@ WORKDIR /app
 
 # Copy deps first to cache dependency resolution
 COPY deps.edn .
-RUN clojure -P
+RUN clojure -P -M:server
 
 # Copy the rest of the project
 COPY src/ src/
 COPY spec/ spec/
+COPY acceptanceTests/ acceptanceTests/
+COPY resources/ resources/
 
-# Expose noVNC web port
-EXPOSE 6080
+# Copy built WASM assets from builder stage
+COPY --from=wasm-builder /build/pkg/ resources/public/pkg/
 
-# Startup script
+EXPOSE 8080
+
 COPY docker-start.sh /docker-start.sh
 RUN chmod +x /docker-start.sh
 

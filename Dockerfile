@@ -23,6 +23,7 @@ WORKDIR /app
 # Copy deps first to cache dependency resolution
 COPY deps.edn .
 RUN clojure -P -M:server
+RUN clojure -P -M:test
 
 # Copy the rest of the project
 COPY src/ src/

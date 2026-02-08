@@ -1,4 +1,4 @@
-use crate::protocol::{ServerMessage, CellMsg, LoadMenuMsg, TutorialMsg, TutorialMenuMsg};
+use crate::protocol::{ServerMessage, CellMsg, LoadMenuMsg, TutorialMsg, TutorialMenuMsg, TipsMsg};
 
 pub struct GameState {
     pub map_size: (usize, usize), // (cols, rows)
@@ -19,6 +19,7 @@ pub struct GameState {
     pub load_menu: Option<LoadMenuMsg>,
     pub tutorial: Option<TutorialMsg>,
     pub tutorial_menu: Option<TutorialMenuMsg>,
+    pub tips: Option<TipsMsg>,
     // Client-side hover tracking (not from server)
     pub hover_col: Option<usize>,
     pub hover_row: Option<usize>,
@@ -47,6 +48,7 @@ impl GameState {
             load_menu: None,
             tutorial: None,
             tutorial_menu: None,
+            tips: None,
             hover_col: None,
             hover_row: None,
             tutorial_menu_hovered: None,
@@ -81,6 +83,7 @@ impl GameState {
                 self.load_menu = s.load_menu;
                 self.tutorial = s.tutorial;
                 self.tutorial_menu = s.tutorial_menu;
+                self.tips = s.tips;
             }
         }
     }

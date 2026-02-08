@@ -180,6 +180,11 @@ impl Renderer {
             }
         }
 
+        // Draw contextual tips overlay (non-blocking)
+        if let Some(ref tips) = state.tips {
+            self.draw_tips_overlay(tips, canvas_w);
+        }
+
         // Draw tutorial menu if open
         if let Some(ref menu) = state.tutorial_menu {
             self.draw_tutorial_menu(menu, state.tutorial_menu_hovered, total_w as f64, total_h as f64);
@@ -655,6 +660,80 @@ impl Renderer {
             tut.page_count,
         );
         self.ctx.fill_text(&page_str, left + padding + 4.0, nav_y).ok();
+
+        self.ctx.set_text_baseline("alphabetic");
+    }
+
+    fn draw_tips_overlay(
+        &self,
+        tips: &crate::protocol::TipsMsg,
+        canvas_w: f64,
+    ) {
+        let padding = 14.0;
+        let panel_w = 360.0f64.min(canvas_w * 0.45);
+        let left_margin = 12.0;
+        let top_margin = 12.0;
+        let left = left_margin;
+        let top = top_margin;
+        let content_w = panel_w - 2.0 * padding - 4.0;
+
+        // Wrap text
+        self.ctx.set_font(FONT_MENU_ITEM);
+        let lines = self.wrap_text(&tips.text, content_w);
+
+        // Measure
+        let title_h = 20.0;
+        let line_h = 18.0;
+        let text_h = (lines.len().max(1) as f64) * line_h;
+        let hint_h = 18.0;
+        let panel_h = padding + title_h + 8.0 + text_h + 10.0 + hint_h + padding;
+
+        // Panel background
+        self.ctx.set_global_alpha(0.90);
+        self.ctx.set_fill_style_str(&rgb(COLOR_PANEL_BG));
+        self.ctx.fill_rect(left, top, panel_w, panel_h);
+        self.ctx.set_global_alpha(1.0);
+
+        // Accent
+        self.ctx.set_fill_style_str(&rgb(COLOR_ACCENT));
+        self.ctx.fill_rect(left, top, 3.0, panel_h);
+
+        // Border
+        self.ctx.set_stroke_style_str(&rgb(COLOR_PANEL_BORDER));
+        self.ctx.set_line_width(1.0);
+        self.ctx.stroke_rect(left, top, panel_w, panel_h);
+
+        // Title
+        self.ctx.set_font(FONT_MENU_TITLE);
+        self.ctx.set_fill_style_str(&rgb(COLOR_ACCENT));
+        self.ctx.set_text_baseline("top");
+        self.ctx.fill_text(&tips.title, left + padding + 4.0, top + padding).ok();
+
+        // Separator
+        let sep_y = top + padding + title_h;
+        self.ctx.set_stroke_style_str(&rgb(COLOR_PANEL_BORDER));
+        self.ctx.begin_path();
+        self.ctx.move_to(left + padding, sep_y);
+        self.ctx.line_to(left + panel_w - padding, sep_y);
+        self.ctx.stroke();
+
+        // Text
+        self.ctx.set_font(FONT_MENU_ITEM);
+        self.ctx.set_fill_style_str(&rgb(COLOR_TEXT_PRIMARY));
+        let text_top = sep_y + 8.0;
+        for (i, line) in lines.iter().enumerate() {
+            self.ctx
+                .fill_text(line, left + padding + 4.0, text_top + i as f64 * line_h)
+                .ok();
+        }
+
+        // Hint
+        let hint_y = text_top + text_h + 10.0;
+        self.ctx.set_font(FONT_MENU_HINT);
+        self.ctx.set_fill_style_str(&rgb(COLOR_TEXT_SECONDARY));
+        self.ctx
+            .fill_text("[H] hide tips", left + padding + 4.0, hint_y)
+            .ok();
 
         self.ctx.set_text_baseline("alphabetic");
     }

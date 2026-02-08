@@ -202,6 +202,18 @@
     (should= true @atoms/tutorial-menu-open)
     (should (pos? (count @atoms/tutorial-scenarios-list)))))
 
+(describe "key-down :h tips toggle"
+  (before
+    (reset-all-atoms!)
+    (reset! atoms/backtick-pressed false)
+    (reset! atoms/tips-enabled true))
+
+  (it "toggles tips-enabled"
+    (input/key-down :h)
+    (should= false @atoms/tips-enabled)
+    (input/key-down :h)
+    (should= true @atoms/tips-enabled)))
+
 (describe "key-down :space when paused"
   (before
     (reset-all-atoms!)

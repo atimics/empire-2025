@@ -14,6 +14,7 @@
             [empire.containers.helpers :as uc]
             [empire.save-load :as save-load]
             [empire.tutorial.core :as tutorial]
+            [empire.tutorial.tips :as tips]
             [empire.units.dispatcher :as dispatcher]
             [empire.movement.waypoint :as waypoint]))
 
@@ -558,6 +559,7 @@
      (cond
        (= k (keyword "`")) (reset! atoms/backtick-pressed true)
        (= k :?) (tutorial/open-menu!)
+       (or (= k :h) (= k :H)) (tips/toggle-enabled!)
        (= k :P) (game-loop/toggle-pause)
        (and (= k :space) @atoms/paused) (game-loop/step-one-round)
        (= k :+) (swap! atoms/map-to-display {:player-map :computer-map

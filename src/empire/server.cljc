@@ -4,6 +4,7 @@
             [empire.game-loop :as game-loop]
             [empire.init :as init]
             [empire.tutorial.core :as tutorial]
+            [empire.tutorial.tips :as tips]
             [empire.tutorial.scenarios :as tutorial-scenarios]
             [empire.ui.core :as core]
             [empire.ui.input :as input]
@@ -91,12 +92,13 @@
                   :page_count (count @atoms/tutorial-pages)
                   :scenario_name (:name (tutorial-scenarios/get-scenario @atoms/tutorial-scenario-id) "")
                   :overlay_visible @atoms/tutorial-overlay-visible})
-     :tutorial_menu (when @atoms/tutorial-menu-open
-                      {:scenarios (mapv (fn [{:keys [id name description]}]
-                                         {:id (clojure.core/name id)
-                                          :name name
-                                          :description description})
-                                       @atoms/tutorial-scenarios-list)})}))
+      :tutorial_menu (when @atoms/tutorial-menu-open
+                 {:scenarios (mapv (fn [{:keys [id name description]}]
+                              {:id (clojure.core/name id)
+                              :name name
+                              :description description})
+                            @atoms/tutorial-scenarios-list)})
+      :tips (tips/current-tip-msg)}))
 
 ;; --- Broadcasting ---
 

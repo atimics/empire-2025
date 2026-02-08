@@ -238,6 +238,8 @@
   (reset! atoms/tutorial-scenarios-list [])
   (reset! atoms/tutorial-menu-open false)
   (reset! atoms/tutorial-menu-hovered nil)
+  (reset! atoms/tips-enabled true)
+  (reset! atoms/tips-dismissed #{})
   (pathfinding/clear-path-cache)
   (land-objectives/clear-continent-cache!))
 

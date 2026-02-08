@@ -28,6 +28,14 @@ pub struct GameStateMsg {
     pub load_menu: Option<LoadMenuMsg>,
     pub tutorial: Option<TutorialMsg>,
     pub tutorial_menu: Option<TutorialMenuMsg>,
+    pub tips: Option<TipsMsg>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct TipsMsg {
+    pub id: String,
+    pub title: String,
+    pub text: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]

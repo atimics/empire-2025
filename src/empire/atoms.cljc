@@ -249,6 +249,15 @@
   "Index of the hovered scenario in the tutorial menu, or nil."
   (atom nil))
 
+;; Contextual tips state (dynamic tutorial hints)
+(def tips-enabled
+  "Whether contextual tips are enabled."
+  (atom true))
+
+(def tips-dismissed
+  "Set of tip ids (keywords) the player has dismissed for this session."
+  (atom #{}))
+
 (def last-mouse-position
   "Screen pixel coordinates [x y] of the last known mouse position."
   (atom [0 0]))

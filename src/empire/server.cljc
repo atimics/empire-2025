@@ -24,7 +24,7 @@
 ;; --- Cell serialization ---
 
 (defn- serialize-unit [unit]
-  (when unit
+  (when (and unit (:type unit) (:owner unit))
     {:t (name (:type unit))
      :o (name (:owner unit))
      :m (name (or (:mode unit) :awake))
@@ -46,8 +46,9 @@
         (pos? (:awake-fighters cell 0)) (assoc :af (:awake-fighters cell))
         (pos? (:awake-armies cell 0)) (assoc :aa (:awake-armies cell))
         (:country-id cell) (assoc :cid (:country-id cell))
-        production-entry (assoc :prod {:item (name (:item production-entry))
-                                       :remaining (:remaining-rounds production-entry)})))))
+        (and production-entry (:item production-entry))
+        (assoc :prod {:item (name (:item production-entry))
+                      :remaining (:remaining-rounds production-entry)})))))
 
 (defn- serialize-map [the-map production]
   (let [cols (count the-map)]
@@ -223,7 +224,8 @@
     ;; Broadcast state to all clients
     (broadcast-state!)
     (catch Exception e
-      (println "Game tick error:" (.getMessage e)))))
+      (println "Game tick error:" (.getMessage e))
+      (.printStackTrace e))))
 
 (defn- start-game-loop! []
   (let [^ScheduledExecutorService executor (Executors/newSingleThreadScheduledExecutor)]

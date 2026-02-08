@@ -7,6 +7,10 @@
     (let [unit {:type :army :hits 1 :mode :awake :owner :player}]
       (should= "player army [1/1] awake" (ru/format-unit-status unit))))
 
+  (it "defaults missing mode to awake"
+    (let [unit {:type :army :hits 1 :mode nil :owner :player}]
+      (should= "player army [1/1] awake" (ru/format-unit-status unit))))
+
   (it "formats computer army status"
     (let [unit {:type :army :hits 1 :mode :sentry :owner :computer}]
       (should= "computer army [1/1] sentry" (ru/format-unit-status unit))))

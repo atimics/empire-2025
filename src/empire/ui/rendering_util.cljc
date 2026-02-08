@@ -11,34 +11,36 @@
 (defn format-unit-status
   "Formats status string for a unit."
   [unit]
-  (let [type-name (name (:type unit))
-        owner (name (:owner unit))
-        max-hits (config/item-hits (:type unit))
+  (let [unit-type (:type unit)
+        type-name (or (some-> unit-type name) "?")
+        owner (or (some-> (:owner unit) name) "?")
+        max-hits (or (when unit-type (config/item-hits unit-type)) 0)
         hits (or (:hits unit) max-hits)
-        fuel (when (= (:type unit) :fighter) (:fuel unit))
-        cargo (case (:type unit)
+        fuel (when (= unit-type :fighter) (:fuel unit))
+        cargo (case unit-type
                 :transport (:army-count unit 0)
                 :carrier (:fighter-count unit 0)
                 nil)
-        transport-mission (when (= (:type unit) :transport)
-                            (:transport-mission unit))
-        army-mission (when (= (:type unit) :army)
-                       (:mission unit))
-        loading-timeout (when (= (:type unit) :transport)
+        transport-mission (when (= unit-type :transport)
+                            (some-> (:transport-mission unit) name))
+        army-mission (when (= unit-type :army)
+                       (some-> (:mission unit) name))
+        loading-timeout (when (= unit-type :transport)
                           (:loading-timeout unit))
         orders (cond
                  (:marching-orders unit) "march"
                  (:flight-path unit) "flight"
                  :else nil)]
+        mode-name (or (some-> (:mode unit) name) "awake")]
     (str owner " " type-name
          " [" hits "/" max-hits "]"
          (when fuel (str " fuel:" fuel))
          (when cargo (str " cargo:" cargo))
-         (when transport-mission (str " " (name transport-mission)))
+         (when transport-mission (str " " transport-mission))
          (when loading-timeout (str " timeout:" loading-timeout))
-         (when army-mission (str " mission:" (name army-mission)))
+         (when army-mission (str " mission:" army-mission))
          (when orders (str " " orders))
-         " " (name (:mode unit)))))
+         " " mode-name)))
 
 (defn- format-ship-for-dock
   "Formats a single ship for dock display: T[2/3] for type[hits/max]"
@@ -59,7 +61,7 @@
   (let [status (:city-status cell)
         fighters (:fighter-count cell 0)
         shipyard (uc/get-shipyard-ships cell)]
-    (str "city:" (name status)
+    (str "city:" (or (some-> status name) "unknown")
          (when (and (= status :player) production)
            (str " producing:" (if (= production :none) "none" (name (:item production)))))
          (when (pos? fighters) (str " fighters:" fighters))

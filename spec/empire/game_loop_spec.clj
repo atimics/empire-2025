@@ -783,38 +783,38 @@
     ;; Scenario: player has two armies, computer has one army
     ;; First army kills computer army, victory should be declared immediately
     ;; Second army should NOT get attention
-    (reset! atoms/game-map (build-test-map ["Aa#A"]))
-    (set-test-unit atoms/game-map "A1" :mode :awake :steps-remaining 1)
-    (set-test-unit atoms/game-map "A2" :mode :awake :steps-remaining 1)
-    (reset! atoms/player-map (build-test-map ["####"]))
-    (reset! atoms/computer-map (build-test-map ["####"]))
-    (reset! atoms/production {})
-    (reset! atoms/player-items [[0 0] [3 0]])  ;; Both player armies in queue
-    (reset! atoms/waiting-for-input false)
-    (reset! atoms/paused false)
-    (reset! atoms/game-over-check-enabled true)
-    ;; Step 1: first army asks for attention
-    (game-loop/advance-game)
-    (should @atoms/waiting-for-input)
-    (should= [[0 0]] @atoms/cells-needing-attention)
-    ;; Step 2: user moves first army to attack computer army
-    (movement/set-unit-movement [0 0] [1 0])
-    (game-loop/item-processed)
-    ;; After item-processed, if combat killed last computer unit, victory should be declared
-    ;; Victory check happens in item-processed
-    (if @atoms/paused
-      ;; Victory was declared - verify state
-      (do
-        (should= "****YOU WIN!*****" @atoms/error-message)
-        (should= :actual-map @atoms/map-to-display)
-        ;; Player items should be flushed
-        (should= [] (vec @atoms/player-items)))
-      ;; Combat hasn't happened yet - advance game to trigger combat
-      (do
-        (game-loop/advance-game)
-        ;; Now check if victory was declared
-        (should @atoms/paused)
-        (should= "****YOU WIN!*****" @atoms/error-message)))))
+    (with-redefs [rand (constantly 0.1)]
+      (reset! atoms/game-map (build-test-map ["Aa#A"]))
+      (set-test-unit atoms/game-map "A1" :mode :awake :steps-remaining 1)
+      (set-test-unit atoms/game-map "A2" :mode :awake :steps-remaining 1)
+      (reset! atoms/player-map (build-test-map ["####"]))
+      (reset! atoms/computer-map (build-test-map ["####"]))
+      (reset! atoms/production {})
+      (reset! atoms/player-items [[0 0] [3 0]])  ;; Both player armies in queue
+      (reset! atoms/waiting-for-input false)
+      (reset! atoms/paused false)
+      (reset! atoms/game-over-check-enabled true)
+      ;; Step 1: first army asks for attention
+      (game-loop/advance-game)
+      (should @atoms/waiting-for-input)
+      (should= [[0 0]] @atoms/cells-needing-attention)
+      ;; Step 2: user moves first army to attack computer army
+      (movement/set-unit-movement [0 0] [1 0])
+      (game-loop/item-processed)
+      ;; Drive the loop until victory is declared or input is requested.
+      ;; Victory check happens inside item-processing/process-player-items-batch.
+      (loop [i 0]
+        (when (and (< i 50)
+                   (not @atoms/paused)
+                   (not @atoms/waiting-for-input))
+          (game-loop/advance-game)
+          (recur (inc i))))
+
+      ;; Victory should be declared before the second army gets attention.
+      (should @atoms/paused)
+      (should= "****YOU WIN!*****" @atoms/error-message)
+      (should= :actual-map @atoms/map-to-display)
+      (should= [] (vec @atoms/player-items)))))
 
 (describe "advance-game-batch"
   (before (reset-all-atoms!))

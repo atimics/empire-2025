@@ -132,7 +132,8 @@ pub fn start() -> Result<(), JsValue> {
             e.prevent_default();
 
             // Local-only: toggle help/controls overlay (do not send to server)
-            if e.key() == "H" {
+            // Support both 'H' and 'h' since the panel itself is what players want to hide.
+            if e.key() == "H" || e.key() == "h" {
                 let mut st = state_clone.borrow_mut();
                 st.show_help_overlay = !st.show_help_overlay;
                 return;

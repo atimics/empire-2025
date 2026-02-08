@@ -786,7 +786,7 @@ impl Renderer {
             .tips
             .as_ref()
             .map(|t| t.text.as_str())
-            .unwrap_or("Use [H] to hide this panel.");
+            .unwrap_or("Use [h] to hide this panel.");
 
         // Wrap both tip + controls
         self.ctx.set_font(FONT_MENU_ITEM);
@@ -869,7 +869,7 @@ impl Renderer {
         self.ctx.set_font(FONT_MENU_HINT);
         self.ctx.set_fill_style_str(&rgb(COLOR_TEXT_SECONDARY));
         self.ctx
-            .fill_text("[H] hide panel", left + padding + 4.0, hint_y)
+            .fill_text("[h/H] hide panel", left + padding + 4.0, hint_y)
             .ok();
 
         self.ctx.set_text_baseline("alphabetic");

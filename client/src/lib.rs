@@ -127,9 +127,42 @@ pub fn start() -> Result<(), JsValue> {
     // Keyboard input
     {
         let ws_clone = ws.clone();
+        let state_clone = state.clone();
         let keydown = Closure::<dyn FnMut(KeyboardEvent)>::new(move |e: KeyboardEvent| {
             e.prevent_default();
-            if let Some(msg) = map_key_event(&e) {
+
+            // Local-only: toggle help/controls overlay (do not send to server)
+            if e.key() == "H" {
+                let mut st = state_clone.borrow_mut();
+                st.show_help_overlay = !st.show_help_overlay;
+                return;
+            }
+
+            // Use current hover cell as the "mouse" coordinate for key commands.
+            // This makes commands like '.', '*', 'u', etc work in the browser client.
+            let (mx, my) = {
+                let st = state_clone.borrow();
+                (
+                    st.hover_col.unwrap_or(0) as i32,
+                    st.hover_row.unwrap_or(0) as i32,
+                )
+            };
+
+            if let Some((mapped_key, msg)) = map_key_event(&e, mx, my) {
+                {
+                    let mut st = state_clone.borrow_mut();
+                    match mapped_key.as_str() {
+                        "P" => st.used_pause = true,
+                        "?" => st.used_tutorial_menu = true,
+                        "." => st.used_destination = true,
+                        "*" => st.used_waypoint = true,
+                        "!" => st.used_save = true,
+                        "^" => st.used_load_menu = true,
+                        "+" => st.used_map_cycle = true,
+                        _ => {}
+                    }
+                }
+
                 let _ = ws_clone.send_with_str(&msg);
             }
         });
@@ -162,6 +195,7 @@ pub fn start() -> Result<(), JsValue> {
                     let screen_h = canvas_clone.height() as f64;
                     if let Some(idx) = tutorial_menu_hit(menu, x, y, screen_w, screen_h) {
                         let id = &menu.scenarios[idx].id;
+                        state_clone.borrow_mut().used_tutorial_menu = true;
                         let msg = format!(
                             r#"{{"type":"tutorial_select","id":"{}"}}"#,
                             id
@@ -323,7 +357,7 @@ fn tutorial_menu_hit(menu: &TutorialMenuMsg, x: f64, y: f64, screen_w: f64, scre
     }
 }
 
-fn map_key_event(e: &KeyboardEvent) -> Option<String> {
+fn map_key_event(e: &KeyboardEvent, mouse_x: i32, mouse_y: i32) -> Option<(String, String)> {
     let key = e.key();
     let shift = e.shift_key();
 
@@ -360,11 +394,16 @@ fn map_key_event(e: &KeyboardEvent) -> Option<String> {
         "n" => if shift { "N".to_string() } else { "n".to_string() },
         "N" => "N".to_string(),
         "?" => "?".to_string(),
+
+        // Tips toggle (server-side)
+        "h" => "h".to_string(),
         _ => return None,
     };
 
-    Some(format!(
-        r#"{{"type":"key","key":"{}","shift":{},"mouse_x":0,"mouse_y":0}}"#,
-        mapped, shift
-    ))
+    let msg = format!(
+        r#"{{"type":"key","key":"{}","shift":{},"mouse_x":{},"mouse_y":{}}}"#,
+        mapped, shift, mouse_x, mouse_y
+    );
+
+    Some((mapped, msg))
 }

@@ -180,9 +180,9 @@ impl Renderer {
             }
         }
 
-        // Draw contextual tips overlay (non-blocking)
-        if let Some(ref tips) = state.tips {
-            self.draw_tips_overlay(tips, canvas_w);
+        // Draw contextual help overlay (tips + cheat sheet)
+        if state.show_help_overlay {
+            self.draw_help_overlay(state, canvas_w);
         }
 
         // Draw tutorial menu if open
@@ -664,9 +664,85 @@ impl Renderer {
         self.ctx.set_text_baseline("alphabetic");
     }
 
-    fn draw_tips_overlay(
+    fn compute_controls_lines(&self, state: &GameState) -> Vec<String> {
+        // Keep this small and action-oriented. 3-6 lines max.
+        let mut lines: Vec<String> = Vec::new();
+
+        // Global-ish controls
+        let mut globals: Vec<&str> = Vec::new();
+        globals.push("P pause");
+        globals.push("+ map");
+        globals.push("? tutorial");
+        globals.push("h tips on/off");
+        if !globals.is_empty() {
+            lines.push(format!("Keys: {}", globals.join("  ")));
+        }
+
+        // Contextual controls
+        if state.load_menu.is_some() {
+            lines.push("Load menu: click a file, ESC closes".to_string());
+            return lines;
+        }
+        if state.tutorial_menu.is_some() {
+            lines.push("Tutorial menu: click a scenario, ESC closes".to_string());
+            return lines;
+        }
+        if let Some(ref tut) = state.tutorial {
+            if tut.overlay_visible {
+                lines.push("Tutorial: N next, B back, ESC hide".to_string());
+            } else {
+                lines.push("Tutorial: ESC show overlay".to_string());
+            }
+        }
+
+        if state.waiting_for_input {
+            if let Some(&(col, row)) = state.attention_coords.first() {
+                // Try to infer what kind of attention is needed from the cell.
+                let cell = state.cells.get(col).and_then(|c| c.get(row)).and_then(|c| c.clone());
+                if let Some(cell) = cell {
+                    if cell.cs.as_deref() == Some("player") && cell.t == "city" && cell.u.is_none() {
+                        lines.push("Now: choose production (F/T/P/D/S/C/B/Z), X none, SPACE skip".to_string());
+                    } else {
+                        lines.push("Now: move QWEASDZXC, SPACE skip, U unload/wake, S sentry, L explore".to_string());
+                    }
+                } else {
+                    lines.push("Now: act on the highlighted item".to_string());
+                }
+            }
+        } else if state.paused || state.pause_requested {
+            lines.push("Now: SPACE steps one round".to_string());
+        }
+
+        // “New mechanic” nudges (only when relevant and not yet used)
+        let mut nudges: Vec<&str> = Vec::new();
+        if !state.used_map_cycle {
+            nudges.push("+ shows enemy/actual map");
+        }
+        if !state.used_tutorial_menu {
+            nudges.push("? opens tutorial menu");
+        }
+        if !state.used_pause {
+            nudges.push("P pauses at round end");
+        }
+        // Only nudge destination/waypoint once we can aim them (hover-based)
+        if state.hover_col.is_some() && state.hover_row.is_some() {
+            if !state.used_destination {
+                nudges.push(". sets destination at hover");
+            }
+            if !state.used_waypoint {
+                nudges.push("* toggles waypoint at hover");
+            }
+        }
+        if !nudges.is_empty() {
+            lines.push(format!("New: {}", nudges.join("  ")));
+        }
+
+        lines
+    }
+
+    fn draw_help_overlay(
         &self,
-        tips: &crate::protocol::TipsMsg,
+        state: &GameState,
         canvas_w: f64,
     ) {
         let padding = 14.0;
@@ -677,16 +753,44 @@ impl Renderer {
         let top = top_margin;
         let content_w = panel_w - 2.0 * padding - 4.0;
 
-        // Wrap text
+        let tip_title = state
+            .tips
+            .as_ref()
+            .map(|t| t.title.as_str())
+            .unwrap_or("Tip");
+        let tip_text = state
+            .tips
+            .as_ref()
+            .map(|t| t.text.as_str())
+            .unwrap_or("Use [H] to hide this panel.");
+
+        // Wrap both tip + controls
         self.ctx.set_font(FONT_MENU_ITEM);
-        let lines = self.wrap_text(&tips.text, content_w);
+        let tip_lines = self.wrap_text(tip_text, content_w);
+        let controls_lines = self.compute_controls_lines(state);
+        let mut wrapped_controls: Vec<String> = Vec::new();
+        for line in controls_lines {
+            for w in self.wrap_text(&line, content_w) {
+                wrapped_controls.push(w);
+            }
+        }
 
         // Measure
         let title_h = 20.0;
+        let section_gap = 10.0;
         let line_h = 18.0;
-        let text_h = (lines.len().max(1) as f64) * line_h;
+        let tip_h = (tip_lines.len().max(1) as f64) * line_h;
+        let controls_h = (wrapped_controls.len().max(1) as f64) * line_h;
         let hint_h = 18.0;
-        let panel_h = padding + title_h + 8.0 + text_h + 10.0 + hint_h + padding;
+        let panel_h = padding
+            + title_h
+            + 8.0
+            + tip_h
+            + section_gap
+            + controls_h
+            + 10.0
+            + hint_h
+            + padding;
 
         // Panel background
         self.ctx.set_global_alpha(0.90);
@@ -707,7 +811,7 @@ impl Renderer {
         self.ctx.set_font(FONT_MENU_TITLE);
         self.ctx.set_fill_style_str(&rgb(COLOR_ACCENT));
         self.ctx.set_text_baseline("top");
-        self.ctx.fill_text(&tips.title, left + padding + 4.0, top + padding).ok();
+        self.ctx.fill_text(tip_title, left + padding + 4.0, top + padding).ok();
 
         // Separator
         let sep_y = top + padding + title_h;
@@ -717,22 +821,31 @@ impl Renderer {
         self.ctx.line_to(left + panel_w - padding, sep_y);
         self.ctx.stroke();
 
-        // Text
+        // Tip text
         self.ctx.set_font(FONT_MENU_ITEM);
         self.ctx.set_fill_style_str(&rgb(COLOR_TEXT_PRIMARY));
         let text_top = sep_y + 8.0;
-        for (i, line) in lines.iter().enumerate() {
+        for (i, line) in tip_lines.iter().enumerate() {
             self.ctx
                 .fill_text(line, left + padding + 4.0, text_top + i as f64 * line_h)
                 .ok();
         }
 
+        // Controls section
+        let controls_top = text_top + tip_h + section_gap;
+        self.ctx.set_fill_style_str(&rgb(COLOR_TEXT_SECONDARY));
+        for (i, line) in wrapped_controls.iter().enumerate() {
+            self.ctx
+                .fill_text(line, left + padding + 4.0, controls_top + i as f64 * line_h)
+                .ok();
+        }
+
         // Hint
-        let hint_y = text_top + text_h + 10.0;
+        let hint_y = controls_top + controls_h + 10.0;
         self.ctx.set_font(FONT_MENU_HINT);
         self.ctx.set_fill_style_str(&rgb(COLOR_TEXT_SECONDARY));
         self.ctx
-            .fill_text("[H] hide tips", left + padding + 4.0, hint_y)
+            .fill_text("[H] hide panel", left + padding + 4.0, hint_y)
             .ok();
 
         self.ctx.set_text_baseline("alphabetic");

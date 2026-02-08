@@ -25,6 +25,16 @@ pub struct GameState {
     pub hover_row: Option<usize>,
     // Client-side tutorial menu hover (not from server)
     pub tutorial_menu_hovered: Option<usize>,
+
+    // --- Client-side onboarding / UI state ---
+    pub show_help_overlay: bool,
+    pub used_pause: bool,
+    pub used_tutorial_menu: bool,
+    pub used_destination: bool,
+    pub used_waypoint: bool,
+    pub used_save: bool,
+    pub used_load_menu: bool,
+    pub used_map_cycle: bool,
 }
 
 impl GameState {
@@ -52,6 +62,15 @@ impl GameState {
             hover_col: None,
             hover_row: None,
             tutorial_menu_hovered: None,
+
+            show_help_overlay: true,
+            used_pause: false,
+            used_tutorial_menu: false,
+            used_destination: false,
+            used_waypoint: false,
+            used_save: false,
+            used_load_menu: false,
+            used_map_cycle: false,
         }
     }
 

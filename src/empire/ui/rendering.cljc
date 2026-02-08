@@ -103,32 +103,32 @@
         (draw-unit col row cell cell-w cell-h attention-coords blink-unit?)
         (draw-waypoint col row cell cell-w cell-h)))))
 
+(defn compute-hover-status
+  "Updates hover-message and load-menu-hovered based on mouse position.
+   Accepts explicit x, y, screen-w, screen-h instead of querying Quil."
+  [x y screen-w screen-h]
+  (when @atoms/load-menu-open
+    (let [files @atoms/load-menu-files
+          geom (save-load/menu-geometry screen-w screen-h (count files))
+          idx (save-load/hovered-file-index x y geom (count files))]
+      (reset! atoms/load-menu-hovered idx)))
+  (if (map-utils/on-map? x y)
+    (let [[cx cy] (map-utils/determine-cell-coordinates x y)
+          coords [cx cy]
+          the-map (case @atoms/map-to-display
+                    :player-map @atoms/player-map
+                    :computer-map @atoms/computer-map
+                    :actual-map @atoms/game-map)
+          cell (get-in the-map coords)
+          production (get @atoms/production coords)
+          status (ru/format-hover-status coords cell production)]
+      (reset! atoms/hover-message (or status "")))
+    (reset! atoms/hover-message "")))
+
 (defn update-hover-status
-  "Updates hover-message based on mouse position.
-   Shows contents from the currently displayed map.
-   Also updates load-menu-hovered when menu is open."
+  "Quil wrapper: queries mouse position and window size from Quil."
   []
-  (let [x (q/mouse-x)
-        y (q/mouse-y)]
-    ;; Update load menu hover
-    (when @atoms/load-menu-open
-      (let [files @atoms/load-menu-files
-            geom (save-load/menu-geometry (q/width) (q/height) (count files))
-            idx (save-load/hovered-file-index x y geom (count files))]
-        (reset! atoms/load-menu-hovered idx)))
-    ;; Update map hover (existing code)
-    (if (map-utils/on-map? x y)
-      (let [[cx cy] (map-utils/determine-cell-coordinates x y)
-            coords [cx cy]
-            the-map (case @atoms/map-to-display
-                      :player-map @atoms/player-map
-                      :computer-map @atoms/computer-map
-                      :actual-map @atoms/game-map)
-            cell (get-in the-map coords)
-            production (get @atoms/production coords)
-            status (ru/format-hover-status coords cell production)]
-        (reset! atoms/hover-message (or status "")))
-      (reset! atoms/hover-message ""))))
+  (compute-hover-status (q/mouse-x) (q/mouse-y) (q/width) (q/height)))
 
 (defn- draw-text-right-justified
   "Draws text right-justified against the given right edge at vertical position y."

@@ -72,7 +72,7 @@
   (let [k (q/key-as-keyword)]
     (when (not= k :shift)
       (when (nil? @atoms/last-key)
-        (input/key-down k))
+        (input/key-down k (q/mouse-x) (q/mouse-y)))
       (reset! atoms/last-key k)))
   state)
 

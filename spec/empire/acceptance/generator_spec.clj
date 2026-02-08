@@ -28,9 +28,9 @@
     (let [tests [{:givens [{:type :waiting-for-input :unit "A" :set-mode true}] :whens [] :thens []}]]
       (should-contain :item-processing (gen/determine-needs tests))))
 
-  (it "detects :quil when whens have :key-down input-fn"
+  (it "does not detect :quil when whens have :key-down input-fn"
     (let [tests [{:givens [] :whens [{:type :key-press :key :s :input-fn :key-down}] :thens []}]]
-      (should-contain :quil (gen/determine-needs tests))))
+      (should-not-contain :quil (gen/determine-needs tests))))
 
   (it "detects :advance-helper when thens have :unit-at-next-round"
     (let [tests [{:givens [] :whens [] :thens [{:type :unit-at-next-round :unit "D" :target "="}]}]]
@@ -58,14 +58,14 @@
     (let [tests [{:givens [] :whens [{:type :advance-until-waiting :unit "F"}] :thens []}]
           needs (gen/determine-needs tests)]
       (should-contain :advance-until-waiting-helper needs)
-      (should-contain :quil needs)
+      (should-not-contain :quil needs)
       (should-contain :game-loop needs)))
 
   (it "detects :advance-until-waiting-helper when thens have :unit-waiting-for-input"
     (let [tests [{:givens [] :whens [] :thens [{:type :unit-waiting-for-input :unit "C"}]}]
           needs (gen/determine-needs tests)]
       (should-contain :advance-until-waiting-helper needs)
-      (should-contain :quil needs)
+      (should-not-contain :quil needs)
       (should-contain :game-loop needs)))
 
   (it "detects :get-test-city when givens have :production with city target"
@@ -76,9 +76,9 @@
     (let [tests [{:givens [] :whens [{:type :visibility-update}] :thens []}]]
       (should-contain :game-loop (gen/determine-needs tests))))
 
-  (it "detects :quil when whens have :mouse-at-key"
+  (it "does not detect :quil when whens have :mouse-at-key"
     (let [tests [{:givens [] :whens [{:type :mouse-at-key :coords [0 0] :key :period}] :thens []}]]
-      (should-contain :quil (gen/determine-needs tests))))
+      (should-not-contain :quil (gen/determine-needs tests))))
 
   (it "detects :computer-production when whens have :evaluate-production"
     (let [tests [{:givens [] :whens [{:type :evaluate-production :city "X"}] :thens []}]]
@@ -184,8 +184,8 @@
 
   (it "generates key-down when"
     (let [result (gen/generate-when {:type :key-press :key :s :input-fn :key-down})]
-      (should-contain "q/mouse-x" result)
-      (should-contain "input/key-down :s" result)))
+      (should-not-contain "q/mouse-x" result)
+      (should-contain "input/key-down :s 0 0" result)))
 
   (it "generates handle-key when"
     (let [result (gen/generate-when {:type :key-press :key :d :input-fn :handle-key})]
@@ -237,15 +237,15 @@
 
   (it "generates mouse-at-key when with period key"
     (let [result (gen/generate-when {:type :mouse-at-key :coords [0 1] :key :period})]
-      (should-contain "q/mouse-x" result)
-      (should-contain "q/mouse-y" result)
+      (should-not-contain "q/mouse-x" result)
       (should-contain "input/key-down" result)
+      (should-contain "px py" result)
       (should-contain (str "(keyword \".\")") result)))
 
   (it "generates mouse-at-key when with u key"
     (let [result (gen/generate-when {:type :mouse-at-key :coords [0 0] :key :u})]
-      (should-contain "q/mouse-x" result)
-      (should-contain "input/key-down :u" result)))
+      (should-not-contain "q/mouse-x" result)
+      (should-contain "input/key-down :u px py" result)))
 
   (it "generates mouse-at-key when with l key"
     (let [result (gen/generate-when {:type :mouse-at-key :coords [0 0] :key :l})]
@@ -543,7 +543,7 @@
       (should-contain "empire.atoms :as atoms" result)
       (should-contain "empire.config :as config" result)
       (should-contain "empire.ui.input :as input" result)
-      (should-contain "quil.core :as q" result)))
+      (should-not-contain "quil.core :as q" result)))
 
   (it "generates army spec with correct describe"
     (let [edn-data {:source "army.txt"
@@ -592,7 +592,7 @@
                              :thens [{:type :unit-present :unit "A" :coords [0 0]}]}]}
           result (gen/generate-spec edn-data)]
       (should-contain "(ns acceptance.backtick-commands-spec" result)
-      (should-contain "quil.core :as q" result)))
+      (should-not-contain "quil.core :as q" result)))
 
   (it "generates backtick-commands spec with all 13 tests"
     (let [edn-data {:source "backtick-commands.txt"

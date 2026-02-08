@@ -792,6 +792,7 @@
     (reset! atoms/player-items [[0 0] [3 0]])  ;; Both player armies in queue
     (reset! atoms/waiting-for-input false)
     (reset! atoms/paused false)
+    (reset! atoms/game-over-check-enabled true)
     ;; Step 1: first army asks for attention
     (game-loop/advance-game)
     (should @atoms/waiting-for-input)

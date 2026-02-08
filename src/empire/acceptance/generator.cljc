@@ -97,15 +97,10 @@
     :pred (fn [{:keys [givens whens]}]
             (some #(= :waiting-for-input (:type %)) (concat givens whens)))}
    {:need :advance-until-waiting-helper
-    :needs-also #{:quil :game-loop}
+    :needs-also #{:game-loop}
     :pred (fn [{:keys [whens thens]}]
             (or (some #(= :advance-until-waiting (:type %)) whens)
                 (some #(= :unit-waiting-for-input (:type %)) thens)))}
-   {:need :quil
-    :pred (fn [{:keys [whens]}]
-            (or (some #(and (= :key-press (:type %)) (= :key-down (:input-fn %))) whens)
-                (some #(= :backtick (:type %)) whens)
-                (some #(= :mouse-at-key (:type %)) whens)))}
    {:need :advance-helper
     :pred (fn [{:keys [types thens]}]
             (or (some #{:unit-eventually-at :unit-after-steps} types)
@@ -179,8 +174,6 @@
       (swap! requires conj "[empire.game-loop.item-processing :as item-processing]"))
     ;; Always need input (key-down/handle-key)
     (swap! requires conj "[empire.ui.input :as input]")
-    (when (contains? needs :quil)
-      (swap! requires conj "[quil.core :as q]"))
     (when (contains? needs :computer-production)
       (swap! requires conj "[empire.computer.production :as computer-production]"))
     (when (contains? needs :computer-transport)
@@ -230,10 +223,8 @@
                   "      (let [coords (first @atoms/cells-needing-attention)\n"
                   "            cell (get-in @atoms/game-map coords)\n"
                   "            k (if (= :city (:type cell)) :x :space)]\n"
-                  "        (with-redefs [q/mouse-x (constantly 0)\n"
-                  "                      q/mouse-y (constantly 0)]\n"
-                  "          (reset! atoms/last-key nil)\n"
-                  "          (input/key-down k))\n"
+                  "        (reset! atoms/last-key nil)\n"
+                  "        (input/key-down k 0 0)\n"
                   "        (game-loop/advance-game)\n"
                   "        (recur (dec n)))\n"
                   "\n"
@@ -393,10 +384,8 @@
 
 (defn- generate-key-press-when [{:keys [key input-fn]}]
   (if (= input-fn :key-down)
-    (str "    (with-redefs [q/mouse-x (constantly 0)\n"
-         "                  q/mouse-y (constantly 0)]\n"
-         "      (reset! atoms/last-key nil)\n"
-         "      (input/key-down :" (name key) "))")
+    (str "    (reset! atoms/last-key nil)\n"
+         "    (input/key-down :" (name key) " 0 0)")
     (str "    (input/handle-key :" (name key) ")")))
 
 (defn- generate-battle-when [{:keys [key outcome combat-type]}]
@@ -411,10 +400,8 @@
 (defn- generate-backtick-when [{:keys [key mouse-cell]}]
   (let [[x y] mouse-cell]
     (str "    (reset! atoms/map-screen-dimensions [22 16])\n"
-         "    (with-redefs [q/mouse-x (constantly " x ")\n"
-         "                  q/mouse-y (constantly " y ")]\n"
-         "      (input/key-down (keyword \"`\"))\n"
-         "      (input/key-down :" (name key) "))")))
+         "    (input/key-down (keyword \"`\") " x " " y ")\n"
+         "    (input/key-down :" (name key) " " x " " y ")")))
 
 (defn- mouse-at-key-expr [key]
   (case key
@@ -431,9 +418,7 @@
          "          px (int (+ (* " cx " cell-w) (/ cell-w 2)))\n"
          "          py (int (+ (* " cy " cell-h) (/ cell-h 2)))]\n"
          "      (reset! atoms/map-screen-dimensions [map-w map-h])\n"
-         "      (with-redefs [q/mouse-x (constantly px)\n"
-         "                    q/mouse-y (constantly py)]\n"
-         "        (input/key-down " key-expr ")))")))
+         "      (input/key-down " key-expr " px py))")))
 
 (defn- generate-visibility-update-when [_]
   "    (game-loop/update-player-map)")

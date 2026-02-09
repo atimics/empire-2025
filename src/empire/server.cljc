@@ -65,7 +65,11 @@
   (let [the-map (case @atoms/map-to-display
                   :player-map @atoms/player-map
                   :computer-map @atoms/computer-map
-                  :actual-map @atoms/game-map)]
+                  :actual-map @atoms/game-map)
+        selected-cell (or (when (and @atoms/waiting-for-input
+                                     (seq @atoms/cells-needing-attention))
+                            (first @atoms/cells-needing-attention))
+                          @atoms/last-clicked-cell)]
     {:type "state"
      :map_size @atoms/map-size
      :cells (serialize-map the-map @atoms/production)
@@ -79,7 +83,7 @@
      :error_message @atoms/error-message
      :error_until @atoms/error-until
      :hover_message @atoms/hover-message
-    :selected_cell @atoms/last-clicked-cell
+     :selected_cell selected-cell
      :production_status @atoms/production-status
      :destination @atoms/destination
      :map_to_display (name @atoms/map-to-display)

@@ -180,6 +180,11 @@ impl Renderer {
         // Draw message area panel
         self.draw_message_area(state, now, canvas_w, map_h, text_h);
 
+        // Draw inspector panel (selected cell details)
+        if state.show_inspector {
+            self.draw_inspector_panel(state, grid_w, map_h, canvas_w);
+        }
+
         // Draw tutorial overlay if active and visible
         if let Some(ref tut) = state.tutorial {
             if tut.overlay_visible {
@@ -757,6 +762,7 @@ impl Renderer {
         globals.push("? tutorial");
         globals.push("h help");
         globals.push("i tips on/off");
+        globals.push("I inspector");
         if !globals.is_empty() {
             lines.push(format!("Keys: {}", globals.join("  ")));
         }
@@ -807,13 +813,13 @@ impl Renderer {
         if !state.used_pause {
             nudges.push("P pauses at round end");
         }
-        // Only nudge destination/waypoint once we can aim them (hover-based)
-        if state.hover_col.is_some() && state.hover_row.is_some() {
+        // Only nudge destination/waypoint once we can aim them (selection preferred; hover fallback)
+        if state.selected_col.is_some() || (state.hover_col.is_some() && state.hover_row.is_some()) {
             if !state.used_destination {
-                nudges.push(". sets destination at hover");
+                nudges.push(". sets destination at selection");
             }
             if !state.used_waypoint {
-                nudges.push("* toggles waypoint at hover");
+                nudges.push("* toggles waypoint at selection");
             }
         }
         if !nudges.is_empty() {
@@ -1056,7 +1062,7 @@ impl Renderer {
         self.ctx.set_font(FONT_MENU_HINT);
         self.ctx.set_fill_style_str(&rgb(COLOR_TEXT_SECONDARY));
         self.ctx
-            .fill_text("[h/H] hide panel", left + padding + 4.0, hint_y)
+            .fill_text("[h/H] hide panel   [I] inspector", left + padding + 4.0, hint_y)
             .ok();
 
         self.ctx.set_text_baseline("alphabetic");
@@ -1141,6 +1147,89 @@ impl Renderer {
             left + padding,
             top + menu_h - padding,
         ).ok();
+
+        self.ctx.set_text_baseline("alphabetic");
+    }
+
+    fn draw_inspector_panel(&self, state: &GameState, map_w: f64, map_h: f64, canvas_w: f64) {
+        let padding = 14.0;
+        let panel_w = 320.0f64.min(canvas_w * 0.45);
+
+        // Prefer unused space to the right of the map; otherwise overlay on the map.
+        let left = if canvas_w > map_w + panel_w + 24.0 {
+            map_w + 12.0
+        } else {
+            canvas_w - panel_w - 12.0
+        };
+        let top = 12.0;
+        let content_w = panel_w - 2.0 * padding - 4.0;
+
+        let mut lines = self.compute_selected_lines(state);
+        if lines.is_empty() {
+            lines.push("Click a cell to inspect it".to_string());
+            lines.push("Tip: keys target the selected cell".to_string());
+        } else {
+            // Small reminder since this is a common browser-client confusion.
+            lines.push("Targeting: keyboard commands use selection".to_string());
+        }
+
+        self.ctx.set_font(FONT_MENU_ITEM);
+        let mut wrapped: Vec<String> = Vec::new();
+        for line in lines {
+            for w in self.wrap_text(&line, content_w) {
+                wrapped.push(w);
+            }
+        }
+
+        let title_h = 20.0;
+        let line_h = 18.0;
+        let body_h = (wrapped.len().max(1) as f64) * line_h;
+        let hint_h = 18.0;
+        let max_h = (map_h - 24.0).max(140.0);
+        let desired_h = padding + title_h + 10.0 + body_h + 10.0 + hint_h + padding;
+        let panel_h = desired_h.min(max_h);
+
+        // Panel background
+        self.ctx.set_global_alpha(0.92);
+        self.ctx.set_fill_style_str(&rgb(COLOR_PANEL_BG));
+        self.ctx.fill_rect(left, top, panel_w, panel_h);
+        self.ctx.set_global_alpha(1.0);
+
+        // Accent
+        self.ctx.set_fill_style_str(&rgb(COLOR_ACCENT));
+        self.ctx.fill_rect(left, top, 3.0, panel_h);
+
+        // Border
+        self.ctx.set_stroke_style_str(&rgb(COLOR_PANEL_BORDER));
+        self.ctx.set_line_width(1.0);
+        self.ctx.stroke_rect(left, top, panel_w, panel_h);
+
+        // Title
+        self.ctx.set_font(FONT_MENU_TITLE);
+        self.ctx.set_fill_style_str(&rgb(COLOR_ACCENT));
+        self.ctx.set_text_baseline("top");
+        self.ctx.fill_text("Inspector", left + padding + 4.0, top + padding).ok();
+
+        // Body
+        self.ctx.set_font(FONT_MENU_ITEM);
+        self.ctx.set_fill_style_str(&rgb(COLOR_TEXT_PRIMARY));
+        let text_top = top + padding + title_h + 8.0;
+        let max_lines = ((panel_h - (text_top - top) - padding - hint_h - 10.0) / line_h)
+            .floor()
+            .max(1.0) as usize;
+        for (i, line) in wrapped.iter().take(max_lines).enumerate() {
+            self.ctx
+                .fill_text(line, left + padding + 4.0, text_top + i as f64 * line_h)
+                .ok();
+        }
+
+        // Hint
+        let hint_y = top + panel_h - padding - hint_h;
+        self.ctx.set_font(FONT_MENU_HINT);
+        self.ctx.set_fill_style_str(&rgb(COLOR_TEXT_SECONDARY));
+        self.ctx
+            .fill_text("[I] hide inspector", left + padding + 4.0, hint_y)
+            .ok();
 
         self.ctx.set_text_baseline("alphabetic");
     }

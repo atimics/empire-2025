@@ -139,13 +139,20 @@ pub fn start() -> Result<(), JsValue> {
                 return;
             }
 
-            // Use current hover cell as the "mouse" coordinate for key commands.
-            // This makes commands like '.', '*', 'u', etc work in the browser client.
+            // Local-only: toggle inspector panel
+            if e.key() == "I" {
+                let mut st = state_clone.borrow_mut();
+                st.show_inspector = !st.show_inspector;
+                return;
+            }
+
+            // Use selected cell as the "mouse" coordinate for key commands (preferred).
+            // Falls back to hover when nothing is selected.
             let (mx, my) = {
                 let st = state_clone.borrow();
                 (
-                    st.hover_col.unwrap_or(0) as i32,
-                    st.hover_row.unwrap_or(0) as i32,
+                    st.selected_col.or(st.hover_col).unwrap_or(0) as i32,
+                    st.selected_row.or(st.hover_row).unwrap_or(0) as i32,
                 )
             };
 

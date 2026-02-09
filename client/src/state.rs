@@ -30,6 +30,7 @@ pub struct GameState {
 
     // --- Client-side onboarding / UI state ---
     pub show_help_overlay: bool,
+    pub show_inspector: bool,
     pub used_pause: bool,
     pub used_tutorial_menu: bool,
     pub used_destination: bool,
@@ -68,6 +69,7 @@ impl GameState {
             tutorial_menu_hovered: None,
 
             show_help_overlay: true,
+            show_inspector: true,
             used_pause: false,
             used_tutorial_menu: false,
             used_destination: false,

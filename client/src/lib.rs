@@ -408,6 +408,9 @@ fn map_key_event(e: &KeyboardEvent, mouse_x: i32, mouse_y: i32) -> Option<(Strin
 
         // Tips toggle (server-side)
         "h" => "h".to_string(),
+        // Tips toggle (server-side) alternate binding for the browser client.
+        // Lowercase 'h' is reserved for hiding the local help panel.
+        "i" => "h".to_string(),
         _ => return None,
     };
 

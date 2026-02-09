@@ -150,6 +150,7 @@ impl Renderer {
         let pulse_attention = pulse(now, 1500.0);
         let pulse_completed = pulse(now, 2000.0);
         let pulse_unit = pulse(now, 800.0);
+        let pulse_marker = pulse(now, 900.0);
 
         // Draw fog texture for unexplored cells
         self.draw_fog_texture(cols, rows);
@@ -172,6 +173,9 @@ impl Renderer {
         // Draw production indicators, units, and waypoints
         self.ctx.set_font(FONT_CELL);
         self.draw_cell_contents(state, cols, rows, pulse_unit);
+
+        // Draw an in-cell marker for the active "needs attention" target
+        self.draw_attention_marker(state, grid_w, map_h, pulse_marker);
 
         // Draw message area panel
         self.draw_message_area(state, now, canvas_w, map_h, text_h);
@@ -351,6 +355,60 @@ impl Renderer {
                 }
             }
         }
+    }
+
+    fn draw_attention_marker(&self, state: &GameState, map_w: f64, map_h: f64, pulse: f64) {
+        if !state.waiting_for_input {
+            return;
+        }
+
+        let Some(&(col, row)) = state.attention_coords.first() else {
+            return;
+        };
+
+        let (cols, rows) = state.map_size;
+        if col >= cols || row >= rows {
+            return;
+        }
+
+        let x = col as f64 * CELL_W;
+        let y = row as f64 * CELL_H;
+        if x + CELL_W > map_w || y + CELL_H > map_h {
+            return;
+        }
+
+        // Subtle pulsing corner chevrons so it's clear the *attention target* is here.
+        let alpha = 0.55 + 0.35 * pulse;
+        self.ctx.set_stroke_style_str(&rgba(COLOR_SENTRY, alpha));
+        self.ctx.set_line_width(2.0);
+
+        let inset = 2.5;
+        let len = 5.5;
+        let left = x + inset;
+        let right = x + CELL_W - inset;
+        let top = y + inset;
+        let bottom = y + CELL_H - inset;
+
+        self.ctx.begin_path();
+        // top-left
+        self.ctx.move_to(left + len, top);
+        self.ctx.line_to(left, top);
+        self.ctx.line_to(left, top + len);
+        // top-right
+        self.ctx.move_to(right - len, top);
+        self.ctx.line_to(right, top);
+        self.ctx.line_to(right, top + len);
+        // bottom-left
+        self.ctx.move_to(left + len, bottom);
+        self.ctx.line_to(left, bottom);
+        self.ctx.line_to(left, bottom - len);
+        // bottom-right
+        self.ctx.move_to(right - len, bottom);
+        self.ctx.line_to(right, bottom);
+        self.ctx.line_to(right, bottom - len);
+        self.ctx.stroke();
+
+        self.ctx.set_line_width(1.0);
     }
 
     fn draw_cell_contents(
@@ -697,7 +755,8 @@ impl Renderer {
         globals.push("P pause");
         globals.push("+ map");
         globals.push("? tutorial");
-        globals.push("h tips on/off");
+        globals.push("h help");
+        globals.push("i tips on/off");
         if !globals.is_empty() {
             lines.push(format!("Keys: {}", globals.join("  ")));
         }

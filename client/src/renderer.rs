@@ -823,6 +823,92 @@ impl Renderer {
         lines
     }
 
+    fn compute_selected_lines(&self, state: &GameState) -> Vec<String> {
+        let (Some(col), Some(row)) = (state.selected_col, state.selected_row) else {
+            return vec![];
+        };
+
+        let mut lines: Vec<String> = Vec::new();
+
+        let cell = state
+            .cells
+            .get(col)
+            .and_then(|c| c.get(row))
+            .and_then(|c| c.as_ref());
+
+        let Some(cell) = cell else {
+            lines.push(format!("Selected: ({}, {})", col, row));
+            return lines;
+        };
+
+        if cell.t == "city" {
+            let owner = cell.cs.as_deref().unwrap_or("unknown");
+            lines.push(format!("Selected: City ({}) @ ({}, {})", owner, col, row));
+
+            if let Some(ref prod) = cell.prod {
+                lines.push(format!(
+                    "Production: {} ({} rounds left)",
+                    prod.item, prod.remaining
+                ));
+            } else {
+                lines.push("Production: none".to_string());
+            }
+
+            // Garrison/containers summary when present
+            let mut extras: Vec<String> = Vec::new();
+            if let Some(fc) = cell.fc {
+                if fc > 0 {
+                    extras.push(format!("Fighters: {}", fc));
+                }
+            }
+            if let Some(ac) = cell.ac {
+                if ac > 0 {
+                    extras.push(format!("Armies: {}", ac));
+                }
+            }
+            if let Some(af) = cell.af {
+                if af > 0 {
+                    extras.push(format!("Awake F: {}", af));
+                }
+            }
+            if let Some(aa) = cell.aa {
+                if aa > 0 {
+                    extras.push(format!("Awake A: {}", aa));
+                }
+            }
+            if !extras.is_empty() {
+                lines.push(extras.join("  "));
+            }
+
+            if let Some(ref unit) = cell.u {
+                lines.push(format!("Unit: {} ({})", unit.t, unit.m));
+            }
+
+            // Suggestions (browser-friendly: most commands target hover)
+            if owner == "player" {
+                if cell.u.is_some() {
+                    lines.push("Suggestion: move the unit first; city production is set when no active unit is in the city".to_string());
+                } else if cell.prod.is_none() {
+                    lines.push("Suggestion: set production (F/T/P/D/S/C/B/Z) or X for none".to_string());
+                } else {
+                    lines.push("Suggestion: wait, or X to clear and pick a new unit".to_string());
+                }
+            } else {
+                lines.push("Suggestion: capture with an adjacent Army".to_string());
+            }
+        } else {
+            lines.push(format!("Selected: {} @ ({}, {})", cell.t, col, row));
+            if let Some(ref unit) = cell.u {
+                lines.push(format!("Unit: {} ({})", unit.t, unit.m));
+                if state.waiting_for_input {
+                    lines.push("Suggestion: move QWEASDZXC or SPACE to skip".to_string());
+                }
+            }
+        }
+
+        lines
+    }
+
     fn draw_help_overlay(
         &self,
         state: &GameState,
@@ -850,6 +936,15 @@ impl Renderer {
         // Wrap both tip + controls
         self.ctx.set_font(FONT_MENU_ITEM);
         let tip_lines = self.wrap_text(tip_text, content_w);
+
+        let selected_lines = self.compute_selected_lines(state);
+        let mut wrapped_selected: Vec<String> = Vec::new();
+        for line in selected_lines {
+            for w in self.wrap_text(&line, content_w) {
+                wrapped_selected.push(w);
+            }
+        }
+
         let controls_lines = self.compute_controls_lines(state);
         let mut wrapped_controls: Vec<String> = Vec::new();
         for line in controls_lines {
@@ -863,12 +958,22 @@ impl Renderer {
         let section_gap = 10.0;
         let line_h = 18.0;
         let tip_h = (tip_lines.len().max(1) as f64) * line_h;
+        let selected_header_h = if wrapped_selected.is_empty() { 0.0 } else { 18.0 };
+        let selected_h = (wrapped_selected.len().max(0) as f64) * line_h;
         let controls_h = (wrapped_controls.len().max(1) as f64) * line_h;
         let hint_h = 18.0;
+
+        let selected_section_h = if wrapped_selected.is_empty() {
+            0.0
+        } else {
+            section_gap + selected_header_h + 6.0 + selected_h
+        };
+
         let panel_h = padding
             + title_h
             + 8.0
             + tip_h
+            + selected_section_h
             + section_gap
             + controls_h
             + 10.0
@@ -914,8 +1019,31 @@ impl Renderer {
                 .ok();
         }
 
+        // Selected section (only when a cell is selected)
+        let mut after_tip_y = text_top + tip_h;
+        if !wrapped_selected.is_empty() {
+            let sel_top = after_tip_y + section_gap;
+
+            self.ctx.set_font(FONT_MENU_HINT);
+            self.ctx.set_fill_style_str(&rgb(COLOR_TEXT_SECONDARY));
+            self.ctx
+                .fill_text("Selected", left + padding + 4.0, sel_top)
+                .ok();
+
+            self.ctx.set_font(FONT_MENU_ITEM);
+            self.ctx.set_fill_style_str(&rgb(COLOR_TEXT_PRIMARY));
+            let sel_text_top = sel_top + 6.0 + selected_header_h;
+            for (i, line) in wrapped_selected.iter().enumerate() {
+                self.ctx
+                    .fill_text(line, left + padding + 4.0, sel_text_top + i as f64 * line_h)
+                    .ok();
+            }
+
+            after_tip_y = sel_text_top + selected_h;
+        }
+
         // Controls section
-        let controls_top = text_top + tip_h + section_gap;
+        let controls_top = after_tip_y + section_gap;
         self.ctx.set_fill_style_str(&rgb(COLOR_TEXT_SECONDARY));
         for (i, line) in wrapped_controls.iter().enumerate() {
             self.ctx
